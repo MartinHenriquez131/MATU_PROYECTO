@@ -44,6 +44,11 @@
   /* Borde de los controles: 3,5:1 sobre hoja y 3,1:1 sobre papel en claro, 4:1 sobre hoja en
      oscuro (WCAG 1.4.11). `linea` queda para divisores, nunca para el borde de un control. */
   --color-borde: color-mix(in oklab, var(--color-tinta) 50%, var(--color-hoja));
+  /* Velo de los diálogos modales (MATU-103, DISENO.md sección 1): `backdrop:bg-velo`, sin
+     modificador de opacidad. Un verde casi negro, más oscuro que el `papel` oscuro, para que
+     oscurezca la página en los dos temas. Sin hexadecimal a propósito: no va al @media print,
+     donde los diálogos no se imprimen. En el tema oscuro solo sube la opacidad. */
+  --color-velo: rgb(4 12 14 / 0.45);
 
   --font-sans: 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Bricolage Grotesque Variable', 'Atkinson Hyperlegible', ui-sans-serif, sans-serif;
@@ -91,6 +96,7 @@
   --color-atenta-fondo: #33270f;
   --color-ok: #8fd9a8;
   --color-ok-fondo: #13301f;
+  --color-velo: rgb(4 12 14 / 0.6);
 }
 :root[data-tema='claro'] {
   color-scheme: light;
@@ -110,6 +116,7 @@
     --color-atenta-fondo: #33270f;
     --color-ok: #8fd9a8;
     --color-ok-fondo: #13301f;
+    --color-velo: rgb(4 12 14 / 0.6);
   }
 }
 

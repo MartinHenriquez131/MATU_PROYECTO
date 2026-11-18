@@ -26,6 +26,7 @@ from app.modules.care_plan.api.dependencias import obtener_auditoria_ficha
 from app.modules.care_plan.domain.cifrado import SeccionCifrada
 from app.modules.care_plan.infrastructure.repositorio_ficha import RepositorioFichaSQL
 from tests.base_datos import DSN, requiere_base
+from tests.concurrencia import esperar_bloqueada_por, pid_de
 from tests.fabricas import FamiliaCreada, UsuarioCreado
 from tests.modules.care_plan.conftest import RUTA_FICHA, EntornoFicha
 
@@ -490,12 +491,12 @@ def test_update_condicional_es_atomico_con_la_fila_bloqueada(entorno_ficha: Ento
         nueva_a = RepositorioFichaSQL(sesion_a, grupo).actualizar_seccion_si_version(
             plan[0], "rutina", _cifrada_falsa(), 1, admin.id, ahora
         )
+        pid = pid_de(sesion_a)
         hilo = threading.Thread(target=escritura_b)
         hilo.start()
         assert b_empezo.wait(timeout=10)
-        hilo.join(timeout=0.5)
         # B sigue esperando el bloqueo de A
-        assert hilo.is_alive()
+        esperar_bloqueada_por(pid, hilo)
     hilo.join(timeout=10)
 
     assert nueva_a == 2
@@ -527,10 +528,10 @@ def test_insert_de_la_primera_escritura_es_atomico(entorno_ficha: EntornoFicha) 
         creada_a = RepositorioFichaSQL(sesion_a, grupo).insertar_seccion(
             plan[0], "rutina", _cifrada_falsa(), admin.id, ahora
         )
+        pid = pid_de(sesion_a)
         hilo = threading.Thread(target=escritura_b)
         hilo.start()
-        hilo.join(timeout=0.5)
-        assert hilo.is_alive()
+        esperar_bloqueada_por(pid, hilo)  # el INSERT de B espera el de A
     hilo.join(timeout=10)
 
     assert creada_a is True

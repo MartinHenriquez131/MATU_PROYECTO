@@ -146,14 +146,15 @@ describe('3.11.4 · el teléfono se dibuja sin cambiar el texto', () => {
   it('cada número va en un inline-block con dos cifras: el prefijo y el resto', () => {
     render(<PantallaFicha ficha={ficha()} onActualizar={async () => 'ok'} />)
     const todos = bloques(document)
+    // MATU-95: «A quién llamar» va primero en la hoja.
     expect(todos.map((b) => b.textContent)).toEqual([
-      '+56 9 5555 0141', // Su día, en la línea de tiempo
-      '9 5555 0177', // Si se altera, junto a una hora
-      '+56 9 5555 0141',
+      '+56 9 5555 0141', // A quién llamar
       '9 5555-0102.', // con el punto que lo sigue
       '+56 2 2555 0123',
       '+56955550199',
       '+56-9-5555-0177',
+      '+56 9 5555 0141', // Su día, en la línea de tiempo
+      '9 5555 0177', // Si se altera, junto a una hora
       '(+56 9 5555 0163)', // la sección, con sus paréntesis
     ])
     for (const b of todos) {
@@ -168,12 +169,12 @@ describe('3.11.4 · el teléfono se dibuja sin cambiar el texto', () => {
       expect([...b.attributes].map((a) => a.name)).toEqual(['class'])
       expect(b.className).not.toMatch(/break-all|wrap-anywhere/)
     }
-    const [, alteraTel] = todos
+    const alteraTel = todos[6]
     expect([...alteraTel.querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['9', '5555 0177'])
     // La puntuación pegada va dentro de las cifras: al principio del prefijo y al final del resto.
     const sofia = todos[todos.length - 1]
     expect([...sofia.querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['(+56 9', '5555 0163)'])
-    expect([...todos[3].querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['9', '5555-0102.'])
+    expect([...todos[1].querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['9', '5555-0102.'])
     // En las secciones, la hora sigue en su propia cifra, fuera del bloque del número.
     const enSeccion = seccion('Quién es').querySelector('p') as HTMLElement
     expect([...enSeccion.querySelectorAll(':scope > .cifras')].map((c) => c.textContent)).toEqual(['11:00'])

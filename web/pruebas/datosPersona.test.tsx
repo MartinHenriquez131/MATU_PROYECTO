@@ -11,6 +11,10 @@ import { DatosDePersona } from '../src/familia/DatosPersona'
 import { familiaFalsa } from './familiaFalsa'
 import { A_QUIEN, antes, apiCopia, hecho, copiaComoRespuesta, copiaPersona, dialogoDeJsdom, diferida, fijarAhora, MARIA, problemaCopia } from './misDatosFalso'
 import { responderPolitica } from './politicaFalsa'
+import { fueraDeRegiones, plazosConCarga } from './conCarga'
+
+// MATU-119: con la máquina cargada, abrir la copia y recorrer sus bloques pasaba el segundo de las esperas o los 15 s de tope.
+plazosConCarga()
 
 const fijar = vi.fn()
 const anunciar = vi.fn()
@@ -228,7 +232,7 @@ describe('«Datos de María»: los bloques (3.4)', () => {
     expect(champu).toHaveTextContent('Quedaban 30 sobres el 10/11/2026.')
     expect(champu).toHaveTextContent('Se acaba el 09/01/2027.')
     expect(champu).toHaveTextContent('Avisa el mismo día.')
-    expect(champu).toHaveTextContent('10 por envase.')
+    expect(champu).toHaveTextContent('10 sobres por envase.')
     expect(champu).toHaveTextContent('Lo agregaron el 20/10/2026. Lo cambió por última vez Carmen Soto el 10/11/2026 a las 08:00.')
     expect(champu).not.toHaveTextContent('Ya no se sigue')
     expect(toallitas).toHaveTextContent('Ya no se sigue')
@@ -236,6 +240,21 @@ describe('«Datos de María»: los bloques (3.4)', () => {
     expect(toallitas).not.toHaveTextContent('Se acaba el')
     expect(toallitas).toHaveTextContent('Avisa 7 días antes.')
     expect(toallitas).toHaveTextContent('Lo cambió por última vez alguien que ya no está en el grupo')
+  })
+
+  // MATU-110 (especificación matu-110-envase-ml-g.md, 6): «400 ml por envase.», no «400 por envase.».
+  it.each([
+    ['unidad', 1200, '1.200 unidades por envase.'],
+    ['sobre', 10, '10 sobres por envase.'],
+    ['ml', 400, '400 ml por envase.'],
+    ['g', 250, '250 g por envase.'],
+  ] as const)('Sus insumos: el envase con su unidad (%s)', async (unidad, n, texto) => {
+    const base = copiaPersona()
+    const [primero, ...resto] = base.insumos.lista!
+    abrir({ ...base, insumos: { ...base.insumos, lista: [{ ...primero, unidad, unidades_por_envase: n }, ...resto] } })
+    await listo()
+    const [insumo] = within(bloque('Sus insumos')).getAllByRole('listitem')
+    expect(insumo).toHaveTextContent(texto)
   })
 
   it('Compras y avisos de insumos: origen, quién, y los cuatro estados del aviso', async () => {
@@ -534,7 +553,8 @@ describe('«Datos de María»: descargar (3.7)', () => {
     expect(soltados).toEqual(['blob:prueba'])
     expect(pedidas).toHaveLength(1)
     expect(screen.queryByRole('dialog')).toBeNull()
-    const nota = screen.getByText('Te entregamos el archivo. Búscalo en tus descargas.')
+    // MATU-119: la nota que se ve, no su copia en la región viva, que llega 50 ms después.
+    const nota = screen.getByText('Te entregamos el archivo. Búscalo en tus descargas.', fueraDeRegiones)
     await waitFor(() => expect(nota.closest('[tabindex="-1"]')).toHaveFocus())
     // La nota se borra al volver a abrir el diálogo.
     await u().click(screen.getByRole('button', { name: 'Descargar en un archivo' }))

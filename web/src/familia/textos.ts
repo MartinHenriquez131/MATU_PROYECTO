@@ -210,7 +210,11 @@ export const MAS = {
   vistaPrevia: 'Cada relevo ve solo las secciones que eliges al compartir.',
   // Editor
   ayuda: 'No hace falta escribir diagnósticos ni enfermedades. Escribe lo que ayuda a cuidar.',
-  alergias: 'Si tiene alergia a algún remedio o alimento, anótalo aquí.',
+  // MATU-95, lenguaje 14.2: una pregunta cotidiana distinta en cada sección (Jorge, 17-11).
+  alergias: {
+    alimentacion: '¿Hay algo que no puede comer o tomar? Anótalo aquí.',
+    remedios: '¿Hay algún remedio que no le pueden dar? Anótalo aquí.',
+  },
   ejemplo: (e: string) => `Por ejemplo: «${e}»`,
   contador: (n: number, tope: number) => `${n} de ${tope} caracteres`,
   // Guardado (4.4)
@@ -635,12 +639,23 @@ export const LISTA = {
   pie: 'Piloto académico con datos de prueba',
 
   // 9 El campo del envase en el formulario del insumo
-  /** [lenguaje 18] MATU-88: en los insumos en sobres dice «sobres» (H2 del TESTER de MATU-84). */
-  envase: (unidad: Unidad) => (unidad === 'sobre' ? '¿Cuántos sobres trae cada envase?' : '¿Cuántas unidades trae cada envase?'),
+  /**
+   * [lenguaje 18] MATU-88: en los insumos en sobres dice «sobres» (H2 del TESTER de MATU-84).
+   * MATU-110 (especificación matu-110-envase-ml-g.md, 2): en ml y g pregunta en la unidad del insumo [NUEVO].
+   */
+  envase: (unidad: Unidad) =>
+    ({
+      unidad: '¿Cuántas unidades trae cada envase?',
+      sobre: '¿Cuántos sobres trae cada envase?',
+      ml: '¿Cuántos ml trae cada envase?',
+      g: '¿Cuántos gramos trae cada envase?',
+    })[unidad],
   envaseAyuda: 'Si lo anotas, la lista sugiere envases enteros. Puedes dejarlo en blanco.',
   errEnvase: 'Escribe un número de 1 a 10.000, o déjalo en blanco.',
   envaseConflicto: (u: string, sufijo: string) => `Cada envase trae ${u} ${sufijo}.`,
-  sinEnvase: 'Sin unidades por envase.',
+  /** MATU-110 (2): el 412 sin envase, en la unidad del insumo. Sobres, ml y g son [NUEVO]. */
+  sinEnvase: (unidad: Unidad) =>
+    ({ unidad: 'Sin unidades por envase.', sobre: 'Sin sobres por envase.', ml: 'Sin ml por envase.', g: 'Sin gramos por envase.' })[unidad],
   // MATU-84 (especificación matu-84-me-quedan-envases.md, 7): el mismo campo dentro de «Contar en envases» [L 30]
   envaseAyudaEnvases: 'Lo guardamos para la próxima vez y para la lista.', // [L 30]
   errFaltaEnvase: (unidad: Unidad) => (unidad === 'sobre' ? 'Escribe cuántos sobres trae cada envase.' : 'Escribe cuántas unidades trae cada envase.'), // [L 30] y MATU-88

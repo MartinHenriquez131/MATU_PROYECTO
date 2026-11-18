@@ -10,11 +10,15 @@ import { AppComercio } from '../src/comercio/AppComercio'
 import type { ParteVista } from '../src/compartido/api/comercio'
 import { apiComercio, conRegionesVivas, ID, partesDeEjemplo } from './comercioFalso'
 import type { RespuestaFalsa } from './apiFalsa'
+import { plazosConCarga } from './conCarga'
 
 const u = () => userEvent.setup({ delay: null })
 const CAMPO = 'Código de retiro (6 números)'
 /** Deja correr los temporizadores y los renders pendientes. */
 const asentar = () => new Promise((r) => setTimeout(r, 60))
+
+// MATU-119: con la máquina cargada, abrir la consola y elegir una parte pasaba los 15 s de tope.
+plazosConCarga()
 
 async function abrirParte(referencia: string, sobre?: (l: string, c: unknown) => RespuestaFalsa | undefined, partes?: ParteVista[]) {
   const api = apiComercio({ sobre, partes })

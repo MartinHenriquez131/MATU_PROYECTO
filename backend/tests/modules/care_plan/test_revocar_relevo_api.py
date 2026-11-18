@@ -74,7 +74,8 @@ def _intacto(acceso_id: uuid.UUID) -> None:
     assert _auditoria_revocar(acceso_id) == []
 
 
-# --- Las dos pruebas del backlog -------------------------------------------------------------------------
+# --- Las pruebas del backlog --------------------------------------------------------------------------
+# test_recorrido_relevo, el recorrido 2 de MATU-64, está en tests/e2e/test_recorrido_2_relevo.py desde MATU-80
 
 
 def test_revocacion_efecto_inmediato(entorno: EntornoAbrir) -> None:
@@ -88,31 +89,6 @@ def test_revocacion_efecto_inmediato(entorno: EntornoAbrir) -> None:
     _problema(entorno.leer(), 410, "relevo-revocado")
     _problema(entorno.canjear(token, pin), 410, "relevo-revocado")
     _problema(entorno.presentar(token), 410, "relevo-revocado")
-
-
-def test_recorrido_relevo(entorno: EntornoAbrir) -> None:
-    """e2e: la familia escribe la ficha por su API, comparte, el relevo abre y la familia revoca."""
-    familia = entorno.ficha.familia()
-    for campo, texto in (("rutina", "Almuerza a las 13:00 en el comedor"), ("red_apoyo", "Sobrino: Tomás")):
-        escrita = entorno.ficha.escribir(familia.admin, familia.grupo.id, familia.persona.id, campo, {"texto": texto})
-        assert escrita.status_code in (200, 201), escrita.text
-    # MATU-50: un acceso nuevo comparte siempre los tres campos base
-    acceso_id, token, pin = entorno.compartir(familia, campos_anteriores=None)
-    assert str(entorno.relevo.base_url) == "https://testserver"
-
-    assert entorno.presentar(token).status_code == 200
-    assert entorno.canjear(token, pin).status_code == 204
-    ficha = entorno.leer()
-    assert ficha.status_code == 200
-    assert ficha.json()["campos"] == {
-        "rutina": {"texto": "Almuerza a las 13:00 en el comedor"},
-        "manejo_situaciones": {"texto": None},
-        "red_apoyo": {"texto": "Sobrino: Tomás"},
-    }
-
-    cuidador = familia.miembros["cuidador"].usuario
-    _sin_cuerpo_204(_revocar(entorno, cuidador, familia.grupo.id, acceso_id))
-    _problema(entorno.leer(), 410, "relevo-revocado")
 
 
 # --- Estado, coherencia e idempotencia ---------------------------------------------------------------------

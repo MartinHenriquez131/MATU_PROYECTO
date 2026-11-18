@@ -24,6 +24,7 @@ from app.modules.care_plan.application import destruccion
 from app.modules.care_plan.infrastructure.repositorio_accesos import RepositorioAccesosSQL
 from app.shared.auditoria_sql import RegistroAuditoriaSql
 from tests.base_datos import DSN, requiere_base
+from tests.concurrencia import esperar_bloqueada_por, pid_de
 from tests.fabricas import FamiliaCreada, UsuarioCreado
 from tests.modules.care_plan import test_abrir_relevo_api as abrir
 from tests.modules.care_plan.test_abrir_relevo_api import (
@@ -562,9 +563,9 @@ def _mientras_borra(entorno: EntornoAbrir, familia: FamiliaCreada, peticion: Any
     hilo = threading.Thread(target=lambda: respuestas.append(peticion()))
     with sesion_tenant(_fabrica(entorno), usuario_id=familia.admin.id, grupo_id=familia.grupo.id) as sesion:
         _borrar_en_transaccion(entorno, familia, sesion)
+        pid = pid_de(sesion)
         hilo.start()
-        hilo.join(timeout=1.0)
-        assert hilo.is_alive()  # espera el bloqueo del borrado
+        esperar_bloqueada_por(pid, hilo)  # espera el bloqueo del borrado
     hilo.join(timeout=15)
     [respuesta] = respuestas
     return respuesta
@@ -615,9 +616,9 @@ def test_borrar_durante_un_retiro_espera_y_la_retirada_conserva_su_motivo(entorn
             entorno.reloj, RepositorioRetirosSQL(sesion, familia.grupo.id, registro),
             efectos_de(sesion, familia.grupo.id, registro),
         )
+        pid = pid_de(sesion)
         hilo.start()
-        hilo.join(timeout=1.0)
-        assert hilo.is_alive()  # el borrado espera el bloqueo de la autorización
+        esperar_bloqueada_por(pid, hilo)  # el borrado espera el bloqueo de la autorización
     hilo.join(timeout=15)
     [respuesta] = respuestas
     assert respuesta.status_code == 200, respuesta.text
@@ -645,9 +646,9 @@ def test_una_seccion_confirmada_mientras_el_borrado_espera_la_clave_tambien_se_b
             "INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version, version,"
             " actualizado_por) VALUES (:plan, 'movilidad', :c, :n, :t, 1, 1, :u)"),
             {"plan": plan[0], "c": b"\x01" * 24, "n": b"\x02" * 12, "t": b"\x03" * 16, "u": _cuidador(familia).id})
+        pid = pid_de(sesion)
         borrado.start()
-        borrado.join(timeout=1.0)
-        assert borrado.is_alive()  # el UPDATE de la clave espera el FOR SHARE de la escritura
+        esperar_bloqueada_por(pid, borrado)  # el UPDATE de la clave espera el FOR SHARE de la escritura
     borrado.join(timeout=15)
     [respuesta] = respuestas
     assert respuesta.status_code == 200, respuesta.text

@@ -30,6 +30,10 @@ import {
   seguimiento,
   seguimientoEntregado,
 } from './tusPedidosFalso'
+import { fueraDeRegiones, plazosConCarga } from './conCarga'
+
+// MATU-119: con la máquina cargada, abrir la lista y el detalle pasaba el segundo de las esperas o los 15 s de tope.
+plazosConCarga()
 
 let contexto = familiaFalsa()
 vi.mock('../src/familia/estado', async (original) => ({
@@ -522,7 +526,8 @@ describe('Arrepentirme de la compra (5)', () => {
     expect(post.cuerpo).toEqual({ lineas: [{ linea_id: LINEA_SUPLEMENTO, cantidad: 1 }] })
     expect(String(post.cabeceras['Idempotency-Key'])).toMatch(/^[A-Za-z0-9_-]{16,64}$/)
     expect(post.cuerpo).not.toHaveProperty('motivo')
-    expect(await screen.findByText('Recibimos tu pedido de devolución. Te escribimos para coordinar el retiro.')).toBeVisible()
+    // MATU-119: la nota que se ve, no su copia en la región viva, que llega 50 ms después.
+    expect(await screen.findByText('Recibimos tu pedido de devolución. Te escribimos para coordinar el retiro.', fueraDeRegiones)).toBeVisible()
     const s = within((await screen.findByRole('heading', { level: 2, name: 'Productos para devolver' })).closest('section')!)
     expect(s.getByText(/^Te devolvemos/)).toHaveTextContent('Te devolvemos $26.000 cuando')
     expect(escrituras).toEqual([])
@@ -673,7 +678,8 @@ describe('Cancelar el pedido pagado (6)', () => {
     expect(screen.getAllByText('Pagado').length).toBeGreaterThan(0)
     expect(screen.queryByText('Cancelado')).toBeNull()
     await act(async () => soltar({ status: 200, cuerpo: { pedido_id: PEDIDO_ID, estado: 'cancelado_con_devolucion' } }))
-    const nota = (await screen.findByText(/^Cancelamos el pedido/)).closest('[data-aviso]')!
+    // MATU-119: la nota que se ve, no su copia en la región amable, que llega 50 ms después.
+    const nota = (await screen.findByText(/^Cancelamos el pedido/, fueraDeRegiones)).closest('[data-aviso]')!
     expect(nota).toHaveTextContent('Cancelamos el pedido. Estamos devolviendo $57.460 a la tarjeta con que se pagó.')
     expect(nota).toHaveAttribute('data-aviso', 'status')
     await waitFor(() => expect(nota).toHaveFocus())
@@ -726,7 +732,7 @@ describe('Cancelar el pedido pagado (6)', () => {
     const orden = a.pedidas.map((p) => `${p.metodo} ${p.ruta.split('/').pop()}`)
     expect(orden.slice(orden.indexOf('POST cancelar-con-devolucion'))).toContain('GET seguimiento')
     await userEvent.click(confirmar)
-    expect(await screen.findByText(/^Cancelamos el pedido/)).toBeVisible()
+    expect(await screen.findByText(/^Cancelamos el pedido/, fueraDeRegiones)).toBeVisible()
     const [k1, k2] = claves(a.pedidas, '/cancelar-con-devolucion')
     expect(k1).toBeTruthy()
     expect(k2).toBe(k1)
@@ -746,7 +752,7 @@ describe('Cancelar el pedido pagado (6)', () => {
     abrir('admin', DETALLE, ELEGIDO_1)
     await userEvent.click(await screen.findByRole('button', { name: 'Cancelar el pedido' }))
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar el pedido' }))
-    expect(await screen.findByText(/^Cancelamos el pedido/)).toBeVisible()
+    expect(await screen.findByText(/^Cancelamos el pedido/, fueraDeRegiones)).toBeVisible()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 

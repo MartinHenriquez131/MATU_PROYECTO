@@ -27,6 +27,7 @@ from app.modules.care_plan.domain.cifrado import ClaveDestruida, SeccionCifrada
 from app.modules.care_plan.infrastructure.cifrador_aes_gcm import CifradorAesGcm
 from app.modules.care_plan.infrastructure.repositorio_claves import RepositorioClavesSQL
 from tests.base_datos import DSN, requiere_base
+from tests.concurrencia import esperar_bloqueada_por, pid_de
 from tests.dobles.custodia_en_memoria import CustodiaEnMemoria
 from tests.fabricas import Fabrica
 from tests.fabricas.fabrica import FamiliaCreada
@@ -204,10 +205,10 @@ def test_dos_primeras_escrituras_concurrentes_dejan_una_sola_dek(
         # A crea la clave y no confirma todavía
         _escribir(sesion_a, custodia, familia, "rutina", texto_a)
         # B lee "no existe" e intenta crear la suya: el UNIQUE la deja esperando a A
+        pid = pid_de(sesion_a)
         hilo = threading.Thread(target=escribir_b)
         hilo.start()
-        hilo.join(timeout=1.0)
-        assert hilo.is_alive(), "B debía quedar esperando la transacción de A"
+        esperar_bloqueada_por(pid, hilo)  # B debía quedar esperando la transacción de A
     # Al confirmar A, B sigue con la clave de A
     hilo.join(timeout=10.0)
     assert not hilo.is_alive()

@@ -1077,8 +1077,10 @@ function PanelRegistro({
     const t = window.setTimeout(() => {
       // Si en esos 40 ms la persona ya tocó algo del panel (un campo), el foco se queda donde lo puso:
       // quitárselo a mitad de lo que escribe hacía perder dígitos (CI del PR #83).
+      // MATU-118: tampoco desplaza; si ya escribe, la página no se le mueve bajo el dedo.
       const panel = document.getElementById(id)
-      if (!panel?.contains(document.activeElement)) document.getElementById(alPanel ? id : campo)?.focus({ preventScroll: true })
+      if (panel?.contains(document.activeElement)) return
+      document.getElementById(alPanel ? id : campo)?.focus({ preventScroll: true })
       panel?.scrollIntoView?.({ block: 'nearest' })
     }, 40)
     return () => window.clearTimeout(t)
@@ -1634,8 +1636,14 @@ function Formulario({
   const titulo = nuevo ? INSUMOS.anotar : nombreDe(perfil!)
 
   // En ancho, el título del formulario es un h2 que recibe el foco (2.2).
+  // MATU-118: el mismo resguardo que los paneles (PR #83). Si en esos 60 ms la persona ya tocó un campo
+  // del formulario, el foco se queda donde lo puso: quitárselo hacía perder lo que escribía.
   useEffect(() => {
-    if (ancho) enfocar(`${uid}-titulo`, 60)
+    if (!ancho) return
+    const t = window.setTimeout(() => {
+      if (!document.getElementById(`${uid}-form`)?.contains(document.activeElement)) document.getElementById(`${uid}-titulo`)?.focus()
+    }, 60)
+    return () => window.clearTimeout(t)
   }, [ancho, uid, modo, perfil?.id])
 
   const validar = (): Partial<Record<CampoForm, string>> => {
@@ -1907,6 +1915,7 @@ function Formulario({
     <>
       {encabezado}
       <form
+        id={`${uid}-form`}
         noValidate
         className="flex flex-col gap-6"
         onSubmit={(e) => {
@@ -2089,7 +2098,7 @@ function Conflicto({
   )
   const l = lineaDias(actual.dias_restantes)
   // MATU-60 9.4: el envase, si lo cambió esta persona o la otra.
-  const envaseDe = (u: number | null | undefined) => (u == null ? LISTA.sinEnvase : LISTA.envaseConflicto(miles(u), sufijoCantidad(u, actual.unidad, null)))
+  const envaseDe = (u: number | null | undefined) => (u == null ? LISTA.sinEnvase(actual.unidad) : LISTA.envaseConflicto(miles(u), sufijoCantidad(u, actual.unidad, null)))
   const envaseLeido = leido.unidades_por_envase ?? null
   const envaseActual = actual.unidades_por_envase ?? null
   const verEnvase = mio.unidades_por_envase !== undefined || envaseActual !== envaseLeido
@@ -2211,7 +2220,7 @@ function DialogoEliminar({
         e.preventDefault()
         onCancelar()
       }}
-      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-md rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta backdrop:bg-tinta/40"
+      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-md rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta ring-1 ring-linea backdrop:bg-velo"
     >
       <div className="flex flex-col gap-4">
         <h2 id={`${uid}-t`} className="text-xl font-bold break-words [overflow-wrap:anywhere]">
@@ -2444,8 +2453,13 @@ function PanelResolver({
 
   useEffect(() => {
     const t = window.setTimeout(() => {
+      // MATU-118: el mismo resguardo que el panel de «Compré» y «Me quedan» (PR #83). Si en esos 40 ms
+      // la persona ya tocó el campo, el foco se queda donde lo puso: quitárselo hacía perder dígitos.
+      // Tampoco desplaza: si ya escribe, la página no se le mueve bajo el dedo.
+      const el = document.getElementById(panel)
+      if (el?.contains(document.activeElement)) return
       document.getElementById(conEnvase ? panel : campo)?.focus({ preventScroll: true })
-      document.getElementById(panel)?.scrollIntoView?.({ block: 'nearest' })
+      el?.scrollIntoView?.({ block: 'nearest' })
     }, 40)
     return () => window.clearTimeout(t)
   }, [conEnvase, panel, campo])
