@@ -18,6 +18,7 @@ from tests.modules.ordering.conftest import (
     COSTO_ENVIO,
     MONTOS_PARA_EL_OBSERVADOR,
     EntornoPedido,
+    cifras_a_la_vista,
     claves_a_cualquier_profundidad,
 )
 from tests.modules.payments.conftest import cuerpo_pagar, pagar, pedido_confirmado, sin_sesion_volver
@@ -347,8 +348,8 @@ def test_matu113_el_observador_ve_el_pedido_pagado_sin_ningun_monto(
     assert visto.status_code == 200, visto.text
     claves = claves_a_cualquier_profundidad(visto.json())
     assert not claves & MONTOS_PARA_EL_OBSERVADOR, claves & MONTOS_PARA_EL_OBSERVADOR
-    for cifra in (PRECIO_PANAL, 2 * PRECIO_PANAL, COSTO_ENVIO, TOTAL):
-        assert str(cifra) not in visto.text, cifra
+    a_la_vista = cifras_a_la_vista(visto.json(), (PRECIO_PANAL, 2 * PRECIO_PANAL, COSTO_ENVIO, TOTAL))
+    assert not a_la_vista, a_la_vista
     assert visto.json()["estado"] == "pagado" and visto.json()["pagado_en"] is not None
     assert [x["cantidad"] for x in visto.json()["lineas"]] == [2]
     assert not {"entrega", "resumen", "etag", "pago_en_curso"} & set(visto.json())

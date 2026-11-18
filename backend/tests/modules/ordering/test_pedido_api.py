@@ -20,6 +20,7 @@ from tests.modules.ordering.conftest import (
     MONTOS_PARA_EL_OBSERVADOR,
     TELEFONO,
     EntornoPedido,
+    cifras_a_la_vista,
     claves_a_cualquier_profundidad,
 )
 
@@ -272,8 +273,9 @@ def _sin_montos(respuesta: Any, *cifras: int) -> None:
     assert respuesta.status_code == 200, respuesta.text
     claves = claves_a_cualquier_profundidad(respuesta.json())
     assert not claves & MONTOS_PARA_EL_OBSERVADOR, claves & MONTOS_PARA_EL_OBSERVADOR
-    for cifra in cifras:
-        assert str(cifra) not in respuesta.text, cifra
+    # Como dato, con cualquier clave y a cualquier profundidad; no como parte de un UUID, un instante o un nombre
+    a_la_vista = cifras_a_la_vista(respuesta.json(), cifras)
+    assert not a_la_vista, a_la_vista
 
 
 @pytest.mark.rf("RF-25")
