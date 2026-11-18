@@ -2444,8 +2444,11 @@ function PanelResolver({
 
   useEffect(() => {
     const t = window.setTimeout(() => {
-      document.getElementById(conEnvase ? panel : campo)?.focus({ preventScroll: true })
-      document.getElementById(panel)?.scrollIntoView?.({ block: 'nearest' })
+      // MATU-118: el mismo resguardo que el panel de «Compré» y «Me quedan» (PR #83). Si en esos 40 ms
+      // la persona ya tocó el campo, el foco se queda donde lo puso: quitárselo hacía perder dígitos.
+      const el = document.getElementById(panel)
+      if (!el?.contains(document.activeElement)) document.getElementById(conEnvase ? panel : campo)?.focus({ preventScroll: true })
+      el?.scrollIntoView?.({ block: 'nearest' })
     }, 40)
     return () => window.clearTimeout(t)
   }, [conEnvase, panel, campo])

@@ -3,7 +3,7 @@
 // Los cuerpos y el If-Match, sin interfaz optimista, cada error de la tabla de 5.4 y 5.5, el foco,
 // los roles y «Sin seguir» sin botones, «Ya lo resolví» con envases y con 0 (sin cuerpo), un solo
 // panel abierto a la vez y A5. Textos de la especificación, secciones 8 y 11, tal cual. Datos sintéticos.
-import { configure, fireEvent, getConfig, render, screen, waitFor, within } from '@testing-library/react'
+import { act, configure, fireEvent, getConfig, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -570,6 +570,42 @@ describe('«Ya lo resolví» en envases', () => {
     expect(await porId('aviso-alertas')).toHaveTextContent(
       'Listo. No te avisaremos de nuevo por Pañal adulto talla M hasta que cambie la fecha estimada.',
     )
+  })
+
+  // MATU-118: el panel toma el foco a los 40 ms. Si la persona ya empezó a escribir en el campo, en un
+  // teléfono lento, el foco no se le quita: antes escribía «100» y quedaba «1».
+  it('con envase, si la persona ya escribe antes de los 40 ms, el foco se queda en el campo y no se pierde nada', async () => {
+    const { pedidas, u } = await abrir()
+    // Sin depender de la velocidad de la máquina: los temporizadores de 40 ms se retienen y corren
+    // entre el «1» y el «00», como pasa en un teléfono lento.
+    const original = window.setTimeout
+    const retenidos: (() => void)[] = []
+    const espia = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) =>
+      ms === 40 ? (retenidos.push(fn), 0) : original(fn, ms)) as typeof window.setTimeout)
+    try {
+      await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
+      await waitFor(() => expect(retenidos.length).toBeGreaterThan(0))
+      const campo = screen.getByRole('textbox', { name: '¿Compraste? ¿Cuántos envases?' })
+      await u.clear(campo)
+      await u.keyboard('1')
+      act(() => retenidos.splice(0).forEach((fn) => fn()))
+      await u.keyboard('00')
+    } finally {
+      espia.mockRestore()
+    }
+    const campo = screen.getByRole('textbox', { name: '¿Compraste? ¿Cuántos envases?' })
+    expect(campo).toHaveValue('100')
+    expect(campo).toHaveFocus()
+    expect(escritas(pedidas)).toEqual([])
+  })
+
+  it('con envase y sin escribir, el foco sigue llegando al panel, con su nombre para el lector de pantalla', async () => {
+    const { u } = await abrir()
+    await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
+    const panel = screen.getByRole('group', { name: '¿Compraste? ¿Cuántos envases?' })
+    await waitFor(() => expect(panel).toHaveFocus())
+    expect(panel).toHaveAccessibleName('¿Compraste? ¿Cuántos envases?')
+    expect(document.activeElement?.tagName).not.toBe('INPUT')
   })
 
   it('con envase sobre 99: el error de 0 a 99 y nada se envía', async () => {
