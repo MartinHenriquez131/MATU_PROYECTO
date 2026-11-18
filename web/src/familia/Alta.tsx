@@ -772,7 +772,8 @@ export function Autorizacion() {
       </Encabezado>
       <DeclaracionFicha pila={pila} d={d} />
       {falla === 'paso1' && (
-        <Nota tono="pronto" rol="alert">
+        <Nota tono="pronto" rol="alert" iconoEnLinea={false}>
+          {/* MATU-121 3.3: empieza con un botón que trae su propio ícono; el de la nota queda en su columna. */}
           <Volver onClick={() => navegar('/empezar/persona')}>{AUTORIZACION.volverACorregir(pila)}</Volver>
         </Nota>
       )}

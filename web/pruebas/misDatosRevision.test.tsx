@@ -74,9 +74,11 @@ describe('1.2 y 1.3, reflujo (P1-1, P1-2, P2-1 y los montos)', () => {
     ]
     for (const texto of notas) {
       const nota = texto.closest('.rounded-xl') as HTMLElement
-      // El ícono de al lado se oculta en angosto y el de la línea aparece dentro del texto.
+      // El ícono de al lado se oculta en angosto y el de la línea aparece dentro del texto: desde
+      // MATU-121, sin título, flota al comienzo (`float-start`) en vez de ir `inline-flex`.
       expect(nota.querySelector(':scope > span.contents')!.className).toContain('angosto:hidden')
-      expect(nota.querySelector('.leading-relaxed > span.hidden')!.className).toContain('angosto:inline-flex')
+      expect(nota.querySelector('.leading-relaxed > span.hidden')!.className).toContain('angosto:float-start')
+      expect(nota.querySelector('.leading-relaxed')!.className).toContain('angosto:flow-root')
     }
   })
 
