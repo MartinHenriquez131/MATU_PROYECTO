@@ -817,7 +817,7 @@ def test_la_0_25_esta_publicada_y_es_la_de_env_example() -> None:
     anteriores = {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21", "0.22",
                   "0.23", "0.24"}
     assert anteriores | {"0.25"} <= set(PUBLICADAS)
-    huella = "276943c06cdb345838df921e454b7ea9d289970380afce020278995a82e94a50"  # pragma: allowlist secret
+    huella = "f31a624ebc1ea23e1f14b1d97f556333eb4216edde4a149ec1f066f516e27600"  # pragma: allowlist secret
     assert PUBLICADAS["0.25"] == huella
     valores = dotenv_values(BACKEND.parent / ".env.example")
     assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.25", "2026-11-18")
@@ -826,6 +826,9 @@ def test_la_0_25_esta_publicada_y_es_la_de_env_example() -> None:
     for parte in (
         # §6: quien pagó y pasó a «Se informa»
         "Si pagaste un pedido y después pasaste a «Se informa», ese pedido lo sigues viendo como quien pagó",
+        # §6 (aprobada por Jorge el 18-11, fuente 32f85fc): el retracto por correo, a nombre de quien pagó
+        "Si pediste por correo arrepentirte de una compra que pagaste, el equipo lo registra a tu nombre aunque ya no"
+        " estés en el grupo, porque la devolución va a tu tarjeta.",
         "sin la dirección ni el teléfono de contacto, y puedes arrepentirte de la compra.",
         # §10: «Tus datos», también de los grupos que dejó
         "Si pagaste un pedido, también tus pagos, aunque hayas cambiado de rol o ya no estés en ese grupo, con el"
