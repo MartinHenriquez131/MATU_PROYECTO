@@ -15,6 +15,7 @@ import { responderCon } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
 import { responderPolitica } from './politicaFalsa'
 import { conRegiones } from './regiones'
+import { plazosConCarga } from './conCarga'
 
 let contexto = familiaFalsa()
 vi.mock('../src/familia/estado', async (original) => ({
@@ -22,11 +23,17 @@ vi.mock('../src/familia/estado', async (original) => ({
   useFamilia: () => contexto,
 }))
 
+// MATU-119: con la máquina cargada, llenar el formulario pasaba los 15 s de tope. Las esperas suben a
+// 5 s y cada prueba a 30 s, y se escribe sin el turno de temporizador entre tecla y tecla (`delay:
+// null`, como en las pruebas del comercio): las mismas teclas y los mismos eventos, sin esperar a la
+// CPU entre una y otra. El formulario no mueve el foco mientras se escribe.
+plazosConCarga()
+
 async function crearCuentaCon(respuesta: Parameters<typeof responderCon>[1]) {
   responderCon(apiFamilia, respuesta)
   responderPolitica()
   const regiones = conRegiones(<CrearCuenta />)
-  const u = userEvent.setup()
+  const u = userEvent.setup({ delay: null })
   await u.type(screen.getByLabelText('Tu nombre'), 'Ana Prueba')
   await u.type(screen.getByLabelText('Tu correo'), 'ana.prueba@example.com')
   await u.type(screen.getByLabelText('Tu celular'), '+56 9 5555 0137')
