@@ -90,12 +90,13 @@ jobs:
         working-directory: .
         run: git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline
 
-      # MATU-79: preparada sin activar. El 18-11 encuentra PYSEC-2026-1605 en marshmallow 3.26.1 (corregida en 3.26.2
-      # y 4.1.2), que trae transbank-sdk 6.1.0 con el tope marshmallow<=3.26.1, y no hay versión del SDK más nueva.
-      # Actualizar o ignorar la vulnerabilidad es una decisión de Jorge; con ella se quita continue-on-error
+      # MATU-79: frena cualquier vulnerabilidad conocida, salvo una ignorada a propósito (decisión del orquestador del
+      # 18-11, por mandato de Jorge). PYSEC-2026-1605 es una denegación de servicio en Schema.load(many=True) de
+      # marshmallow 3.26.1, corregida en 3.26.2. Viene de transbank-sdk 6.1.0, que fija marshmallow<=3.26.1 y es la
+      # versión más nueva. El SDK solo usa marshmallow para leer las respuestas de Transbank, no lo que envía el usuario.
+      # Se revisa cuando salga una versión nueva del SDK: entonces se actualiza y se saca --ignore-vuln
       - name: Dependencias (pip-audit)
-        continue-on-error: true
-        run: pip-audit --skip-editable --desc on
+        run: pip-audit --skip-editable --desc on --ignore-vuln PYSEC-2026-1605
 
       # MATU-79: la puerta openapi-diff de la estrategia de pruebas (sección 8). Falla si app.openapi() no coincide con
       # docs/api/openapi.json. Para regenerarlo: cd backend && python scripts/exportar_contrato.py --escribir
@@ -128,11 +129,12 @@ jobs:
           sparse-checkout: docs/arquitectura.md
           sparse-checkout-cone-mode: false
 
-      # MATU-79: estrategia de pruebas, sección 14. Preparada sin activar: el 18-11 RF-32 y RF-40 (backoffice) no
-      # tienen ninguna prueba marcada. Se quita continue-on-error cuando las tengan
+      # MATU-79: estrategia de pruebas, sección 14. Falla si un RF Debe no tiene ninguna prueba con @pytest.mark.rf y
+      # no está en --pendientes, y también si un pendiente ya tiene prueba: así nadie se olvida de sacarlo. Pendientes
+      # al 18-11: RF-32 y RF-40 (backoffice). Las de RF-40 llegan con MATU-81 (PR #101), todavía fuera de main: al
+      # fusionarlo, RF-40 sale de la lista. RF-32 no tiene pruebas marcadas tampoco en esa rama: es un hueco abierto
       - name: Trazabilidad (RF Debe con prueba)
-        continue-on-error: true
-        run: python scripts/trazabilidad.py --arquitectura ../matu-docs/docs/arquitectura.md
+        run: python scripts/trazabilidad.py --arquitectura ../matu-docs/docs/arquitectura.md --pendientes RF-32,RF-40
 
   # MATU-79: la imagen de la API que despliega Railway (infra/railway/Dockerfile), construida desde la raíz como en
   # railway.json. Solo se comprueba que construye: no se sube a ningún registro
