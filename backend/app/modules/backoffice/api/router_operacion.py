@@ -11,6 +11,7 @@ sin cuenta (trigger pedido_escritura_del_pago), y se audita con la cuenta de qui
 - Resolver un retracto: devolver a la misma tarjeta o rechazar (D-63-10).
 """
 
+import logging
 import re
 import secrets
 import uuid
@@ -22,7 +23,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.db import obtener_fabrica_sesiones, sesion_tenant
 from app.core.errores import ErrorMATU
-from app.modules.backoffice.api.dependencias import Operador, SecretoCodigo
+from app.core.limite_ip import DETALLE_503, ContadorNoDisponible, ContadorVentana, clave_de
+from app.modules.backoffice.api.dependencias import Contador, Operador, PepperLimites, SecretoCodigo
 from app.modules.backoffice.api.esquemas import (
     CodigoGenerado,
     EstadoPedidoVista,
@@ -67,6 +69,11 @@ from app.modules.payments.domain.retracto import RetractoInvalido
 from app.modules.payments.infrastructure.pasarela import obtener_pasarela
 from app.modules.payments.infrastructure.repositorio_retractos import RepositorioRetractosSQL
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
+from app.shared.auditoria_sql import RegistroAuditoriaSql
+from app.shared.limite_ip import LimitePorIp, retry_after
+from app.shared.limite_ip import huella as huella_limite
+
+log = logging.getLogger("matu.backoffice.operacion")
 
 router = APIRouter(prefix="/operacion", tags=["operacion"])
 
@@ -82,15 +89,10 @@ _RESPUESTAS: dict[int | str, dict[str, Any]] = {
 
 _PARTES_DEL_PEDIDO = text(
     "SELECT pc.id AS parte_id, co.nombre_fantasia, pc.referencia AS referencia_parte,"
-    " pc.estado AS estado_parte, pc.codigo_generado_en, pc.codigo_hash IS NOT NULL AS con_hash, pc.codigo_expira_en,"
+    " pc.estado AS estado_parte, pc.codigo_generado_en, pc.codigo_vigente AS con_hash, pc.codigo_expira_en,"
     " pc.codigo_usado_en, pc.codigo_bloqueado_en"
     " FROM pedido p JOIN pedido_comercio pc ON pc.pedido_id = p.id JOIN comercio co ON co.id = pc.comercio_id"
     " WHERE p.id = :id ORDER BY pc.creado_en, pc.id"
-)
-# MATU-81 (D-81-9): el correo del admin que pidió el retracto, por la huella del correo (indice_credencial)
-_ADMIN_POR_CORREO = text(
-    "SELECT m.usuario_id FROM indice_credencial i JOIN membresia m ON m.usuario_id = i.usuario_id"
-    " WHERE i.email_hash = :hash AND m.grupo_id = :grupo AND m.rol = 'admin' AND m.estado = 'activa'"
 )
 # Los estados en curso: la lista sin filtro, como desde MATU-63
 EN_CURSO = ("pagado", "enviado_a_comercio", "preparando", "listo_retiro", "asignado", "sin_repartidor", "retirado",
@@ -102,15 +104,17 @@ ESTADOS_LISTA = (
 )
 _GRUPO_DE_PEDIDO = text("SELECT grupo_id FROM pedido WHERE id = :id")
 _GRUPO_DE_PARTE = text("SELECT pedido_id, grupo_id FROM pedido_comercio WHERE id = :id")
-# H2: a nombre de quién va el retracto por correo: la cuenta que pagó o un admin activo del grupo
-_QUIEN_PAGO = text(
-    "SELECT pa.usuario_id FROM participacion pa JOIN cargo c ON c.id = pa.cargo_id"
-    " WHERE c.pedido_id = :pedido AND pa.monto_cobrado > 0 ORDER BY pa.id LIMIT 1"
-)
-_ES_ADMIN = text(
-    "SELECT EXISTS (SELECT 1 FROM membresia WHERE grupo_id = :grupo AND usuario_id = :usuario AND rol = 'admin'"
-    " AND estado = 'activa')"
-)
+# H2 y MATU-114 (C8): a nombre de quién va el retracto por correo, con la regla de la base: quien pagó, el admin activo
+# que se indique o el admin activo con la huella del correo (D-81-9). Solo el id, o NULL: operación no lee las
+# membresías (migración 0031). Exige app.usuario_id de una cuenta de operación activa
+_SOLICITANTE = text("SELECT operacion_solicitante_retracto(:pedido, :hash, :solicitado_por)")
+_PERSONA_DEL_PEDIDO = text("SELECT persona_cuidada_id FROM pedido WHERE id = :id")
+# C9: el mismo 422 en todos los casos (huella sin cuenta, de otro grupo, no admin, inactiva, o los dos campos): nunca
+# dice cuál
+DETALLE_SOLICITANTE = "Va a nombre de quien pagó o de un administrador activo de la familia del pedido"
+# C11 (J1): hasta 5 correos que no calzan por hora y por cuenta de operación
+LIMITE_CORREO_RETRACTO = LimitePorIp("retracto-correo", 5)
+DETALLE_TOPE_CORREO = "Hubo muchos intentos en poco tiempo. Vuelve a intentarlo más tarde"
 _GRUPO_DE_RETRACTO = text("SELECT grupo_id FROM retracto WHERE id = :id")
 # MATU-81: los chips de la consola, «Por resolver» (solicitado), «Devueltos» y «Sin devolución» (rechazado)
 ESTADOS_RETRACTO = ("solicitado", "devuelto", "rechazado")
@@ -354,6 +358,58 @@ def cancelar_con_devolucion(
     return EstadoPedidoVista(pedido_id=identificador, estado="cancelado_con_devolucion")
 
 
+def _clave_limite_correo(operador: uuid.UUID, pepper: bytes | None) -> str:
+    """La clave del límite: la huella HMAC de la cuenta de operación. Ni el id, ni el correo ni su huella llegan a
+    Redis."""
+    if pepper is None:
+        log.error("falta PEPPER_LIMITES: el retracto por correo falla cerrado")
+        raise ErrorMATU(503, detalle=DETALLE_503)
+    return clave_de(LIMITE_CORREO_RETRACTO, huella_limite(pepper, LIMITE_CORREO_RETRACTO.prefijo, str(operador)))
+
+
+def _antes_de_buscar_el_correo(contador: ContadorVentana, clave: str) -> None:
+    """429 si la cuenta ya tiene 5 correos que no calzaron en la ventana, sin buscar el de ahora."""
+    try:
+        conteo = contador.leer(clave)
+    except ContadorNoDisponible:
+        log.error("Redis no responde: el retracto por correo falla cerrado")
+        raise ErrorMATU(503, detalle=DETALLE_503) from None
+    if conteo.conteo >= LIMITE_CORREO_RETRACTO.maximo:
+        raise ErrorMATU(
+            429,
+            tipo="demasiados-intentos",
+            detalle=DETALLE_TOPE_CORREO,
+            headers={"Retry-After": str(retry_after(conteo.ttl_segundos, LIMITE_CORREO_RETRACTO))},
+        )
+
+
+def _correo_fallido(
+    fabrica: sessionmaker[Session], reloj: RelojDep, contador: ContadorVentana, clave: str, operador: uuid.UUID,
+    pedido_id: uuid.UUID, grupo_id: uuid.UUID, request: Request,
+) -> None:
+    """J2 y C11: el intento fallido se suma al límite y se audita en su propia transacción (el 422 que sigue no la
+    revierte), con el grupo y la persona del pedido y sin el correo. Sin Redis, 503: la cuenta no sigue probando."""
+    try:
+        contador.sumar(clave, LIMITE_CORREO_RETRACTO.ventana_segundos)
+    except ContadorNoDisponible:
+        log.error("Redis no responde: el retracto por correo falla cerrado")
+        raise ErrorMATU(503, detalle=DETALLE_503) from None
+    with sesion_tenant(fabrica, grupo_id=grupo_id, rol="operacion") as sesion:
+        persona_id = sesion.execute(_PERSONA_DEL_PEDIDO, {"id": pedido_id}).scalar_one()
+        RegistroAuditoriaSql(sesion, reloj).registrar(
+            EntradaAuditoria(
+                grupo_id=grupo_id,
+                actor_tipo=ActorTipo.OPERACION,
+                actor_ref=operador,
+                accion=AccionAuditoria.OPERACION_RETRACTO_CORREO_FALLIDO,
+                entidad=EntidadAuditoria.PEDIDO,
+                entidad_id=pedido_id,
+                persona_cuidada_id=persona_id,
+                request_id=getattr(request.state, "request_id", None),
+            )
+        )
+
+
 @router.post(
     "/pedidos/{pedido_id}/retractos",
     response_model=RetractoOperacion,
@@ -362,42 +418,48 @@ def cancelar_con_devolucion(
         **_RESPUESTAS,
         409: {"description": "fuera-de-plazo: pasaron los 90 días desde la entrega (CL-54)", **_PROBLEMA},
         422: {"description": "producto-no-retractable, o solicitante-invalido: solicitado_por no es quien pagó ni un"
-              " admin, o correo_solicitante no es de un admin activo del grupo (D-81-9). Nunca dice quiénes son",
-              **_PROBLEMA},
-        503: {"description": "Falta PEPPER_EMAIL para buscar el correo del admin", **_PROBLEMA},
+              " admin activo, correo_solicitante no es de un admin activo del grupo (D-81-9), o vienen los dos. El"
+              " mismo cuerpo en todos los casos: nunca dice cuál ni quiénes son (MATU-114, C9)", **_PROBLEMA},
+        429: {"description": "demasiados-intentos: 5 correos que no calzan en una hora para la cuenta de operación"
+              " (MATU-114, C11), con Retry-After. No dice si el último correo era válido", **_PROBLEMA},
+        503: {"description": "Falta PEPPER_EMAIL o PEPPER_LIMITES, o Redis no responde, con correo_solicitante: no se"
+              " busca el correo", **_PROBLEMA},
     },
     description=(
         "H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la"
         " entrega. Va a nombre de quien pagó, o del admin que se indique. Se resuelve como cualquier retracto."
+        " MATU-114: con correo_solicitante, hasta 5 correos que no calzan por hora y por cuenta de operación (429);"
+        " cada uno se registra en la auditoría del pedido, sin el correo."
     ),
 )
 def registrar_retracto_por_correo(
-    pedido_id: _ID, solicitud: SolicitudRetractoPorCorreo, operador: Operador, fabrica: Fabrica, reloj: RelojDep,
-    pepper_email: Annotated[bytes, Depends(obtener_pepper_email)],
+    pedido_id: _ID, solicitud: SolicitudRetractoPorCorreo, request: Request, operador: Operador, fabrica: Fabrica,
+    reloj: RelojDep, pepper_email: Annotated[bytes, Depends(obtener_pepper_email)], pepper_limites: PepperLimites,
+    contador: Contador,
 ) -> RetractoOperacion:
     identificador = _uuid(pedido_id)
-    if solicitud.correo_solicitante is not None and solicitud.solicitado_por is not None:
-        raise ErrorMATU(422, tipo="solicitante-invalido", detalle="Indica el correo de quien lo pidió, o nada")
     grupo_id = _consultar_grupo(fabrica, _GRUPO_DE_PEDIDO, identificador).grupo_id
     pedidas: dict[uuid.UUID, int] = {}
     for linea in solicitud.lineas:
         pedidas[linea.linea_id] = pedidas.get(linea.linea_id, 0) + linea.cantidad
+    clave_limite = None
+    huella = None
+    if solicitud.correo_solicitante is not None:
+        # C11: antes de buscar el correo. Sin PEPPER_LIMITES o sin Redis, 503 sin consultar
+        clave_limite = _clave_limite_correo(operador, pepper_limites)
+        _antes_de_buscar_el_correo(contador, clave_limite)
+        # D-81-9: el correo nunca va al log ni a un error. Solo su huella llega a la base
+        huella = indice_email(pepper_email, normalizar_email(solicitud.correo_solicitante))
+    with sesion_tenant(fabrica, usuario_id=operador, rol="operacion") as sesion:
+        solicitado_por = sesion.execute(
+            _SOLICITANTE, {"pedido": identificador, "hash": huella, "solicitado_por": solicitud.solicitado_por}
+        ).scalar()
+    if solicitado_por is None:
+        if clave_limite is not None:
+            _correo_fallido(fabrica, reloj, contador, clave_limite, operador, identificador, grupo_id, request)
+        raise ErrorMATU(422, tipo="solicitante-invalido", detalle=DETALLE_SOLICITANTE)
     with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(grupo_id) as (u, retractos):
         sesion = _sesion_de(u)
-        pagador = sesion.execute(_QUIEN_PAGO, {"pedido": identificador}).scalar_one_or_none()
-        solicitado_por = solicitud.solicitado_por or pagador
-        if solicitud.correo_solicitante is not None:
-            # D-81-9: el correo nunca va al log ni a un error. Solo su huella llega a la base
-            huella = indice_email(pepper_email, normalizar_email(solicitud.correo_solicitante))
-            solicitado_por = sesion.execute(_ADMIN_POR_CORREO, {"hash": huella, "grupo": grupo_id}).scalar()
-            if solicitado_por is None:
-                raise ErrorMATU(422, tipo="solicitante-invalido",
-                                detalle="Ese correo no es de un administrador de la familia de este pedido")
-        if solicitado_por is None or (
-            solicitado_por != pagador
-            and not sesion.execute(_ES_ADMIN, {"grupo": grupo_id, "usuario": solicitado_por}).scalar()
-        ):
-            raise ErrorMATU(422, tipo="solicitante-invalido", detalle="Va a nombre de quien pagó o de un admin")
         try:
             r = casos_retracto.solicitar(
                 u.pagos, retractos, grupo_id, identificador, solicitado_por, pedidas, reloj.ahora(),

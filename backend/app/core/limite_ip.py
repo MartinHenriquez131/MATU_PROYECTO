@@ -93,6 +93,11 @@ class ContadorVentana(Protocol):
 
     def sumar(self, clave: str, ventana_segundos: int) -> Conteo: ...
 
+    def leer(self, clave: str) -> Conteo:
+        """Cuántas van en la ventana, sin sumar (MATU-114: el límite que cuenta solo los intentos fallidos). Sin
+        clave, Conteo(0, 0)."""
+        ...
+
 
 class ContadorVentanaRedis:
     def __init__(self, cliente: "redis.Redis") -> None:
@@ -108,6 +113,18 @@ class ContadorVentanaRedis:
         except redis.RedisError:
             raise ContadorNoDisponible from None
         return Conteo(int(conteo), int(ttl))
+
+    def leer(self, clave: str) -> Conteo:
+        try:
+            tubo = self._redis.pipeline(transaction=False)
+            tubo.get(clave)
+            tubo.ttl(clave)
+            conteo, ttl = tubo.execute()
+        except redis.RedisError:
+            raise ContadorNoDisponible from None
+        if conteo is None:
+            return Conteo(0, 0)
+        return Conteo(int(conteo), max(0, int(ttl)))
 
 
 def clave_de(limite: LimitePorIp, huella_ip: str) -> str:

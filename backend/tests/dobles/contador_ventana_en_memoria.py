@@ -1,7 +1,7 @@
 """Doble del puerto ContadorVentana (MATU-25): el límite por IP en un diccionario.
 
 Ventana fija, como el script de Redis: el vencimiento se fija con el primer incremento, con la hora
-del Reloj de la prueba, y los siguientes no lo mueven. Con caido=True, sumar() lanza
+del Reloj de la prueba, y los siguientes no lo mueven. Con caido=True, sumar() y leer() lanzan
 ContadorNoDisponible, como un Redis que no responde.
 """
 
@@ -34,6 +34,16 @@ class ContadorVentanaEnMemoria:
         else:
             dato = (dato[0] + 1, dato[1])
         self.datos[clave] = dato
+        return Conteo(dato[0], math.ceil((dato[1] - ahora).total_seconds()))
+
+    def leer(self, clave: str) -> Conteo:
+        """Cuántas van en la ventana vigente, sin sumar (MATU-114)."""
+        if self.caido:
+            raise ContadorNoDisponible()
+        ahora = self.reloj.ahora()
+        dato = self.datos.get(clave)
+        if dato is None or ahora >= dato[1]:
+            return Conteo(0, 0)
         return Conteo(dato[0], math.ceil((dato[1] - ahora).total_seconds()))
 
 
