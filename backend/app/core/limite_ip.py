@@ -73,6 +73,16 @@ return {conteo, ttl}
 """
 
 
+# MATU-114: DECR solo si la clave existe y está sobre cero, en el mismo paso; nunca crea la clave ni le cambia el TTL
+_SCRIPT_DEVOLVER = """
+local conteo = tonumber(redis.call('GET', KEYS[1]) or '0')
+if conteo > 0 then
+  return redis.call('DECR', KEYS[1])
+end
+return 0
+"""
+
+
 class ContadorNoDisponible(Exception):
     """Redis no responde. La ruta responde 503 y falla cerrada. Nunca lleva la clave."""
 
@@ -93,9 +103,9 @@ class ContadorVentana(Protocol):
 
     def sumar(self, clave: str, ventana_segundos: int) -> Conteo: ...
 
-    def leer(self, clave: str) -> Conteo:
-        """Cuántas van en la ventana, sin sumar (MATU-114: el límite que cuenta solo los intentos fallidos). Sin
-        clave, Conteo(0, 0)."""
+    def devolver(self, clave: str) -> None:
+        """Resta uno a la clave si existe y está sobre cero, sin tocar su vencimiento (MATU-114: la reserva de un
+        intento que salió válido). Una clave vencida no renace."""
         ...
 
 
@@ -103,6 +113,7 @@ class ContadorVentanaRedis:
     def __init__(self, cliente: "redis.Redis") -> None:
         self._redis = cliente
         self._script = cliente.register_script(_SCRIPT_VENTANA_FIJA)
+        self._devolver = cliente.register_script(_SCRIPT_DEVOLVER)
 
     def __repr__(self) -> str:
         return "ContadorVentanaRedis()"
@@ -114,17 +125,11 @@ class ContadorVentanaRedis:
             raise ContadorNoDisponible from None
         return Conteo(int(conteo), int(ttl))
 
-    def leer(self, clave: str) -> Conteo:
+    def devolver(self, clave: str) -> None:
         try:
-            tubo = self._redis.pipeline(transaction=False)
-            tubo.get(clave)
-            tubo.ttl(clave)
-            conteo, ttl = tubo.execute()
+            self._devolver(keys=[clave])
         except redis.RedisError:
             raise ContadorNoDisponible from None
-        if conteo is None:
-            return Conteo(0, 0)
-        return Conteo(int(conteo), max(0, int(ttl)))
 
 
 def clave_de(limite: LimitePorIp, huella_ip: str) -> str:

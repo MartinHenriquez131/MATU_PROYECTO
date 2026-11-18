@@ -66,17 +66,21 @@ def test_c9_el_mismo_422_en_los_cuatro_casos_y_cada_uno_se_audita_sin_el_correo(
         assert r.status_code == 422, r.text
         assert correo not in r.text and correo.lower() not in d.e.iam.texto_log().lower()
         cuerpos.append(_sin_request_id(r.json()))
-    # Con los dos campos, también
+    # Con los dos campos, también. N1: sin contar el intento ni auditarlo, aunque el correo sea del admin
+    contador = d.e.iam.limite_ip
+    assert contador is not None
+    antes = dict(contador.datos)
     r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos",
                     {"lineas": lineas, "correo_solicitante": familia.admin.email, "solicitado_por": str(otra.admin.id)})
     assert r.status_code == 422
     cuerpos.append(_sin_request_id(r.json()))
+    assert contador.datos == antes
     assert all(c == cuerpos[0] for c in cuerpos), cuerpos
     assert cuerpos[0]["type"].endswith("solicitante-invalido") and cuerpos[0]["detail"] == DETALLE_SOLICITANTE
     assert "errores" not in cuerpos[0] or not cuerpos[0]["errores"]
-    # J2: cada intento fallido con correo (los cinco) con el grupo y la persona del pedido, sin el correo ni su huella
+    # J2: cada correo que no calzó (los cuatro) con el grupo y la persona del pedido, sin el correo ni su huella
     filas = _fallidos(d, pedido["id"])
-    assert len(filas) == 5
+    assert len(filas) == 4
     assert {f[:5] for f in filas} == {("operacion", d.operador.id, familia.grupo.id, familia.persona.id,  # type: ignore[union-attr]
                                        "pedido")}
     assert all(f[5] is None for f in filas)
@@ -84,14 +88,14 @@ def test_c9_el_mismo_422_en_los_cuatro_casos_y_cada_uno_se_audita_sin_el_correo(
     r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos",
                     {"lineas": lineas, "solicitado_por": str(no_admin.id)})
     assert r.status_code == 422 and _sin_request_id(r.json()) == cuerpos[0]
-    assert len(_fallidos(d, pedido["id"])) == 5
+    assert len(_fallidos(d, pedido["id"])) == 4
     # J2: la familia lo ve en el historial de «Datos de» la persona, con la referencia del pedido y sin el correo ni
     # quién del equipo
     copia = d.e.pedir("GET", f"/v1/personas-cuidadas/{familia.persona.id}/datos", familia.admin, familia)
     assert copia.status_code == 200, copia.text
     [referencia] = d.sql("SELECT referencia FROM pedido WHERE id = %s", uuid.UUID(pedido["id"]))[0]
     hechos = [h for h in copia.json()["historial"]["hechos"] if h["tipo"] == "matu_intento_un_retracto_por_correo"]
-    assert len(hechos) == 5
+    assert len(hechos) == 4
     assert all(h["referencia"] == referencia and h["quien"] == {"tipo": "matu", "nombre": None, "activo": None}
                for h in hechos)
     for correo in correos:
@@ -171,3 +175,16 @@ def test_c11_sin_redis_o_sin_pepper_503_sin_consultar(despacho: Despacho, falta:
     assert familia.admin.email not in r.text
     assert d.sql("SELECT count(*) FROM retracto WHERE pedido_id = %s", uuid.UUID(pedido["id"])) == [(0,)]
     assert _fallidos(d, pedido["id"]) == []
+
+
+def test_c11_el_correo_que_calza_no_gasta_un_intento(despacho: Despacho) -> None:
+    """La reserva de un correo válido se devuelve: 4 que no calzan, uno que sí y otro que no siguen dentro del límite;
+    el siguiente ya pasa de 5."""
+    d = despacho
+    familia, pedido, lineas = _listo_para_retracto(d)
+    for _ in range(LIMITE_CORREO_RETRACTO.maximo - 1):
+        assert _por_correo(d, pedido, lineas, f"nadie.{uuid.uuid4().hex[:8]}@ejemplo.cl").status_code == 422
+    assert _por_correo(d, pedido, lineas, familia.admin.email).status_code == 201
+    assert _por_correo(d, pedido, lineas, f"nadie.{uuid.uuid4().hex[:8]}@ejemplo.cl").status_code == 422
+    assert _por_correo(d, pedido, lineas, familia.admin.email).status_code == 429
+    assert len(_fallidos(d, pedido["id"])) == LIMITE_CORREO_RETRACTO.maximo

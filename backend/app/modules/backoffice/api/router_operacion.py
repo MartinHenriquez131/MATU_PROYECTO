@@ -70,7 +70,7 @@ from app.modules.payments.infrastructure.pasarela import obtener_pasarela
 from app.modules.payments.infrastructure.repositorio_retractos import RepositorioRetractosSQL
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
 from app.shared.auditoria_sql import RegistroAuditoriaSql
-from app.shared.limite_ip import LimitePorIp, retry_after
+from app.shared.limite_ip import LimitePorIp, excedido, retry_after
 from app.shared.limite_ip import huella as huella_limite
 
 log = logging.getLogger("matu.backoffice.operacion")
@@ -367,14 +367,16 @@ def _clave_limite_correo(operador: uuid.UUID, pepper: bytes | None) -> str:
     return clave_de(LIMITE_CORREO_RETRACTO, huella_limite(pepper, LIMITE_CORREO_RETRACTO.prefijo, str(operador)))
 
 
-def _antes_de_buscar_el_correo(contador: ContadorVentana, clave: str) -> None:
-    """429 si la cuenta ya tiene 5 correos que no calzaron en la ventana, sin buscar el de ahora."""
+def reservar_intento(contador: ContadorVentana, clave: str) -> None:
+    """C11 (MATU-114, cierre del analista): reserva un intento antes de buscar el correo, con un INCR atómico. Si el
+    conteo que devuelve pasa de 5, 429 sin consultar: con peticiones en paralelo, a lo más 5 llegan a la base. Sin
+    Redis, 503 sin consultar. Si el correo calza, devolver_reserva() la resta: solo quedan los fallidos."""
     try:
-        conteo = contador.leer(clave)
+        conteo = contador.sumar(clave, LIMITE_CORREO_RETRACTO.ventana_segundos)
     except ContadorNoDisponible:
         log.error("Redis no responde: el retracto por correo falla cerrado")
         raise ErrorMATU(503, detalle=DETALLE_503) from None
-    if conteo.conteo >= LIMITE_CORREO_RETRACTO.maximo:
+    if excedido(conteo.conteo, LIMITE_CORREO_RETRACTO):
         raise ErrorMATU(
             429,
             tipo="demasiados-intentos",
@@ -383,17 +385,21 @@ def _antes_de_buscar_el_correo(contador: ContadorVentana, clave: str) -> None:
         )
 
 
-def _correo_fallido(
-    fabrica: sessionmaker[Session], reloj: RelojDep, contador: ContadorVentana, clave: str, operador: uuid.UUID,
-    pedido_id: uuid.UUID, grupo_id: uuid.UUID, request: Request,
-) -> None:
-    """J2 y C11: el intento fallido se suma al límite y se audita en su propia transacción (el 422 que sigue no la
-    revierte), con el grupo y la persona del pedido y sin el correo. Sin Redis, 503: la cuenta no sigue probando."""
+def devolver_reserva(contador: ContadorVentana, clave: str) -> None:
+    """El correo calzó: el intento no cuenta. Si Redis no responde, la reserva queda (cuenta como fallido, que es lo
+    prudente) y el retracto sigue: ya se consultó y el correo era válido."""
     try:
-        contador.sumar(clave, LIMITE_CORREO_RETRACTO.ventana_segundos)
+        contador.devolver(clave)
     except ContadorNoDisponible:
-        log.error("Redis no responde: el retracto por correo falla cerrado")
-        raise ErrorMATU(503, detalle=DETALLE_503) from None
+        log.error("Redis no responde: la reserva del retracto por correo queda contada")
+
+
+def _correo_fallido(
+    fabrica: sessionmaker[Session], reloj: RelojDep, operador: uuid.UUID, pedido_id: uuid.UUID, grupo_id: uuid.UUID,
+    request: Request,
+) -> None:
+    """J2: el intento fallido ya quedó contado por su reserva (reservar_intento); se audita en su propia transacción
+    (el 422 que sigue no la revierte), con el grupo y la persona del pedido y sin el correo."""
     with sesion_tenant(fabrica, grupo_id=grupo_id, rol="operacion") as sesion:
         persona_id = sesion.execute(_PERSONA_DEL_PEDIDO, {"id": pedido_id}).scalar_one()
         RegistroAuditoriaSql(sesion, reloj).registrar(
@@ -442,12 +448,16 @@ def registrar_retracto_por_correo(
     pedidas: dict[uuid.UUID, int] = {}
     for linea in solicitud.lineas:
         pedidas[linea.linea_id] = pedidas.get(linea.linea_id, 0) + linea.cantidad
+    if solicitud.correo_solicitante is not None and solicitud.solicitado_por is not None:
+        # N1 (cierre del analista): los dos campos juntos no son un correo que no calzó. El mismo 422 (C9), sin contar
+        # ni auditar
+        raise ErrorMATU(422, tipo="solicitante-invalido", detalle=DETALLE_SOLICITANTE)
     clave_limite = None
     huella = None
     if solicitud.correo_solicitante is not None:
-        # C11: antes de buscar el correo. Sin PEPPER_LIMITES o sin Redis, 503 sin consultar
+        # C11: se reserva el intento antes de buscar el correo. Sin PEPPER_LIMITES o sin Redis, 503 sin consultar
         clave_limite = _clave_limite_correo(operador, pepper_limites)
-        _antes_de_buscar_el_correo(contador, clave_limite)
+        reservar_intento(contador, clave_limite)
         # D-81-9: el correo nunca va al log ni a un error. Solo su huella llega a la base
         huella = indice_email(pepper_email, normalizar_email(solicitud.correo_solicitante))
     with sesion_tenant(fabrica, usuario_id=operador, rol="operacion") as sesion:
@@ -456,8 +466,10 @@ def registrar_retracto_por_correo(
         ).scalar()
     if solicitado_por is None:
         if clave_limite is not None:
-            _correo_fallido(fabrica, reloj, contador, clave_limite, operador, identificador, grupo_id, request)
+            _correo_fallido(fabrica, reloj, operador, identificador, grupo_id, request)
         raise ErrorMATU(422, tipo="solicitante-invalido", detalle=DETALLE_SOLICITANTE)
+    if clave_limite is not None:
+        devolver_reserva(contador, clave_limite)
     with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(grupo_id) as (u, retractos):
         sesion = _sesion_de(u)
         try:
