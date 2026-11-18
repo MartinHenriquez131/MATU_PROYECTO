@@ -1578,39 +1578,59 @@ def test_conservacion_de_alertas_solo_con_operacion_y_con_sus_plazos(cx):
         cx.rollback()
 
 
+def _ids(cursor):
+    """Los id de un INSERT … RETURNING id, en el orden de los VALUES."""
+    return [fila[0] for fila in cursor.fetchall()]
+
+
+def _quedan(cx, tabla, ids, columna="id"):
+    """MATU-79: cuáles de ``ids`` siguen en ``tabla``. Las conservaciones borran de toda la base: las pruebas miran
+    solo sus filas, nunca el total de la tabla ni el que devuelve la función."""
+    return {fila[0] for fila in cx.execute(f"SELECT {columna} FROM {tabla} WHERE {columna} = ANY(%s)",
+                                           (list(ids),)).fetchall()}
+
+
 @pytest.mark.rf("RF-12")
 def test_conservacion_de_alertas_borra_lo_vencido_y_deja_lo_reciente(cx):
+    # MATU-79: quiebre_conservar borra lo vencido de toda la base, así que la prueba mira sus filas por id y no el
+    # total que devuelve (antes vaciaba evento_outbox y notificacion para que el total fuera exacto)
     perfil = _perfil_de(cx, G_A)
-    cx.execute(
+    vieja, reciente, pendiente = _ids(cx.execute(
         "INSERT INTO alerta_quiebre (perfil_id, fecha_prevista, estado, creada_en, cerrada_en) VALUES"
         " (%(p)s, current_date - 200, 'descartada', now() - interval '200 days', now() - interval '91 days'),"
         " (%(p)s, current_date - 100, 'resuelta', now() - interval '100 days', now() - interval '89 days'),"
-        " (%(p)s, current_date - 300, 'pendiente', now() - interval '300 days', NULL)",
+        " (%(p)s, current_date - 300, 'pendiente', now() - interval '300 days', NULL) RETURNING id",
         {"p": perfil},
-    )
-    cx.execute("DELETE FROM evento_outbox")
-    cx.execute(
+    ))
+    ev_viejo, ev_reciente, ev_pendiente = _ids(cx.execute(
         "INSERT INTO evento_outbox (grupo_id, tipo, agregado_tipo, agregado_id, publicado_en) VALUES"
         " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), now() - interval '31 days'),"
         " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), now() - interval '29 days'),"
-        " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), NULL)",
+        " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), NULL) RETURNING id",
         {"g": G_A},
-    )
-    cx.execute("DELETE FROM notificacion")
-    cx.execute(
+    ))
+    no_vieja, no_reciente = _ids(cx.execute(
         "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, creada_en) VALUES"
         " (%(u)s, %(g)s, 1, 'push', 'quiebre_proximo', now() - interval '91 days'),"
-        " (%(u)s, %(g)s, 2, 'push', 'quiebre_proximo', now() - interval '10 days')",
+        " (%(u)s, %(g)s, 2, 'push', 'quiebre_proximo', now() - interval '10 days') RETURNING id",
         {"u": U_ADMIN_A, "g": G_A},
-    )
+    ))
+    # Una alerta vencida de otra familia: con el total exacto de antes, (2, 1, 1, 0) habría hecho fallar la prueba
+    [ajena] = _ids(cx.execute(
+        "INSERT INTO alerta_quiebre (perfil_id, fecha_prevista, estado, creada_en, cerrada_en) VALUES"
+        " (%s, current_date - 200, 'descartada', now() - interval '200 days', now() - interval '95 days') RETURNING id",
+        (_perfil_de(cx, G_B),),
+    ))
     como(cx, "matu_scheduler", rol="operacion")
     fila = cx.execute("SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
                       " now())").fetchone()
-    assert fila == (1, 1, 1, 0)  # MATU-51: el cuarto contador, las compras declaradas
+    # Cuenta al menos lo propio y la ajena. MATU-51: el cuarto contador, las compras declaradas
+    assert len(fila) == 4 and fila[0] >= 2 and fila[1] >= 1 and fila[2] >= 1 and fila[3] >= 0
     cx.execute("RESET ROLE")
-    assert contar(cx, "alerta_quiebre", f"perfil_id = '{perfil}'") == 2
-    assert contar(cx, "evento_outbox") == 2
-    assert contar(cx, "notificacion") == 1
+    assert _quedan(cx, "alerta_quiebre", [ajena]) == set()
+    assert _quedan(cx, "alerta_quiebre", [vieja, reciente, pendiente]) == {reciente, pendiente}
+    assert _quedan(cx, "evento_outbox", [ev_viejo, ev_reciente, ev_pendiente]) == {ev_reciente, ev_pendiente}
+    assert _quedan(cx, "notificacion", [no_vieja, no_reciente]) == {no_reciente}
 
 
 # ---- MATU-41 (migración 0014): avisos, dispositivo para el sistema, publicador del outbox y conservación
@@ -1785,8 +1805,7 @@ def test_posponer_no_suma_un_intento_y_tiene_limite(cx):
 
 @pytest.mark.rf("RF-39")
 def test_conservacion_borra_los_fallidos_a_los_30_dias_con_su_evento_consumido(cx):
-    cx.execute("DELETE FROM evento_outbox")
-    cx.execute("DELETE FROM evento_consumido")
+    # MATU-79: sin vaciar evento_outbox ni evento_consumido; la prueba mira sus cuatro eventos por id
     viejo = _evento(cx, fallido_en="2026-01-01T00:00:00Z")
     reciente = _evento(cx, fallido_en="2026-01-01T00:00:00Z")
     publicado = _evento(cx, publicado_en="2026-01-01T00:00:00Z")
@@ -1800,10 +1819,11 @@ def test_conservacion_borra_los_fallidos_a_los_30_dias_con_su_evento_consumido(c
     como(cx, "matu_scheduler", rol="operacion")
     fila = cx.execute("SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
                       " now())").fetchone()
-    assert fila[1] == 2  # el fallido viejo y el publicado viejo
+    assert fila[1] >= 2  # al menos el fallido viejo y el publicado viejo
     cx.execute("RESET ROLE")
-    assert {r[0] for r in cx.execute("SELECT id FROM evento_outbox").fetchall()} == {reciente, pendiente}
-    assert {r[0] for r in cx.execute("SELECT evento_id FROM evento_consumido").fetchall()} == {reciente, pendiente}
+    propios = [viejo, reciente, publicado, pendiente]
+    assert _quedan(cx, "evento_outbox", propios) == {reciente, pendiente}
+    assert _quedan(cx, "evento_consumido", propios, columna="evento_id") == {reciente, pendiente}
 
 
 # ---- MATU-60 (migración 0015): unidades por envase en el perfil y la lista de insumos
@@ -2059,22 +2079,21 @@ def test_reposicion_acepta_lo_que_sale_de_envases_hasta_el_tope_del_stock(cx):
 @pytest.mark.rf("RF-11")
 def test_conservacion_borra_las_compras_declaradas_a_los_90_dias(cx):
     """Decisión 145: declaradas con registrada_en de 90 días o más se borran; las recientes y las de pedido no."""
+    # MATU-79: el total que devuelve quiebre_conservar es de toda la base; la prueba mira sus tres filas por id
     perfil = _perfil_de(cx, G_A)
-    cx.execute(
+    vieja, reciente, de_pedido = _ids(cx.execute(
         "INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, pedido_ref, ocurrida_en, registrada_en) VALUES"
         " (%(p)s, 5, 'declarada', NULL, current_date - 91, now() - interval '91 days'),"
         " (%(p)s, 6, 'declarada', NULL, current_date - 89, now() - interval '89 days'),"
-        " (%(p)s, 7, 'pedido_matu', gen_random_uuid(), current_date - 200, now() - interval '200 days')",
+        " (%(p)s, 7, 'pedido_matu', gen_random_uuid(), current_date - 200, now() - interval '200 days') RETURNING id",
         {"p": perfil},
-    )
+    ))
     como(cx, "matu_scheduler", rol="operacion")
     fila = cx.execute("SELECT reposiciones FROM quiebre_conservar(now() - interval '90 days',"
                       " now() - interval '30 days', now())").fetchone()
-    assert fila == (1,)
+    assert fila[0] >= 1
     cx.execute("RESET ROLE")
-    restantes = {r[0] for r in cx.execute("SELECT cantidad_unidades FROM reposicion WHERE perfil_id = %s",
-                                          (perfil,)).fetchall()}
-    assert {6, 7} <= restantes and 5 not in restantes
+    assert _quedan(cx, "reposicion", [vieja, reciente, de_pedido]) == {reciente, de_pedido}
 
 
 @pytest.mark.rf("RF-11")
