@@ -7,7 +7,7 @@ sin cuenta (trigger pedido_escritura_del_pago), y se audita con la cuenta de qui
 - POST …/partes/{id}/codigo genera o regenera el código de una parte lista y lo devuelve **una sola vez**: la base
   guarda solo su HMAC. Regenerar borra el uso, los intentos y el bloqueo anteriores (D-63-4).
 - «En camino», «entregado» (fija entregado_en, el inicio del retracto, y registra lo que MATU debe a cada comercio,
-  RF-31) y «no entregado» (D-63-6).
+  RF-31) y «no entregado» (D-63-6). Desde MATU-76, «no entregado» emite PedidoNoEntregado (D-76-5).
 - Resolver un retracto: devolver a la misma tarjeta o rechazar (D-63-10).
 """
 
@@ -36,7 +36,13 @@ from app.modules.backoffice.api.esquemas import (
     SolicitudRetractoPorCorreo,
 )
 from app.modules.backoffice.application import consola
-from app.modules.backoffice.application.despacho import NoCancelable, UnidadDespacho, cancelar_por_operacion
+from app.modules.backoffice.application.despacho import (
+    PEDIDO_ENTREGADO,
+    PEDIDO_NO_ENTREGADO,
+    NoCancelable,
+    UnidadDespacho,
+    cancelar_por_operacion,
+)
 from app.modules.backoffice.infrastructure import consola_sql
 from app.modules.backoffice.infrastructure.sistema import AbrirDespachoSQL
 from app.modules.care_circle.api.router_autorizaciones import RelojDep
@@ -254,7 +260,10 @@ def _mover(
                 if parte.estado is EstadoParte.RETIRADA:
                     monto = monto_consumo([x for x in lineas if x.parte_id == parte.id])
                     u.despacho.registrar_consumo(parte, identificador, monto, ahora)
-            u.despacho.emitir("PedidoEntregado", identificador, grupo_id, ahora)
+            u.despacho.emitir(PEDIDO_ENTREGADO, identificador, grupo_id, ahora)
+        elif desde == "no_entregado":
+            # MATU-76 (D-76-5): en la misma transacción que el cambio de estado, solo con el id del pedido
+            u.despacho.emitir(PEDIDO_NO_ENTREGADO, identificador, grupo_id, ahora)
         _auditar(u, operador, accion, EntidadAuditoria.PEDIDO, identificador, grupo_id, pedido.persona_id, request)
     return EstadoPedidoVista(pedido_id=identificador, estado=desde)
 
@@ -288,7 +297,8 @@ def entregado(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fab
 
 
 @router.post("/pedidos/{pedido_id}/no-entregado", response_model=EstadoPedidoVista, responses=_RESPUESTAS,
-             description="en_ruta → no_entregado: nadie recibió el pedido (D-63-6).")
+             description=("en_ruta → no_entregado: nadie recibió el pedido (D-63-6). Emite PedidoNoEntregado, que avisa"
+                          " a quien pagó (MATU-76, D-76-5)."))
 def no_entregado(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica,
                  reloj: RelojDep) -> EstadoPedidoVista:
     pasos = {desde: ["no_entregado"] for desde in NO_ENTREGADO_DESDE}

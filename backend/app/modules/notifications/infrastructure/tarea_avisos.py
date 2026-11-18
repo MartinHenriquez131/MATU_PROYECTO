@@ -10,7 +10,9 @@ matu_app para el consumidor:
 2. Toma los eventos como matu_publisher, con app.rol = 'operacion' (funciones outbox_* de la migración 0014),
    y entrega cada ``QuiebreProximo`` al consumidor de avisos, que trabaja como matu_app con app.rol =
    'sistema' y el grupo del evento.
-3. Los demás tipos no tienen consumidor todavía y se marcan publicados.
+3. MATU-76: entrega PagoAnulado, ProductoFaltante, PedidoCanceladoConDevolucion, PedidoEntregado y
+   PedidoNoEntregado a su consumidor del aviso del pedido, que avisa solo a quien pagó.
+4. Los demás tipos (PedidoPagado, por ejemplo) no tienen consumidor y se marcan publicados.
 
 Dos corridas que se cruzan (una que pasa de 5 minutos y la siguiente) no envían dos veces: el arriendo del
 outbox dura 5 minutos, pero el consumidor bloquea cada notificación (FOR UPDATE) y no reenvía una
@@ -32,6 +34,8 @@ from app.core.config import ENTORNOS_REGISTRO_AVISOS, RAIZ_REPOSITORIO, Configur
 from app.core.push_piloto import PoliticaPush
 from app.modules.consumption.events import QUIEBRE_PROXIMO
 from app.modules.notifications.application.avisos import ConsumidorQuiebreProximo
+from app.modules.notifications.application.avisos_pedido import ConsumidorAvisoPedido
+from app.modules.notifications.domain.aviso import EVENTOS_DEL_PEDIDO
 from app.modules.notifications.infrastructure.enviadores_simulados import (
     EnviadorCorreoSimulado,
     EnviadorPushSimulado,
@@ -71,16 +75,33 @@ def consumidores(
     if not encendidos(config):
         return None
     registro = RegistroAvisosSimulado(reloj, archivo_del_registro(config))
+    unidad = UnidadAvisosSQL(fabrica)
+    correo = EnviadorCorreoSimulado(registro)
+    push = EnviadorPushSimulado(registro)
+    # MATU-107 (C-107-5): fuera de local y pruebas, push solo a las cuentas de PUSH_CUENTAS_PERMITIDAS
+    push_permitido = PoliticaPush.desde(config).permite
     consumidor = ConsumidorQuiebreProximo(
-        unidad=UnidadAvisosSQL(fabrica),
-        correo=EnviadorCorreoSimulado(registro),
-        push=EnviadorPushSimulado(registro),
+        unidad=unidad,
+        correo=correo,
+        push=push,
         reloj=reloj,
         origen_web=config.origen_web,
-        # MATU-107 (C-107-5): fuera de local y pruebas, push solo a las cuentas de PUSH_CUENTAS_PERMITIDAS
-        push_permitido=PoliticaPush.desde(config).permite,
+        push_permitido=push_permitido,
     )
-    return {QUIEBRE_PROXIMO: [consumidor]}
+    mapa: dict[str, list[Consumidor]] = {QUIEBRE_PROXIMO: [consumidor]}
+    for tipo in EVENTOS_DEL_PEDIDO:
+        mapa[tipo] = [
+            ConsumidorAvisoPedido(
+                tipo=tipo,
+                unidad=unidad,
+                correo=correo,
+                push=push,
+                reloj=reloj,
+                origen_web=config.origen_web,
+                push_permitido=push_permitido,
+            )
+        ]
+    return mapa
 
 
 def ejecutar(

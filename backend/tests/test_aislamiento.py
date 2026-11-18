@@ -4725,3 +4725,47 @@ def test_c27_matu_app_no_lee_el_secreto_y_la_marca_del_segundo_factor_no_cambia(
     cx.execute("RESET ROLE")
     como(cx, usuario_id=U_ADMIN_A)
     assert cx.execute("SELECT iam_mfa_secreto(%s)", (U_ADMIN_A,)).fetchone() == (None,)
+
+
+# ---- MATU-76 (sin migración, C9 y C10): los avisos del pedido
+
+
+@pytest.mark.rf("RF-39")
+def test_el_sistema_lee_quien_pago_solo_en_el_grupo_del_pedido(cx):
+    """C10: el consumidor del aviso del pedido lee quién pagó con las políticas del sistema de la 0024, acotadas al
+    grupo del contexto. Desde otro grupo, sin grupo o como la familia, no lo ve: no hace falta la 0031."""
+    from app.modules.notifications.infrastructure.repositorio_avisos import _QUIENES_PAGARON
+
+    pedido, confirmado_en = _pedido_por_pagar(cx)
+    consulta = str(_QUIENES_PAGARON).replace(":pedido", "%(pedido)s")
+    # Una venta rechazada no es un pago
+    _venta(cx, pedido, confirmado_en, estado="rechazada", usuario=U_PAG_A)
+    como(cx, grupo_id=G_A, rol="sistema")
+    assert cx.execute(consulta, {"pedido": pedido}).fetchall() == []
+    cx.execute("RESET ROLE")
+    _venta(cx, pedido, confirmado_en, estado="aprobada", usuario=U_PAG_A)
+    como(cx, grupo_id=G_A, rol="sistema")
+    assert cx.execute(consulta, {"pedido": pedido}).fetchall() == [(U_PAG_A,)]
+    for ctx in ({"grupo_id": G_B, "rol": "sistema"}, {"rol": "sistema"}):
+        cx.execute("RESET ROLE")
+        como(cx, **ctx)
+        assert cx.execute(consulta, {"pedido": pedido}).fetchall() == []
+
+
+@pytest.mark.rf("RF-39")
+def test_la_conservacion_de_alertas_borra_tambien_los_avisos_del_pedido(cx):
+    """C9: los avisos del pedido no agregan columnas ni plazos. quiebre_conservar borra toda notificacion de más de 90
+    días, también la de plantilla pedido_novedad, y deja la reciente."""
+    cx.execute("DELETE FROM notificacion")
+    cx.execute(
+        "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, creada_en) VALUES"
+        " (%(u)s, %(g)s, 1, 'correo', 'pedido_novedad', now() - interval '91 days'),"
+        " (%(u)s, %(g)s, 2, 'correo', 'pedido_novedad', now() - interval '10 days')",
+        {"u": U_PAG_A, "g": G_A},
+    )
+    como(cx, "matu_scheduler", rol="operacion")
+    fila = cx.execute("SELECT notificaciones FROM quiebre_conservar(now() - interval '90 days',"
+                      " now() - interval '30 days', now())").fetchone()
+    cx.execute("RESET ROLE")
+    assert fila == (1,)
+    assert cx.execute("SELECT evento_id FROM notificacion WHERE plantilla = 'pedido_novedad'").fetchall() == [(2,)]
