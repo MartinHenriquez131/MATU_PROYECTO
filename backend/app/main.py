@@ -17,13 +17,14 @@ import importlib
 import logging
 from typing import TextIO
 
-from fastapi import APIRouter, FastAPI
+from fastapi import FastAPI
 
 from app.core.cabeceras import CABECERAS_RELEVO, PREFIJO_RELEVO, MiddlewareCabecerasPrefijo
 from app.core.config import ENTORNOS_DOCUMENTACION, obtener_configuracion
 from app.core.errores import registrar_manejadores
 from app.core.logs import MiddlewareRequestId, configurar_logs
 from app.core.push_piloto import avisar_al_arrancar
+from app.core.salud import router as router_salud
 from app.core.web import montar_app_familia, montar_pagina_relevo
 from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_autorizaciones import router as router_autorizaciones
@@ -69,8 +70,6 @@ from app.modules.notifications.infrastructure.copia_avisos import avisos as bloq
 
 log = logging.getLogger("matu.api.arranque")
 
-router_salud = APIRouter(tags=["salud"])
-
 # Routers de la capa 3 (MATU-40, ADR-002), como "paquete.del.router:atributo". Se importan al armar la
 # app y solo con CAPA3_HABILITADA: nunca en el nivel superior de este archivo. MATU-59 agrega el catálogo
 # (GET /v1/catalogo, decisión 167)
@@ -111,11 +110,6 @@ ROUTERS_PAGO_SIEMPRE: tuple[tuple[str, str], ...] = (
 EFECTOS_CAPA_3: tuple[tuple[str, str], ...] = (
     (FINALIDAD_DESPACHO, "app.modules.ordering.infrastructure.efecto_retiro:EfectoRetiroPedidos"),
 )
-
-
-@router_salud.get("/salud")
-def salud() -> dict[str, str]:
-    return {"estado": "ok"}
 
 
 def incluir_capa_3(app: FastAPI) -> None:
@@ -245,6 +239,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.add_middleware(MiddlewareRequestId)
 
     # Routers por historia (una línea cada uno)
+    # MATU-79: /v1/salud comprueba la base y Redis (app/core/salud.py)
     app.include_router(router_salud, prefix="/v1")
     app.include_router(router_iam, prefix="/v1")
     # MATU-75: la política de privacidad vigente, pública y sin sesión

@@ -226,6 +226,66 @@ def test_la_parte_de_otro_comercio_es_404(despacho: Despacho) -> None:
     assert parte not in [p["id"] for p in d.comercio("dos", "GET", "/partes").json()["partes"]]
 
 
+@pytest.mark.rf("MATU-79")
+def test_la_linea_y_la_oferta_de_otro_comercio_son_404_y_no_cambian(despacho: Despacho) -> None:
+    """MATU-79: las dos rutas del comercio con parámetro que no probaba test_la_parte_de_otro_comercio_es_404."""
+    d = despacho
+    _, pedido = d.pagado()
+    parte, etag = _parte(d, pedido)
+    preparando = d.comercio("uno", "POST", f"/partes/{parte}/preparar", **{"If-Match": etag})
+    assert preparando.status_code == 200, preparando.text
+    [linea] = preparando.json()["lineas"]
+    etag = preparando.headers["ETag"]
+
+    ajena = d.comercio("dos", "PUT", f"/partes/{parte}/lineas/{linea['id']}", {"estado": "preparada"},
+                       **{"If-Match": etag})
+    assert ajena.status_code == 404, ajena.text
+    oferta = d.e.oferta("panal", "uno")
+    antes = d.sql("SELECT stock, disponible FROM oferta WHERE id = %s", uuid.UUID(oferta))
+    otra = d.comercio("dos", "PATCH", f"/productos/{oferta}", {"stock": 1, "disponible": False})
+    assert otra.status_code == 404, otra.text
+    assert d.sql("SELECT stock, disponible FROM oferta WHERE id = %s", uuid.UUID(oferta)) == antes
+    # La línea sigue sin marcar: el comercio dueño la marca con el mismo ETag
+    propia = d.comercio("uno", "PUT", f"/partes/{parte}/lineas/{linea['id']}", {"estado": "preparada"},
+                        **{"If-Match": etag})
+    assert propia.status_code == 200, propia.text
+
+
+@pytest.mark.rf("MATU-79")
+def test_las_rutas_con_parametro_de_comercio_y_operacion_son_404_para_la_familia(despacho: Despacho) -> None:
+    """MATU-79: la familia que pagó el pedido no alcanza ninguna ruta del comercio ni de operación sobre él (antes solo
+    se probaban las dos listas sin parámetro). El retracto resuelto va con un id inventado: 404 antes de buscarlo."""
+    d = despacho
+    familia, pedido = d.pagado()
+    parte = d.parte_de(pedido["id"])
+    [(linea,)] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
+    oferta = d.e.oferta("panal", "uno")
+    rutas: list[tuple[str, str, Any]] = [
+        ("GET", f"/v1/comercio/partes/{parte}", None),
+        ("POST", f"/v1/comercio/partes/{parte}/preparar", None),
+        ("PUT", f"/v1/comercio/partes/{parte}/lineas/{linea}", {"estado": "preparada"}),
+        ("POST", f"/v1/comercio/partes/{parte}/listo", None),
+        ("POST", f"/v1/comercio/partes/{parte}/validar-codigo", {"codigo": "123456"}),
+        ("PATCH", f"/v1/comercio/productos/{oferta}", {"stock": 1}),
+        ("POST", f"/v1/operacion/partes/{parte}/codigo", None),
+        ("POST", f"/v1/operacion/pedidos/{pedido['id']}/en-camino", None),
+        ("POST", f"/v1/operacion/pedidos/{pedido['id']}/entregado", None),
+        ("POST", f"/v1/operacion/pedidos/{pedido['id']}/no-entregado", None),
+        ("POST", f"/v1/operacion/pedidos/{pedido['id']}/cancelar-con-devolucion", None),
+        ("POST", f"/v1/operacion/pedidos/{pedido['id']}/retractos", {"lineas": [{"linea_id": str(linea),
+                                                                                   "cantidad": 1}]}),
+        ("POST", f"/v1/operacion/retractos/{uuid.uuid4()}/resolver", {"decision": "devolver"}),
+    ]
+    distintas = {}
+    for metodo, ruta, cuerpo in rutas:
+        r = d.como(familia.admin, metodo, ruta, cuerpo, **{"X-Grupo-Id": str(familia.grupo.id), "If-Match": '"v1"'})
+        if r.status_code != 404:
+            distintas[f"{metodo} {ruta}"] = r.status_code
+    assert not distintas, distintas
+    # Nada cambió: el pedido sigue recién pagado
+    assert d.estado_pedido(pedido["id"]) == "pagado"
+
+
 def test_una_cuenta_que_no_es_de_comercio_ni_de_operacion_recibe_404(despacho: Despacho) -> None:
     d = despacho
     familia, pedido = d.pagado()
@@ -487,7 +547,8 @@ def test_h2_h3_retracto_por_correo_a_nombre_de_quien_pago_y_varios_por_linea(des
     assert r.status_code == 422
     # Pasados los 90 días, tampoco por correo
     d.e.avanzar(timedelta(days=61))
-    assert d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo).status_code in (409, 422)
+    tarde = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo)
+    assert tarde.status_code == 409 and tarde.json()["type"] == "/errores/fuera-de-plazo", tarde.text
 
 
 def test_veinte_intentos_por_hora_y_el_21_es_429_con_retry_after(despacho: Despacho) -> None:

@@ -296,9 +296,11 @@ def test_otro_grupo_finalidad_y_persona_invalidas_404(entorno: EntornoAbrir) -> 
         _retirar(entorno, a, finalidad="despacho"),
         _retirar(entorno, a, persona="no-es-uuid"),
         _retirar(entorno, a, finalidad="consumo"),  # nunca se autorizó
-        entorno.ficha.iam.cliente.post(RETIRO.format(a.persona.id, "plan_cuidado"), headers={}),
     ):
-        assert respuesta.status_code in (401, 404), respuesta.text
+        assert respuesta.status_code == 404, respuesta.text
+    # MATU-79: sin sesión, 401 (antes la misma aserción aceptaba 401 o 404 para los cinco casos)
+    sin_sesion = entorno.ficha.iam.cliente.post(RETIRO.format(a.persona.id, "plan_cuidado"), headers={})
+    assert sin_sesion.status_code == 401, sin_sesion.text
     assert _acceso(acceso_b)[:2] == (None, None)
     assert entorno.presentar(token_b).status_code == 200
 
