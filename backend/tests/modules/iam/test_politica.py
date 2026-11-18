@@ -776,7 +776,7 @@ def test_la_0_24_esta_publicada_y_es_la_de_env_example() -> None:
     anteriores = {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21", "0.22",
                   "0.23"}
     assert anteriores | {"0.24"} <= set(PUBLICADAS)
-    huella = "8e8b73479d0e097adc0462cf24ef7a71d08691e2e9764dc4a6213978217098c3"  # pragma: allowlist secret
+    huella = "7d7af6d9ae62a7e3811db09feaff6a4acddedc45658f3a58c12dc34e18a7d219"  # pragma: allowlist secret
     assert PUBLICADAS["0.24"] == huella
     valores = dotenv_values(BACKEND.parent / ".env.example")
     assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.24", "2026-11-18")
@@ -787,9 +787,19 @@ def test_la_0_24_esta_publicada_y_es_la_de_env_example() -> None:
         "**Tu cuenta:** tu email y tu celular los ves solo tú. Las personas de tus grupos no los ven, y el equipo que"
         " opera MATU tampoco los ve desde sus herramientas.",
         "Si nos escribes al correo de la sección 10, te respondemos a ese correo.",
+        # §6 (N2 del cierre del analista): el intento registrado sin el correo
+        "Si alguien de la familia pide por correo arrepentirse de una compra y el equipo lo intenta registrar con un"
+        " correo que no es de quien administra el grupo, MATU también lo registra, sin el correo.",
+        # §10: lo ve quien pide «Datos de» la persona
+        "cada vez que el equipo revisó un pedido o intentó registrar un arrepentimiento con un correo que no"
+        " correspondía",
         # §12: el cambio de la 0.24 y por qué nadie vuelve a aceptar
-        "- La versión 0.24 aclara que el equipo que opera MATU no ve tu email ni tu celular. No te pedimos aceptar de"
-        " nuevo esta política ni volver a dar las autorizaciones: el equipo ve menos que antes.",
+        "- La versión 0.24 aclara que el equipo que opera MATU no ve tu email ni tu celular, y agrega que MATU"
+        " registra, sin el correo, cuando el equipo intenta registrar un arrepentimiento con un correo que no es de"
+        " quien administra el grupo.",
+        "el equipo ve menos que antes, y ese registro protege tu pedido.",
+        # §13: lo que falta construir, el borrado a los 3 años de ese registro
+        "o intentó registrar un arrepentimiento por correo. Mientras no exista, MATU no trata datos reales.",
     ):
         assert parte in texto, parte
     # La frase anterior, que decía que el equipo los veía, ya no está
