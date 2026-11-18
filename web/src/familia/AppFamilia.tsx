@@ -93,10 +93,11 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   // abrir es el primero, y la vuelta fija después el del pedido.
   if (ruta === RUTA_PAGO && s.rol === 'observador' && !hayVuelta()) return '/insumos/pedido'
   // MATU-92 (2.1): el detalle y arrepentirse, solo con el pedido elegido en memoria y de la persona
-  // elegida. Al recargar, o para el observador (que no tiene detalle), la lista, sin aviso.
+  // elegida. Al recargar, la lista, sin aviso. MATU-116 (H1, C10): sin mirar el rol: quien «Se informa»
+  // abre lo que pagó, y de un pedido que no pagó el servidor responde 404 («No encontramos este pedido.»).
   if (ruta === RUTA_DETALLE_PEDIDO || ruta === RUTA_ARREPENTIRME) {
     const e = s.pedidoElegido
-    if (s.rol === 'observador' || !e || e.personaId !== s.personaId) return RUTA_TUS_PEDIDOS
+    if (!e || e.personaId !== s.personaId) return RUTA_TUS_PEDIDOS
   }
   return null
 }

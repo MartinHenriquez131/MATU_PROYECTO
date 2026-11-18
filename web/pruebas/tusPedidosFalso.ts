@@ -1,7 +1,7 @@
 // MATU-92: datos sintéticos de «Tus pedidos», con los nombres del contrato (PedidoPagadoFila,
 // SeguimientoPedido, RetractosDelPedido, RetractoVistaFamilia). Montos de la especificación (57.460,
 // 31.980, 22.980, 5.290). Comercios ficticios y ningún código de retiro: el contrato no los trae.
-import type { FilaObservador, FilaPedido, LineaParaRetracto, RetractoFamilia, Retractos, Seguimiento } from '../src/compartido/api/tusPedidos'
+import type { FilaObservador, FilaPagaste, FilaPedido, LineaParaRetracto, RetractoFamilia, Retractos, Seguimiento } from '../src/compartido/api/tusPedidos'
 import { PANAL_C, SUPLEMENTO_C } from './pagoFalso'
 import { PEDIDO_ID } from './pedidoFalso'
 
@@ -57,6 +57,7 @@ export const entregado = (cambios: Partial<FilaPedido> = {}): FilaPedido =>
   })
 
 export const filaObservador = (cambios: Partial<FilaObservador> = {}): FilaObservador => ({
+  vista: 'se_informa',
   pedido_id: PEDIDO_ID,
   pagado_en: '2026-11-11T19:41:00Z',
   estado: 'pagado',
@@ -67,6 +68,15 @@ export const filaObservador = (cambios: Partial<FilaObservador> = {}): FilaObser
   ],
   resumen_productos: { primero: PANAL_C.nombre, otros: 1 },
   productos_borrados: false,
+  ...cambios,
+})
+
+/** MATU-116 (C5): la fila del observador en un pedido que pagó: la de quien paga, con `puede_cancelar` en false. */
+export const filaPagaste = (cambios: Partial<FilaPagaste> = {}): FilaPagaste => ({
+  ...entregado({ puede_cancelar: false, cancelar_motivo: 'rol' }),
+  puede_cancelar: false,
+  cancelar_motivo: 'rol',
+  vista: 'pagaste',
   ...cambios,
 })
 
@@ -153,4 +163,4 @@ export const retracto = (cambios: Partial<RetractoFamilia> = {}): RetractoFamili
 })
 
 /** La lista de quien ve el pago, o la del observador. */
-export const lista = (items: (FilaPedido | FilaObservador)[], siguiente_cursor: string | null = null) => ({ items, siguiente_cursor })
+export const lista = (items: (FilaPedido | FilaObservador | FilaPagaste)[], siguiente_cursor: string | null = null) => ({ items, siguiente_cursor })

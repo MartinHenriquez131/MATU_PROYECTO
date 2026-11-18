@@ -4,7 +4,7 @@
 // red); el plazo; cancelar (confirmar, 409 `estado-pedido`, 409 `ya-se-prepara`, red) y la
 // `Idempotency-Key` reutilizada. Sin interfaz optimista: cada estado es lo que respondió la API falsa.
 // Solo datos sintéticos.
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Rol } from '../src/compartido/api/familia'
@@ -19,6 +19,7 @@ import {
   entregado,
   fila,
   filaObservador,
+  filaPagaste,
   LINEA_PANAL,
   LINEA_SUPLEMENTO,
   lineaParaRetracto,
@@ -406,6 +407,123 @@ describe('El detalle (4)', () => {
     const volver = screen.getAllByRole('button', { name: 'Volver a tus pedidos' })
     await userEvent.click(volver[volver.length - 1])
     expect(window.location.pathname).toBe(LISTA)
+  })
+})
+
+// ---------------------------------------------------------------- MATU-116: quien «Se informa» y pagó
+
+const T1 = 'De los pedidos que pagaste, ves el detalle y puedes arrepentirte de la compra.'
+const FRASE_SE_INFORMA = 'Quien administra el grupo, quien cuida a María y quien paga ven el detalle.'
+
+describe('MATU-116: «Tus pedidos» de quien «Se informa» y pagó algunos (1)', () => {
+  it('1.3: la fila que pagó es la de «Paga» (un botón con el total), la que no pagó la de MATU-113; las dos frases en orden', async () => {
+    api({ 'GET /pedidos$': { status: 200, cuerpo: lista([filaObservador(), filaPagaste()]) } })
+    abrir('observador', LISTA)
+    const ul = await screen.findByRole('list', { name: 'Tus pedidos' })
+    const filas = within(ul).getAllByRole('listitem').filter((li) => li.parentElement === ul)
+    expect(filas).toHaveLength(2)
+    // La que no pagó: «Pagado el {fecha}», sin número, sin «$» y sin botón.
+    expect(within(filas[0]).queryByRole('button')).toBeNull()
+    expect(filas[0]).toHaveTextContent('Pagado el 11/11/2026')
+    expect(filas[0]).not.toHaveTextContent(/\$|Pedido \d/)
+    // La que pagó: el botón de «Paga», con el número y el total.
+    const boton = within(filas[1]).getByRole('button', { name: /^Pedido 4790/ })
+    expect(boton).toHaveAccessibleName(conComas('Pedido 4790, 02/11/2026, Entregado el 04/11/2026, Total pagado: $31.980, Devuelto: $5.290'))
+    // Las dos frases bajo la bajada, en este orden.
+    const frases = [...document.querySelectorAll('p.text-tenue')].map((p) => p.textContent)
+    expect(frases.indexOf(FRASE_SE_INFORMA)).toBeGreaterThan(-1)
+    expect(frases.indexOf(T1)).toBe(frases.indexOf(FRASE_SE_INFORMA) + 1)
+    // Ninguna marca nueva en la fila (D-116-2).
+    expect(ul).not.toHaveTextContent(/Lo pagaste/)
+  })
+
+  it('T1 solo con una fila `vista: pagaste`: sin ninguna, la lista de MATU-113 sin T1', async () => {
+    api({ 'GET /pedidos$': { status: 200, cuerpo: lista([filaObservador(), filaObservador({ pedido_id: PEDIDO_2 })]) } })
+    abrir('observador', LISTA)
+    expect(await screen.findByText(FRASE_SE_INFORMA)).toBeVisible()
+    expect(screen.queryByText(T1)).toBeNull()
+  })
+
+  it('solo filas que pagó: T1 sin la frase de «Se informa»', async () => {
+    api({ 'GET /pedidos$': { status: 200, cuerpo: lista([filaPagaste(), filaPagaste({ pedido_id: PEDIDO_3, referencia: '4655' })]) } })
+    abrir('observador', LISTA)
+    expect(await screen.findByText(T1)).toBeVisible()
+    expect(screen.queryByText(FRASE_SE_INFORMA)).toBeNull()
+    expect(screen.getAllByRole('button', { name: /^Pedido \d+/ })).toHaveLength(2)
+  })
+
+  it('C10: T1 lo decide `vista`, no el rol: «Paga» y quien administra no lo ven, y quien «Se informa» sin `vista: pagaste` tampoco', async () => {
+    for (const rol of ['pagador', 'admin'] as const) {
+      api({ 'GET /pedidos$': { status: 200, cuerpo: lista([entregado()]) } })
+      abrir(rol, LISTA)
+      await screen.findByRole('button', { name: /^Pedido 4790/ })
+      expect(screen.queryByText(T1)).toBeNull()
+      cleanup()
+    }
+    // Una fila con la forma completa pero `vista: se_informa` se pinta como la de MATU-113: manda el servidor.
+    const { vista: _v, ...completa } = filaPagaste()
+    api({ 'GET /pedidos$': { status: 200, cuerpo: lista([{ ...completa, vista: 'se_informa' } as never]) } })
+    abrir('observador', LISTA)
+    expect(await screen.findByText(FRASE_SE_INFORMA)).toBeVisible()
+    expect(screen.queryByText(T1)).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Pedido/ })).toBeNull()
+  })
+
+  it('tocar la fila que pagó abre el detalle con el pedido en memoria', async () => {
+    api({ 'GET /pedidos$': { status: 200, cuerpo: lista([filaObservador(), filaPagaste()]) } })
+    abrir('observador', LISTA)
+    await userEvent.click(await screen.findByRole('button', { name: /^Pedido 4790/ }))
+    expect(contexto.pedidoElegido).toEqual(ELEGIDO_2)
+    expect(window.location.pathname).toBe(DETALLE)
+  })
+})
+
+describe('MATU-116: el detalle de un pedido que pagó, para quien «Se informa» (1.9)', () => {
+  const pagaste = () => seguimientoEntregado({ puede_cancelar: false, cancelar_motivo: 'rol' })
+
+  it('el de «Paga»: cómo va, el comprobante con su tarjeta y «Entrega: {ventana}», «Arrepentirme de la compra» y, sin botón, por qué no cancela', async () => {
+    api(rutasDelEntregado({ 'GET /seguimiento$': { status: 200, cuerpo: pagaste() } }))
+    abrir('observador', DETALLE, ELEGIDO_2)
+    await screen.findByRole('heading', { level: 2, name: 'Cómo va' })
+    expect(await h1('Pedido 4790')).toBeVisible()
+    const arrep = within((await screen.findByRole('heading', { level: 2, name: 'Arrepentirme de la compra' })).closest('section')!)
+    expect(arrep.getByRole('button', { name: 'Arrepentirme de la compra' })).toBeVisible()
+    expect(screen.getByText('Solo quien administra el grupo puede cancelar un pedido pagado, mientras el comercio no empiece a prepararlo.')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Cancelar el pedido' })).toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: 'Comprobante' })).toBeVisible()
+    // Como pagó, su tarjeta (la del comprobante de ejemplo es de débito).
+    expect(document.body).toHaveTextContent(/Tarjeta de débito terminada en 4051/)
+    expect(document.body).not.toHaveTextContent('Lo pagó otra persona de tu grupo.')
+    // D-116-1: la franja horaria sí; la dirección y el teléfono de entrega nunca llegan ni se muestran.
+    expect(screen.getAllByText('Entrega: Entre 24 y 48 horas hábiles')[0]).toBeVisible()
+    expect(macizos()).toEqual([])
+  })
+
+  it('con `cancelar_motivo` `ya_se_prepara`, como a quien paga: ni la sección de cancelar', async () => {
+    api(rutasDelEntregado({ 'GET /seguimiento$': { status: 200, cuerpo: seguimientoEntregado({ puede_cancelar: false, cancelar_motivo: 'ya_se_prepara' }) } }))
+    abrir('observador', DETALLE, ELEGIDO_2)
+    await screen.findByRole('heading', { level: 2, name: 'Cómo va' })
+    expect(screen.queryByText(/Solo quien administra el grupo puede cancelar/)).toBeNull()
+    expect(screen.queryByRole('heading', { level: 2, name: 'Cancelar el pedido' })).toBeNull()
+  })
+
+  it('«Arrepentirme de la compra» funciona: elige, envía con su clave y vuelve al detalle con la nota', async () => {
+    const a = api({
+      ...rutasDelEntregado({ 'GET /seguimiento$': { status: 200, cuerpo: pagaste() } }),
+      'POST /retractos$': { status: 201, cuerpo: retracto() },
+    })
+    abrir('observador', ARREPENTIRME, ELEGIDO_2)
+    await userEvent.click(await screen.findByRole('button', { name: 'Uno más: Suplemento vainilla x12' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Devolver estos productos' }))
+    await waitFor(() => expect(window.location.pathname).toBe(DETALLE))
+    expect(claves(a.pedidas, '/retractos')).toHaveLength(1)
+  })
+
+  it('de un pedido que no pagó, el servidor responde 404 y se ve «No encontramos este pedido.», sin datos del pedido', async () => {
+    api({ 'GET /seguimiento$': NO_ENCONTRADO, 'GET /pago$': { status: 200, cuerpo: { pedido_id: PEDIDO_ID, estado: 'pagado' } }, 'GET /pedidos$': { status: 200, cuerpo: lista([]) } })
+    abrir('observador', DETALLE, ELEGIDO_1)
+    expect(await screen.findByText('No encontramos este pedido.')).toBeVisible()
+    expect(document.body).not.toHaveTextContent(/\$|Cómo va|Comprobante/)
   })
 })
 
