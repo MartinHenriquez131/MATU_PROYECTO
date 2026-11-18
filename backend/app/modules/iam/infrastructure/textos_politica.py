@@ -53,6 +53,10 @@ PUBLICADAS: dict[str, str] = {
     # MATU-114: el equipo que opera MATU ya no ve el email ni el celular de las cuentas, y MATU registra sin el
     # correo el intento de un retracto con un correo que no es del admin. Nadie vuelve a aceptar; las anteriores siguen
     "0.24": "7d7af6d9ae62a7e3811db09feaff6a4acddedc45658f3a58c12dc34e18a7d219",  # pragma: allowlist secret
+    # MATU-116: quien pagó un pedido sigue viendo sus pagos en «Tus datos» aunque cambie de rol o salga del grupo, y
+    # puede arrepentirse de esa compra si pasa a «Se informa». Solo ve más de sus propios datos: nadie vuelve a
+    # aceptar; las anteriores siguen
+    "0.25": "276943c06cdb345838df921e454b7ea9d289970380afce020278995a82e94a50",  # pragma: allowlist secret
 }
 
 

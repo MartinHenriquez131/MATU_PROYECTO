@@ -7077,7 +7077,7 @@
           "pedidos"
         ],
         "summary": "«Tus pedidos»: los pedidos pagados de la persona, de los últimos 2 años",
-        "description": "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos, sin ningún monto (C3; MATU-113, decisión 472), con vista = se_informa; y en los pedidos que pagó, la fila de quien paga sin cancelar, con vista = pagaste (MATU-116, C5). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3",
+        "description": "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos, sin ningún monto (C3; MATU-113, decisión 472), con vista = se_informa; y en los pedidos que pagó, la fila de quien paga con puede_cancelar en false, con vista = pagaste (MATU-116, C5). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3",
         "operationId": "listar_pedidos_v1_personas_cuidadas__persona_id__pedidos_get",
         "security": [
           {
@@ -11270,7 +11270,7 @@
           "pedidos"
         ],
         "summary": "Cómo va un pedido pagado, por comercio",
-        "description": "MATU-92 (ruta 2). admin, cuidador y pagador: SeguimientoPedido. El observador que pagó el pedido: SeguimientoPedidoPagaste, sin puede_cancelar (MATU-116, C5); de uno que no pagó, no tiene detalle (404, D-92-1 a). Cada parte con el nombre de fantasía del comercio, su estado y cancelada_por; cada línea con unidades_faltantes. Nunca el código de retiro, la referencia de la parte ni la cuenta del encargado (C15). El comprobante es GET …/pago (C14). No se audita. Capa 3",
+        "description": "MATU-92 (ruta 2). admin, cuidador y pagador: SeguimientoPedido. El observador que pagó el pedido: SeguimientoPedidoPagaste, con puede_cancelar en false (MATU-116, C5); de uno que no pagó, no tiene detalle (404, D-92-1 a). Cada parte con el nombre de fantasía del comercio, su estado y cancelada_por; cada línea con unidades_faltantes. Nunca el código de retiro, la referencia de la parte ni la cuenta del encargado (C15). El comprobante es GET …/pago (C14). No se audita. Capa 3",
         "operationId": "ver_seguimiento_v1_pedidos__pedido_id__seguimiento_get",
         "security": [
           {
@@ -24070,6 +24070,21 @@
             "title": "Devuelto Todo",
             "description": "devuelto = total: «Devolvimos», y no «Estamos devolviendo»"
           },
+          "puede_cancelar": {
+            "type": "boolean",
+            "const": false,
+            "title": "Puede Cancelar"
+          },
+          "cancelar_motivo": {
+            "type": "string",
+            "enum": [
+              "rol",
+              "ya_se_prepara",
+              "cancelado"
+            ],
+            "title": "Cancelar Motivo",
+            "description": "null si puede_cancelar. rol: solo el admin cancela; ya_se_prepara: un comercio ya empezó (o el pedido ya salió); cancelado: el pedido ya se canceló"
+          },
           "puede_arrepentirse": {
             "type": "boolean",
             "title": "Puede Arrepentirse"
@@ -24135,13 +24150,15 @@
           "total",
           "devuelto",
           "devuelto_todo",
+          "puede_cancelar",
+          "cancelar_motivo",
           "puede_arrepentirse",
           "arrepentirse_motivo",
           "plazo_hasta",
           "plazo_correo_hasta"
         ],
         "title": "PedidoPagadoFilaPagaste",
-        "description": "MATU-116 (J1, C5; decisión 475): la fila del observador en un pedido que pagó. La de quien paga\n(PedidoPagadoFila), sin puede_cancelar ni cancelar_motivo: puede arrepentirse de la compra, nunca cancelar."
+        "description": "MATU-116 (J1, C5; decisión 475): la fila del observador en un pedido que pagó. La de quien paga\n(PedidoPagadoFila), con puede_cancelar siempre false: puede arrepentirse de la compra, nunca cancelar."
       },
       "SeguimientoPedidoPagaste": {
         "properties": {
@@ -24225,6 +24242,21 @@
             "type": "boolean",
             "title": "Devuelto Todo"
           },
+          "puede_cancelar": {
+            "type": "boolean",
+            "const": false,
+            "title": "Puede Cancelar"
+          },
+          "cancelar_motivo": {
+            "type": "string",
+            "enum": [
+              "rol",
+              "ya_se_prepara",
+              "cancelado"
+            ],
+            "title": "Cancelar Motivo",
+            "description": "null si puede_cancelar. rol: solo el admin cancela; ya_se_prepara: un comercio ya empezó (o el pedido ya salió); cancelado: el pedido ya se canceló"
+          },
           "puede_arrepentirse": {
             "type": "boolean",
             "title": "Puede Arrepentirse"
@@ -24287,13 +24319,15 @@
           "total",
           "devuelto",
           "devuelto_todo",
+          "puede_cancelar",
+          "cancelar_motivo",
           "puede_arrepentirse",
           "arrepentirse_motivo",
           "plazo_hasta",
           "plazo_correo_hasta"
         ],
         "title": "SeguimientoPedidoPagaste",
-        "description": "MATU-116 (J1, C5): el detalle para el observador que pagó el pedido. El de quien paga (SeguimientoPedido), sin\npuede_cancelar ni cancelar_motivo. Como SeguimientoPedido, sin la entrega, el teléfono ni las notas del equipo."
+        "description": "MATU-116 (J1, C5): el detalle para el observador que pagó el pedido. El de quien paga (SeguimientoPedido), con\npuede_cancelar siempre false. Como SeguimientoPedido, sin la entrega, el teléfono ni las notas del equipo."
       }
     },
     "securitySchemes": {
