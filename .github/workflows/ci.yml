@@ -132,7 +132,11 @@ jobs:
       # MATU-79: estrategia de pruebas, sección 14. Falla si un RF Debe no tiene ninguna prueba con @pytest.mark.rf y
       # no está en --pendientes, y también si un pendiente ya tiene prueba: así nadie se olvida de sacarlo. Pendientes
       # al 18-11: RF-32 y RF-40 (backoffice). Las de RF-40 llegan con MATU-81 (PR #101), todavía fuera de main: al
-      # fusionarlo, RF-40 sale de la lista. RF-32 no tiene pruebas marcadas tampoco en esa rama: es un hueco abierto
+      # fusionarlo, RF-40 sale de la lista. RF-32 (la operación gestiona catálogo, convenios, incidencias e indicadores)
+      # sigue pendiente porque no está construido, ni en main ni en MATU-81: la operación no administra el catálogo (se
+      # carga con infra/semillas/catalogo_demo.py) ni los convenios, y no existe ninguno de los cuatro indicadores de la
+      # arquitectura (GET /v1/backoffice/indicadores). Las rutas de /v1/operacion de MATU-63 operan pedidos, y sus pruebas
+      # ya van marcadas con RF-25, RF-26 y RF-40, no con RF-32 (revisado el 18-11)
       - name: Trazabilidad (RF Debe con prueba)
         run: python scripts/trazabilidad.py --arquitectura ../matu-docs/docs/arquitectura.md --pendientes RF-32,RF-40
 
