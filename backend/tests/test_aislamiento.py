@@ -4488,6 +4488,9 @@ def _incidencia(cx, pedido, creada_por, tipo="faltante", clave=None):
 @pytest.mark.rf("RF-40")
 @pytest.mark.rf("Ley-21.719")
 def test_c16_la_incidencia_la_ve_su_familia_y_operacion_y_nadie_mas(cx, operador_81):
+    """«Su familia» son el admin y el cuidador activos, los que piden «Datos de» (MATU-122, C5: incidencia_familia con
+    app_escribe_plan()). El pagador, el observador y el sistema con el grupo, no: lo prueba
+    test_122_la_nota_del_equipo_la_leen_solo_admin_y_cuidador."""
     como(cx, usuario_id=operador_81, rol="operacion")
     incidencia = _incidencia(cx, PED_A_ENVIADO, operador_81)
     cx.execute("RESET ROLE")
@@ -4688,15 +4691,17 @@ def test_471_destruir_la_clave_de_la_ficha_no_destruye_la_de_las_notas(cx, opera
 
 @pytest.mark.rf("RF-40")
 @pytest.mark.rf("Ley-21.719")
-def test_d_81_2_y_d_81_6_operacion_no_lee_la_persona_ni_las_aceptaciones_y_la_entrega_solo_la_lee(cx):
+def test_d_81_2_y_d_81_6_operacion_no_lee_la_persona_ni_las_aceptaciones_ni_la_entrega(cx):
     como(cx, rol="operacion")
     assert contar(cx, "persona_cuidada") == 0
     assert contar(cx, "aceptacion_politica") == 0
-    assert contar(cx, "pedido_entrega") >= 1
+    # MATU-122 (C2): la entrega ya no se lee (sale entrega_operacion_leer); solo pedido_conservar, con su marcador
+    assert contar(cx, "pedido_entrega") == 0
     assert cx.execute("UPDATE pedido_entrega SET referencia = 'x' RETURNING pedido_id").fetchall() == []
     assert cx.execute("DELETE FROM pedido_entrega RETURNING pedido_id").fetchall() == []
-    # La dirección se sigue leyendo (D-81-6); el consentimiento, no (decisión 452: solo las funciones de conservación)
-    assert contar(cx, "direccion") >= 1
+    # MATU-122 (C2): la dirección tampoco (sale direccion_operacion_leer); el consentimiento, no (decisión 452: solo las
+    # funciones de conservación)
+    assert contar(cx, "direccion") == 0
     assert contar(cx, "consentimiento") == 0
     cx.execute("RESET ROLE")
     como(cx, usuario_id=U_ADMIN_A, rol="operacion")
@@ -5225,3 +5230,207 @@ def test_116_matu_app_no_gana_nada_fijando_los_marcadores_de_la_0032(cx, marca):
     cx.execute("SELECT set_config('app.funcion', 'invitacion', true)")
     assert len(cx.execute("SELECT * FROM cuenta_pagos()").fetchall()) == 1
     assert cx.execute("SELECT current_setting('app.funcion', true)").fetchone() == ("invitacion",)
+
+
+# ---- MATU-122 (migración 0033): operación lee solo lo que usa
+
+# La sentencia de la semilla de demostración (infra/semillas/demo.py, _USUARIO_COMERCIO), como matu_app con operación
+USUARIO_COMERCIO_SEMILLA = (
+    "INSERT INTO usuario_comercio (usuario_id, comercio_id, rol, activo) VALUES (%s, %s, 'encargado', true)"
+    " ON CONFLICT (usuario_id, comercio_id) DO UPDATE SET activo = true"
+)
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_122_operacion_no_toca_las_cuentas_de_un_comercio_real(cx):
+    """A1 (O2, C1): con un comercio real, operación no lee, no crea, no cambia ni borra sus cuentas. Con uno ficticio,
+    la sentencia de la semilla funciona, también cuando la cuenta ya existe (ON CONFLICT), y sigue sin DELETE."""
+    cx.execute("UPDATE comercio SET ficticio = false WHERE id = %s", (COMERCIO,))
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("INSERT INTO usuario_comercio (usuario_id, comercio_id) VALUES (%s, %s)", (U_NUEVO, COMERCIO))
+    assert cx.execute("UPDATE usuario_comercio SET activo = false WHERE comercio_id = %s RETURNING usuario_id",
+                      (COMERCIO,)).fetchall() == []
+    assert contar(cx, "usuario_comercio", f"comercio_id = '{COMERCIO}'") == 0
+    assert cx.execute("DELETE FROM usuario_comercio RETURNING usuario_id").fetchall() == []
+    cx.execute("RESET ROLE")
+    assert contar(cx, "usuario_comercio", f"comercio_id = '{COMERCIO}' AND usuario_id = '{U_ENC}' AND activo") == 1
+
+    cx.execute("UPDATE comercio SET ficticio = true WHERE id = %s", (COMERCIO,))
+    como(cx, rol="operacion")
+    cx.execute(USUARIO_COMERCIO_SEMILLA, (U_NUEVO, COMERCIO))
+    cx.execute(USUARIO_COMERCIO_SEMILLA, (U_ENC, COMERCIO))
+    assert contar(cx, "usuario_comercio", f"comercio_id = '{COMERCIO}'") == 2
+    assert cx.execute("DELETE FROM usuario_comercio RETURNING usuario_id").fetchall() == []
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_122_operacion_no_cambia_si_un_comercio_es_ficticio(cx):
+    """A2 (H2, C7): matu_app no cambia comercio.ficticio, en ningún sentido. Lo demás del comercio, sí (la semilla del
+    catálogo), y la misma marca sin cambio pasa."""
+    cx.execute("UPDATE comercio SET ficticio = false WHERE id = %s", (COMERCIO,))
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("UPDATE comercio SET ficticio = true WHERE id = %s", (COMERCIO,))
+    cx.execute("RESET ROLE")
+    cx.execute("UPDATE comercio SET ficticio = true WHERE id = %s", (COMERCIO,))
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("UPDATE comercio SET ficticio = false WHERE id = %s", (COMERCIO,))
+    assert cx.execute("UPDATE comercio SET ficticio = true, telefono = '+56900000000' WHERE id = %s RETURNING id",
+                      (COMERCIO,)).fetchall() == [(COMERCIO,)]
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT ficticio FROM comercio WHERE id = %s", (COMERCIO,)).fetchone() == (True,)
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_122_operacion_no_lee_la_direccion_ni_la_entrega(cx, operador_81):
+    """A3 (O3, C2): sin cuenta ni grupo, con la cuenta de operación y con el grupo del pedido (AbrirDespachoSQL). La
+    familia las sigue leyendo."""
+    for ctx in ({"rol": "operacion"}, {"rol": "operacion", "usuario_id": operador_81},
+                {"rol": "operacion", "grupo_id": G_A}):
+        como(cx, **ctx)
+        assert contar(cx, "direccion") == 0, ctx
+        assert contar(cx, "pedido_entrega") == 0, ctx
+        cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "direccion") == 1
+    assert contar(cx, "pedido_entrega") == 1
+
+
+@pytest.mark.rf("RF-25")
+@pytest.mark.rf("Ley-21.719")
+def test_122_pedido_conservar_borra_la_entrega_del_pedido_con_dinero(cx):
+    """A4 (H1, C2): un pedido con dinero que nunca quedó pagado (pago tardío anulado), de hace 40 días y con su
+    entrega. pedido_conservar borra la dirección y el teléfono, y se quedan el pedido y el cargo."""
+    persona = cx.execute("INSERT INTO persona_cuidada (grupo_id, nombre, nombre_pila, nivel_apoyo)"
+                         " VALUES (%s, 'Rosa Díaz', 'Rosa', 'apoyo_parcial') RETURNING id", (G_A,)).fetchone()[0]
+    pedido, confirmado_en = cx.execute(
+        "INSERT INTO pedido (grupo_id, persona_cuidada_id, estado, subtotal_productos, costo_envio, total,"
+        " total_confirmado_en, total_vence_en, creado_por) VALUES (%s, %s, 'total_confirmado', 12990, 2990, 15980,"
+        " now() - interval '40 days', now() - interval '40 days' + interval '15 minutes', %s)"
+        " RETURNING id, total_confirmado_en", (G_A, persona, U_ADMIN_A)).fetchone()
+    cx.execute("INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario)"
+               " VALUES (%s, %s, %s, 1, 12990)", (pedido, OFERTA, PRODUCTO))
+    cx.execute("INSERT INTO pedido_entrega (pedido_id, calle, numero, comuna, telefono_contacto)"
+               " VALUES (%s, 'Los Aromos', '123', 'La Reina', '+56911111111')", (pedido,))
+    cargo, participacion, venta = _venta(cx, pedido, confirmado_en)
+    cx.execute("UPDATE transaccion_pasarela SET estado = 'aprobada', anulacion_total = true WHERE id = %s", (venta,))
+    cx.execute("INSERT INTO transaccion_pasarela (participacion_id, cargo_id, proveedor, tipo, buy_order, monto,"
+               " estado, idempotency_key, venta_id, motivo_anulacion) VALUES (%s, %s, 'webpay_plus', 'anulacion', %s,"
+               " 15980, 'aprobada', %s, %s, 'pago_tardio')", (participacion, cargo, "y" * 26, "k-y", venta))
+    cx.execute("UPDATE pedido SET estado = 'cancelado' WHERE id = %s", (pedido,))
+    cx.execute("SET LOCAL session_replication_role = replica")
+    cx.execute("UPDATE pedido SET actualizado_en = now() - interval '40 days' WHERE id = %s", (pedido,))
+    cx.execute("SET LOCAL session_replication_role = origin")
+    assert contar(cx, "pedido_entrega", f"pedido_id = '{pedido}'") == 1
+
+    como(cx, "matu_scheduler", rol="operacion")
+    cx.execute("SELECT * FROM pedido_conservar(now() - interval '30 days', now())")
+    cx.execute("RESET ROLE")
+
+    assert contar(cx, "pedido_entrega", f"pedido_id = '{pedido}'") == 0
+    assert contar(cx, "pedido", f"id = '{pedido}'") == 1
+    assert contar(cx, "cargo", f"id = '{cargo}'") == 1
+    assert contar(cx, "pedido_entrega", f"pedido_id = '{PED_A_ENVIADO}'") == 1  # lo pagado no se toca
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_122_operacion_lee_las_participaciones_solo_del_grupo_del_contexto_y_sin_cuenta(cx, operador_81):
+    """A5 (O4, C4): sin grupo, con otro grupo, con la cuenta de operación, como matu_owner sin marcador y con el
+    marcador fijado por matu_app: nada. La devolución (el grupo del pedido y sin cuenta) la sigue leyendo y guardando,
+    y operacion_solicitante_retracto devuelve app.funcion como lo encontró."""
+    como(cx, rol="operacion")
+    assert contar(cx, "participacion") == 0
+    cx.execute("RESET ROLE")
+    como(cx, rol="operacion", grupo_id=G_B)
+    assert contar(cx, "participacion", f"id = '{PARTICIPACION_A}'") == 0
+    assert cx.execute("UPDATE participacion SET estado = estado WHERE id = %s RETURNING id",
+                      (PARTICIPACION_A,)).fetchall() == []
+    cx.execute("RESET ROLE")
+    como(cx, rol="operacion", usuario_id=operador_81, grupo_id=G_A)
+    assert contar(cx, "participacion") == 0
+    cx.execute("RESET ROLE")
+    como(cx, "matu_owner", rol="operacion")
+    assert contar(cx, "participacion") == 0
+    cx.execute("RESET ROLE")
+    como(cx, rol="operacion")
+    cx.execute("SELECT set_config('app.funcion', 'solicitante_retracto', true)")
+    assert contar(cx, "participacion") == 0
+    cx.execute("RESET ROLE")
+    # La devolución: AbrirDespachoSQL con el grupo del pedido, sin cuenta
+    como(cx, rol="operacion", grupo_id=G_A)
+    assert contar(cx, "participacion") == 1
+    assert cx.execute("UPDATE participacion SET estado = estado WHERE id = %s RETURNING id",
+                      (PARTICIPACION_A,)).fetchall() == [(uuid.UUID(PARTICIPACION_A),)]
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=operador_81, rol="operacion")
+    cx.execute("SELECT set_config('app.funcion', 'otra', true)")
+    assert cx.execute("SELECT operacion_solicitante_retracto(%s, NULL, NULL)", (PED_A_ENVIADO,)).fetchone() == (
+        U_ADMIN_A,)
+    assert cx.execute("SELECT current_setting('app.funcion', true)").fetchone() == ("otra",)
+
+
+@pytest.mark.rf("RF-40")
+@pytest.mark.rf("Ley-21.719")
+def test_122_la_nota_del_equipo_la_leen_solo_admin_y_cuidador(cx, operador_81):
+    """A6 (O5, C5): los que piden «Datos de». El pagador, el observador y el sistema con el grupo, no."""
+    como(cx, usuario_id=operador_81, rol="operacion")
+    incidencia = _incidencia(cx, PED_A_ENVIADO, operador_81)
+    cx.execute("RESET ROLE")
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')", (G_A, U_NUEVO))
+    for usuario, esperadas in {U_ADMIN_A: 1, U_NUEVO: 1, U_PAG_A: 0, U_PAG2_A: 0, U_OBS_A: 0}.items():
+        como(cx, usuario_id=usuario, grupo_id=G_A)
+        assert contar(cx, "incidencia", f"id = '{incidencia}'") == esperadas, usuario
+        cx.execute("RESET ROLE")
+    como(cx, rol="sistema", grupo_id=G_A)
+    assert contar(cx, "incidencia") == 0
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_122_operacion_no_lee_ni_cambia_ni_crea_grupos(cx):
+    """A7 (O7, C3): sin grupo_operacion. Tampoco con el grupo del pedido en el contexto (grupo_no_operacion)."""
+    como(cx, rol="operacion")
+    assert contar(cx, "grupo_familiar") == 0
+    assert cx.execute("UPDATE grupo_familiar SET nombre = 'Otra' RETURNING id").fetchall() == []
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("INSERT INTO grupo_familiar (nombre, creado_por) VALUES ('Otra', %s)", (U_ADMIN_A,))
+    cx.execute("RESET ROLE")
+    como(cx, rol="operacion", grupo_id=G_A)
+    assert contar(cx, "grupo_familiar") == 0
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "grupo_familiar", f"id = '{G_A}'") == 1
+
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.rf("Ley-21.719")
+def test_122_las_invitaciones_las_borra_solo_invitacion_conservar(cx):
+    """A8 (ítem extra, C6): matu_owner con operación y sin el marcador no ve ni borra invitaciones, matu_app con el
+    marcador tampoco, e invitacion_conservar devuelve app.funcion como lo encontró."""
+    # Una invitación vencida hace 35 días, como superusuario (lo que define una invitación no cambia después)
+    cx.execute(
+        "INSERT INTO invitacion (id, grupo_id, rol, token_hash, codigo_hash, invitado_por, nombre_pila_invita,"
+        " creada_en, expira_en) VALUES (%s, %s, 'cuidador', %s, %s, %s, 'Admin', now() - interval '36 days',"
+        " now() - interval '35 days')", (INV_42, G_A, TOKEN_42, CODIGO_42, U_ADMIN_A))
+    como(cx, "matu_owner", rol="operacion")
+    assert contar(cx, "invitacion") == 0
+    assert cx.execute("DELETE FROM invitacion RETURNING id").fetchall() == []
+    cx.execute("RESET ROLE")
+    como(cx, rol="operacion")
+    cx.execute("SELECT set_config('app.funcion', 'invitacion_conservar', true)")
+    assert contar(cx, "invitacion") == 0
+    cx.execute("RESET ROLE")
+    assert contar(cx, "invitacion", f"id = '{INV_42}'") == 1
+    # La conservación sigue borrando la cerrada hace más de 30 días, y devuelve el marcador
+    como(cx, "matu_scheduler", rol="operacion")
+    cx.execute("SELECT set_config('app.funcion', 'otra', true)")
+    assert cx.execute("SELECT invitacion_conservar(now() - interval '30 days', now())").fetchone() == (1,)
+    assert cx.execute("SELECT current_setting('app.funcion', true)").fetchone() == ("otra",)
+    cx.execute("RESET ROLE")
+    assert contar(cx, "invitacion", f"id = '{INV_42}'") == 0
