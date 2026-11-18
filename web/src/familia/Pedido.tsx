@@ -507,11 +507,13 @@ export function PantallaPedido() {
       />
     )
 
-  // 7.10: sin pedido, el vacío.
+  // 7.10: sin pedido, el vacío. MATU-113 (2.7): para quien «Se informa», la bajada N1, que no
+  // invita a revisar ni a elegir cantidades. Aquí se elige por el rol porque no hay vista que mirar
+  // y es solo un texto, sin datos: la regla de elegir por la forma protege la lectura de dinero.
   if (!pedido || pedido.lineas.length === 0)
     return (
       <div className="flex min-w-0 flex-col gap-3">
-        {encabezado()}
+        {encabezado(true, rol === 'observador' ? PEDIDO.bajadaSeInforma(pila) : PEDIDO.bajada)}
         {notaVista}
         {fallaAgregar}
         <Vacio editor={editor} pila={pila} />

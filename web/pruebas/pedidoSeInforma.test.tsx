@@ -114,6 +114,26 @@ describe('«Pedido» para quien «Se informa» (MATU-113, 2)', () => {
     expect(window.location.search + window.location.hash).toBe('')
   })
 
+  it('2.7: sin pedido en curso (404), la bajada N1 y debajo «Todavía no hay un pedido para María.»', async () => {
+    apiPedido({}, { pedido: null })
+    abrir()
+    const vacio = await screen.findByText('Todavía no hay un pedido para María.')
+    const bajada = screen.getByText('Lo que se va a pedir para María.')
+    expect(bajada).toBeVisible()
+    expect(bajada.compareDocumentPosition(vacio) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText('Revisa los productos y cuántos quieres. Antes de pagar confirmamos que haya.')).toBeNull()
+    sinMontos()
+  })
+
+  it.each(['admin', 'pagador'] as const)('2.7: sin pedido en curso, %s sigue con la bajada de siempre', async (rol) => {
+    apiPedido({}, { pedido: null })
+    abrir(rol)
+    await screen.findByRole('heading', { level: 1 })
+    await screen.findByText(rol === 'admin' ? 'Tu pedido está vacío. Agrega productos desde el catálogo o desde tu lista de insumos.' : 'Todavía no hay un pedido para María.')
+    expect(screen.getByText('Revisa los productos y cuántos quieres. Antes de pagar confirmamos que haya.')).toBeVisible()
+    expect(screen.queryByText('Lo que se va a pedir para María.')).toBeNull()
+  })
+
   it('6.13: el admin sigue viendo los precios, «Productos:», el retracto y el aviso del piloto', async () => {
     apiPedido({}, { pedido: borrador({ lineas }) })
     abrir('admin')

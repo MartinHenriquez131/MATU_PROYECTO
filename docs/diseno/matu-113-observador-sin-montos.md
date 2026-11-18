@@ -178,7 +178,7 @@ Va en un `p` propio, debajo de la bajada y antes de «Nunca lo cambiamos…». E
 |---|---|---|---|
 | **Cargando** | Sin cambios (MATU-61 11) | Cargando… | [L 26] |
 | **Error al traer** | Sin cambios: una columna con `CloudOff` y «Volver a intentar», el único macizo | No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo. | [L 31] |
-| **Vacío** (sin pedido en curso, también apenas se paga) | Sin cambios: baldosa `bg-tinta/7 text-tenue`, sin botones. Debajo, el bloque «Tus pedidos» si hay pagados | Todavía no hay un pedido para `{pila}`. | [L 31] |
+| **Vacío** (sin pedido en curso, también apenas se paga) | La bajada pasa a ser N1. Debajo, sin cambios: baldosa `bg-tinta/7 text-tenue`, sin botones, y el bloque «Tus pedidos» si hay pagados. La bajada de siempre invita a revisar y a elegir cantidades, y este rol no puede hacer ninguna de las dos. Aquí se elige por el rol (`rol === 'observador'`) porque no hay vista que mirar y es solo un texto, sin datos: la regla de no elegir por el rol protege la lectura de dinero, y eso aquí no aplica. El pagador y los demás roles mantienen su bajada | Bajada: Lo que se va a pedir para `{pila}`. Baldosa: Todavía no hay un pedido para `{pila}`. | N1 y [L 31] |
 | **Sin autorización, por renovar, apagado y 404** | Sin cambios (MATU-61 4.4 y 11). Ninguno muestra montos | Los de L 31 | [L 31] |
 | **Borrador** | 2.2, con «Sin confirmar» | 2.4 a 2.6 | — |
 | **Total confirmado** | 2.2, con «Falta pagarlo» | 2.4 a 2.6 | — |
