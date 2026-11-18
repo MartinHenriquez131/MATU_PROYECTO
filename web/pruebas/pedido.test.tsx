@@ -355,7 +355,7 @@ describe('Con el total confirmado (7.9)', () => {
     expect(screen.queryByRole('radio')).toBeNull()
     expect(screen.queryByRole('button', { name: /Sacar del pedido/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Cambiar dirección' })).toBeNull()
-    expect(screen.getAllByText('Si falta: lo buscamos en otro comercio.')).toHaveLength(2)
+    expect(screen.getAllByText('Si falta antes de pagar: lo buscamos en otro comercio.')).toHaveLength(2)
     await userEvent.click(screen.getByRole('button', { name: 'Cambiar el pedido' }))
     expect(await screen.findByRole('textbox', { name: 'Cantidad Pañal adulto M x30' })).toBeVisible()
     // La nota se ve y se anuncia (la región viva repite su texto).
