@@ -3,10 +3,10 @@
 // Los cuerpos y el If-Match, sin interfaz optimista, cada error de la tabla de 5.4 y 5.5, el foco,
 // los roles y «Sin seguir» sin botones, «Ya lo resolví» con envases y con 0 (sin cuerpo), un solo
 // panel abierto a la vez y A5. Textos de la especificación, secciones 8 y 11, tal cual. Datos sintéticos.
-import { configure, fireEvent, getConfig, render, screen, waitFor, within } from '@testing-library/react'
+import { act, configure, fireEvent, getConfig, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiFamilia } from '../src/compartido/api/sesion'
 import { fechaCorta } from '../src/compartido/fechas'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
@@ -418,8 +418,8 @@ describe('Errores de «Compré» y «Me quedan»', () => {
     await waitFor(() => expect(falla).toHaveFocus())
 
     await u.click(within(falla).getByRole('button', { name: 'Ver cómo quedó' }))
-    const seguir = document.getElementById(`seguir-${PANAL.id}`) as HTMLInputElement
-    await waitFor(() => expect(seguir).not.toBeChecked())
+    // Se busca en cada intento: la recarga puede pintar la casilla de nuevo en «Sin seguir».
+    await waitFor(() => expect(document.getElementById(`seguir-${PANAL.id}`)).not.toBeChecked())
     await waitFor(() => expect(document.getElementById(`seguir-${PANAL.id}`)).toHaveFocus())
     expect(screen.getByRole('region', { name: 'Sin seguir' })).toContainElement(fila('Pañal adulto talla M'))
     expect(screen.queryByRole('button', { name: 'Compré: Pañal adulto talla M' })).toBeNull()
@@ -572,14 +572,72 @@ describe('«Ya lo resolví» en envases', () => {
     )
   })
 
+  /** jsdom no trae `scrollIntoView`: se pone uno que anota qué elementos se desplazaron, y se quita al final. */
+  const desplazados = () => {
+    const lista: Element[] = []
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      lista.push(this)
+    }
+    return lista
+  }
+  afterEach(() => {
+    delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
+  })
+
+  // MATU-118: el panel toma el foco a los 40 ms. Si la persona ya empezó a escribir en el campo, en un
+  // teléfono lento, el foco no se le quita: antes escribía «100» y quedaba «1».
+  it('con envase, si la persona ya escribe antes de los 40 ms, el foco se queda en el campo y no se pierde nada', async () => {
+    const { pedidas, u } = await abrir()
+    // Sin depender de la velocidad de la máquina: los temporizadores de 40 ms se retienen y corren
+    // entre el «1» y el «00», como pasa en un teléfono lento.
+    const original = window.setTimeout
+    const retenidos: (() => void)[] = []
+    const espia = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) =>
+      ms === 40 ? (retenidos.push(fn), 0) : original(fn, ms)) as typeof window.setTimeout)
+    const movidos = desplazados()
+    try {
+      await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
+      await waitFor(() => expect(retenidos.length).toBeGreaterThan(0))
+      const campo = screen.getByRole('textbox', { name: '¿Compraste? ¿Cuántos envases?' })
+      await u.clear(campo)
+      await u.keyboard('1')
+      act(() => retenidos.splice(0).forEach((fn) => fn()))
+      await u.keyboard('00')
+    } finally {
+      espia.mockRestore()
+    }
+    const campo = screen.getByRole('textbox', { name: '¿Compraste? ¿Cuántos envases?' })
+    expect(campo).toHaveValue('100')
+    expect(campo).toHaveFocus()
+    // P3 del diseñador: tampoco desplaza el panel; la página no se le mueve mientras escribe.
+    expect(movidos).not.toContain(document.getElementById(`panel-${PANAL.id}`))
+    expect(escritas(pedidas)).toEqual([])
+  })
+
+  it('con envase y sin escribir, el foco sigue llegando al panel, con su nombre para el lector de pantalla, y lo desplaza a la vista', async () => {
+    const { u } = await abrir()
+    const movidos = desplazados()
+    await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
+    const panel = screen.getByRole('group', { name: '¿Compraste? ¿Cuántos envases?' })
+    await waitFor(() => expect(panel).toHaveFocus())
+    expect(movidos).toContain(panel)
+    expect(panel).toHaveAccessibleName('¿Compraste? ¿Cuántos envases?')
+    expect(document.activeElement?.tagName).not.toBe('INPUT')
+  })
+
   it('con envase sobre 99: el error de 0 a 99 y nada se envía', async () => {
     const { pedidas, u } = await abrir()
     await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
+    // H1 de Martín (CI del #106): con envase, el panel se lleva el foco a los 40 ms de abrirse. Si eso
+    // pasaba a mitad de `type`, se perdían dígitos («1» en vez de «100»), «Ya lo resolví» enviaba y el
+    // error nunca se pintaba. Se escribe recién cuando el foco inicial ya llegó al panel.
+    await waitFor(() => expect(screen.getByRole('group', { name: '¿Compraste? ¿Cuántos envases?' })).toHaveFocus())
     const campo = screen.getByRole('textbox', { name: '¿Compraste? ¿Cuántos envases?' })
     await u.clear(campo)
     await u.type(campo, '100')
+    expect(campo).toHaveValue('100')
     await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
-    expect(campo).toHaveAccessibleDescription(/Escribe un número de 0 a 99\. Si no compraste, déjalo en 0\.$/)
+    await waitFor(() => expect(campo).toHaveAccessibleDescription(/Escribe un número de 0 a 99\. Si no compraste, déjalo en 0\.$/))
     expect(escritas(pedidas)).toEqual([])
   })
 
@@ -685,5 +743,46 @@ describe('La confirmación en angosto', () => {
     expect(icono).toHaveClass('angosto:hidden')
     expect(within(hecho).getByText(`${fechaCorta(fecha)}.`)).toHaveClass('whitespace-nowrap')
     expect(hecho).toHaveTextContent(/^Anotamos lo que queda de/)
+  })
+})
+
+// ---------------------------------------------------------------- el formulario en ancho (MATU-118)
+
+// En ancho, el título del formulario toma el foco a los 60 ms (2.2). Si la persona ya empezó a escribir
+// en un campo, en un teléfono lento o una tableta, el foco no se le quita: antes se perdía lo escrito.
+describe('El formulario de un insumo en ancho', () => {
+  /** `useAncho` mide el contenedor; jsdom no tiene diseño, así que se simula (como en listaInsumos). */
+  const enAncho = () => vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
+
+  it('si la persona ya escribe antes de los 60 ms, el foco se queda en el campo y no se pierde nada', async () => {
+    enAncho()
+    const { pedidas, u } = await abrir()
+    // Sin depender de la velocidad de la máquina: los temporizadores de 60 ms se retienen y corren
+    // entre el «Gu» y el «antes».
+    const original = window.setTimeout
+    const retenidos: (() => void)[] = []
+    const espia = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) =>
+      ms === 60 ? (retenidos.push(fn), 0) : original(fn, ms)) as typeof window.setTimeout)
+    try {
+      await u.click(anotarInsumo())
+      await waitFor(() => expect(retenidos.length).toBeGreaterThan(0))
+      await u.click(screen.getByRole('textbox', { name: '¿Qué insumo es?' }))
+      await u.keyboard('Gu')
+      act(() => retenidos.splice(0).forEach((fn) => fn()))
+      await u.keyboard('antes')
+    } finally {
+      espia.mockRestore()
+    }
+    const campo = screen.getByRole('textbox', { name: '¿Qué insumo es?' })
+    expect(campo).toHaveValue('Guantes')
+    expect(campo).toHaveFocus()
+    expect(escritas(pedidas)).toEqual([])
+  })
+
+  it('sin tocar nada, el foco sigue llegando al título', async () => {
+    enAncho()
+    const { u } = await abrir()
+    await u.click(anotarInsumo())
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Anotar un insumo' })).toHaveFocus())
   })
 })

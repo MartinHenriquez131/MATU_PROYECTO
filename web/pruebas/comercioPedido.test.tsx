@@ -7,8 +7,12 @@ import { describe, expect, it } from 'vitest'
 import { AppComercio } from '../src/comercio/AppComercio'
 import { apiComercio, conRegionesVivas, ID } from './comercioFalso'
 import type { RespuestaFalsa } from './apiFalsa'
+import { fueraDeRegiones, plazosConCarga } from './conCarga'
 
 const u = () => userEvent.setup({ delay: null })
+
+// MATU-119: con la máquina cargada, abrir la consola y elegir una parte pasaba los 15 s de tope.
+plazosConCarga()
 
 /** Abre la consola y elige la parte de `referencia`. */
 async function abrirParte(referencia: string, sobre?: (l: string, c: unknown) => RespuestaFalsa | undefined) {
@@ -111,7 +115,8 @@ describe('Preparando', () => {
     expect(boton).toBeEnabled()
     expect(principales()).toHaveLength(1)
     await usuario.click(boton)
-    expect(screen.getByText('Marca cada producto: si lo tienes o no.')).toBeVisible()
+    // MATU-119: el mensaje que se ve, no su copia en la región urgente, que llega 50 ms después.
+    expect(screen.getByText('Marca cada producto: si lo tienes o no.', fueraDeRegiones)).toBeVisible()
     const pendiente = linea(/Suplemento vainilla x12/)
     expect(pendiente).toHaveClass('ring-pronto')
     await waitFor(() => expect(within(pendiente).getByRole('radio', { name: 'Lo tengo' })).toHaveFocus())
