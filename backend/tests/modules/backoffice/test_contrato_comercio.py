@@ -56,6 +56,7 @@ def test_openapi_json_coincide_con_la_api(esquema: dict[str, Any]) -> None:
         assert exportado["components"]["schemas"][nombre] == esquema["components"]["schemas"][nombre], nombre
 
 
+@pytest.mark.rf("RNF-02")
 def test_la_proyeccion_del_comercio_no_trae_nada_de_la_familia(esquema: dict[str, Any]) -> None:
     for nombre in VISTAS_DEL_COMERCIO:
         if nombre == "SolicitudCodigo":

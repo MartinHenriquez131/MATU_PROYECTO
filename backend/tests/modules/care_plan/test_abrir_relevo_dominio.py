@@ -269,6 +269,7 @@ class CifradorTexto:
         return "" if tipo == "manejo_situaciones" else f"texto de {tipo}"
 
 
+@pytest.mark.rf("RNF-02")
 def test_ficha_del_relevo_solo_campos_habilitados_y_auditada(reloj: RelojFijo) -> None:
     acceso = _acceso()
     repo = AccesoEnMemoria(acceso)
@@ -283,6 +284,7 @@ def test_ficha_del_relevo_solo_campos_habilitados_y_auditada(reloj: RelojFijo) -
     assert repo.usos == [AHORA]
 
 
+@pytest.mark.rf("RNF-02")
 def test_ficha_sin_auditoria_no_devuelve_texto(reloj: RelojFijo) -> None:
     registro = RegistroAuditoriaEnMemoria()
     registro.fallar_con(RuntimeError("la base rechazó la fila"))

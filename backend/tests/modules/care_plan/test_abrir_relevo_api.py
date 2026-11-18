@@ -259,6 +259,7 @@ def test_relevo_no_hereda_nada_de_la_familia(entorno: EntornoAbrir, monkeypatch:
     assert otra.status_code == 200 and otra.json() == respuesta.json()
 
 
+@pytest.mark.rf("RNF-02")
 def test_apertura_auditada(entorno: EntornoAbrir) -> None:
     familia = entorno.familia_con_ficha()
     acceso_id, token, pin = entorno.compartir(familia)
@@ -430,6 +431,7 @@ def test_relevo_pausado_410_y_vuelve_al_renovar(entorno: EntornoAbrir, motivo: s
     assert entorno.abrir(token, pin).status_code == 200
 
 
+@pytest.mark.rf("RNF-02")
 def test_si_falla_la_auditoria_no_sale_texto(entorno: EntornoAbrir) -> None:
     """C7: relevo.abrir en la misma transacción que la lectura. Sin auditoría, ni texto ni usos."""
     familia = entorno.familia_con_ficha()

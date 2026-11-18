@@ -28,7 +28,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 # las demás pruebas de integración, y tests/conftest.py exige que apunte a una base de pruebas
 DSN = os.environ.get("MATU_TEST_DSN", "")
 # MATU-105: sin la base, falla en CI y se salta a la vista en local (tests/base_datos.py)
-pytestmark = requiere_base
+pytestmark = [requiere_base, pytest.mark.rf("RNF-07")]
 
 # Identificadores fijos para leer las pruebas con facilidad
 U_ADMIN_A, U_OBS_A, U_PAG_A, U_PAG2_A = (uuid.UUID(f"00000000-0000-0000-0000-0000000000a{i}") for i in (1, 2, 3, 4))
@@ -642,6 +642,7 @@ def test_autorizacion_vigente_solo_en_contexto_de_relevo(cx):
 
 # ------------------------------------------------------------------ comercio y repartidor
 
+@pytest.mark.rf("RNF-02")
 def test_comercio_ve_pedidos_enviados_sin_direccion_ni_pago(cx):
     """MATU-63 (D-63-1): el comercio no lee ninguna fila del pedido; ve sus partes solo por comercio_partes."""
     como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
@@ -653,6 +654,7 @@ def test_comercio_ve_pedidos_enviados_sin_direccion_ni_pago(cx):
         assert contar(cx, t) == 0, f"el comercio alcanza {t}"
 
 
+@pytest.mark.rf("RNF-02")
 def test_repartidor_sin_precios_unitarios(cx):
     como(cx, usuario_id=U_REP, repartidor_id=REPARTIDOR)
     assert contar(cx, "pedido") == 1
@@ -4230,6 +4232,7 @@ def test_el_comercio_lee_cero_filas_de_las_tablas_del_pedido(cx):
 
 
 @pytest.mark.rf("RF-26")
+@pytest.mark.rf("RNF-02")
 def test_la_proyeccion_del_comercio_no_trae_nada_de_la_familia(cx):
     """D-63-1 y R7: las columnas de las funciones, sin pedido_id, grupo, persona, montos, referencia de la familia ni
     hash."""

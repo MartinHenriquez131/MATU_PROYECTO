@@ -69,7 +69,7 @@ def _sin_detalle_interno(texto: str) -> None:
         assert fragmento not in texto
 
 
-@pytest.mark.rf("MATU-79")
+@pytest.mark.rf("RNF-10")
 @pytest.mark.parametrize("con_dobles", [None], indirect=True)
 def test_salud_con_la_base_y_redis_responde_200_sin_datos(con_dobles: Salud) -> None:
     respuesta = con_dobles.cliente.get("/v1/salud")
@@ -80,7 +80,7 @@ def test_salud_con_la_base_y_redis_responde_200_sin_datos(con_dobles: Salud) -> 
     assert not [linea for linea in con_dobles.lineas_log() if linea["logger"] == "matu.salud"]
 
 
-@pytest.mark.rf("MATU-79")
+@pytest.mark.rf("RNF-10")
 @pytest.mark.parametrize("con_dobles", ["base", "redis"], indirect=True)
 def test_salud_con_un_componente_caido_responde_503_rfc_7807_sin_detalle(con_dobles: Salud) -> None:
     respuesta = con_dobles.cliente.get("/v1/salud")
@@ -104,7 +104,7 @@ def test_salud_con_un_componente_caido_responde_503_rfc_7807_sin_detalle(con_dob
     assert con_dobles.llamadas == ["base", "redis"]
 
 
-@pytest.mark.rf("MATU-79")
+@pytest.mark.rf("RNF-10")
 @pytest.mark.parametrize("con_dobles", ["base", "redis"], indirect=True)
 def test_el_log_de_la_falla_dice_el_componente_y_el_tipo_sin_el_mensaje(
     con_dobles: Salud, request: pytest.FixtureRequest
@@ -122,7 +122,7 @@ def test_el_log_de_la_falla_dice_el_componente_y_el_tipo_sin_el_mensaje(
 # --- Las comprobaciones reales --------------------------------------------------------------------------------------
 
 
-@pytest.mark.rf("MATU-79")
+@pytest.mark.rf("RNF-10")
 @requiere_base
 def test_salud_real_alcanza_la_base_y_redis() -> None:
     with TestClient(crear_app(stream_logs=io.StringIO())) as cliente:
@@ -132,7 +132,7 @@ def test_salud_real_alcanza_la_base_y_redis() -> None:
     assert respuesta.json() == {"estado": "ok"}
 
 
-@pytest.mark.rf("MATU-79")
+@pytest.mark.rf("RNF-10")
 def test_redis_que_no_escucha_responde_503_dentro_del_tiempo_limite(monkeypatch: pytest.MonkeyPatch) -> None:
     """Un Redis que no escucha (puerto 1 de la propia máquina) cae enseguida: 503 y sin colgarse. La base se
     reemplaza por un doble para que la prueba no dependa de ella."""
@@ -159,7 +159,7 @@ def test_redis_que_no_escucha_responde_503_dentro_del_tiempo_limite(monkeypatch:
     assert demora < TIEMPO_LIMITE_S + 2
 
 
-@pytest.mark.rf("MATU-79")
+@pytest.mark.rf("RNF-10")
 def test_la_conexion_de_la_base_tiene_tiempo_limite_y_no_usa_el_pool(monkeypatch: pytest.MonkeyPatch) -> None:
     """La comprobación de la base usa la DATABASE_URL de la app (matu_app) con connect_timeout y statement_timeout,
     sin pool: una base caída no la deja colgada."""

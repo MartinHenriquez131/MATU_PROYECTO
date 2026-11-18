@@ -676,6 +676,7 @@ def test_con_la_capa_3_apagada_un_pago_en_curso_se_registra_por_la_vuelta(monkey
 
 
 @pytest.mark.rf("RF-25")
+@pytest.mark.rf("RNF-01")
 def test_con_la_capa_3_apagada_la_conciliacion_corre_y_cierra_el_pago(monkeypatch: pytest.MonkeyPatch) -> None:
     """D-62-17: la tarea conciliacion_pagos no mira CAPA3_HABILITADA. Sin base: el pago en memoria."""
     from datetime import timedelta

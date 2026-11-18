@@ -577,6 +577,7 @@ def test_clave_destruida_404_sin_clave_nueva(entorno_ficha: EntornoFicha) -> Non
 
 
 @pytest.mark.rf("RF-02")
+@pytest.mark.rf("RNF-02")
 def test_lectura_y_escritura_llaman_a_la_auditoria(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
     grupo, persona = familia.grupo.id, familia.persona.id
@@ -612,6 +613,7 @@ def _texto_en_registros(caplog: pytest.LogCaptureFixture, texto: str) -> list[st
 
 
 @pytest.mark.rf("RF-02")
+@pytest.mark.rf("RNF-08")
 def test_log_sin_texto_de_ficha(entorno_ficha: EntornoFicha, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG)
     familia = entorno_ficha.familia()
@@ -680,6 +682,7 @@ def _filas_auditoria(request_id: str) -> list[tuple[Any, ...]]:
 
 @requiere_base
 @pytest.mark.rf("RF-08")
+@pytest.mark.rf("RNF-02")
 def test_escritura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
     _auditoria_real(entorno_ficha)
     familia = entorno_ficha.familia()
@@ -705,6 +708,7 @@ def test_escritura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
 
 @requiere_base
 @pytest.mark.rf("RF-08")
+@pytest.mark.rf("RNF-02")
 def test_lectura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
     _auditoria_real(entorno_ficha)
     familia = entorno_ficha.familia()
@@ -724,6 +728,7 @@ def test_lectura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
 
 @pytest.mark.rf("RF-08")
 @pytest.mark.parametrize("accion", ["leer", "escribir"])
+@pytest.mark.rf("RNF-02")
 def test_si_la_auditoria_falla_no_se_devuelve_el_texto(entorno_ficha: EntornoFicha, accion: str) -> None:
     familia = entorno_ficha.familia()
     grupo, persona = familia.grupo.id, familia.persona.id

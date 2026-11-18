@@ -226,7 +226,7 @@ def test_la_parte_de_otro_comercio_es_404(despacho: Despacho) -> None:
     assert parte not in [p["id"] for p in d.comercio("dos", "GET", "/partes").json()["partes"]]
 
 
-@pytest.mark.rf("MATU-79")
+@pytest.mark.rf("RNF-07")
 def test_la_linea_y_la_oferta_de_otro_comercio_son_404_y_no_cambian(despacho: Despacho) -> None:
     """MATU-79: las dos rutas del comercio con parámetro que no probaba test_la_parte_de_otro_comercio_es_404."""
     d = despacho
@@ -251,7 +251,7 @@ def test_la_linea_y_la_oferta_de_otro_comercio_son_404_y_no_cambian(despacho: De
     assert propia.status_code == 200, propia.text
 
 
-@pytest.mark.rf("MATU-79")
+@pytest.mark.rf("RNF-07")
 def test_las_rutas_con_parametro_de_comercio_y_operacion_son_404_para_la_familia(despacho: Despacho) -> None:
     """MATU-79: la familia que pagó el pedido no alcanza ninguna ruta del comercio ni de operación sobre él (antes solo
     se probaban las dos listas sin parámetro). El retracto resuelto va con un id inventado: 404 antes de buscarlo."""

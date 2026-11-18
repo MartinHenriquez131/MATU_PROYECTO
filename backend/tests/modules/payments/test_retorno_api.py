@@ -97,6 +97,7 @@ def test_aprobado_sin_sesion_sin_montos_ni_tarjeta_y_el_log_solo_con_el_caso(
     assert (linea["caso"], linea["estado"]) == ("commit", 200)
 
 
+@pytest.mark.rf("RNF-01")
 def test_repetido_no_llama_a_transbank_y_un_token_invalido_no_es_un_401(
     escena: Escena, api: tuple[TestClient, io.StringIO]
 ) -> None:

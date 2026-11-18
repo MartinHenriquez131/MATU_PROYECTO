@@ -57,7 +57,7 @@ from tests.modules.conftest import EntornoIam
 from tests.modules.ordering.conftest import COSTO_ENVIO, EntornoPedido, Existencias
 from tests.modules.payments.conftest import cuerpo_pagar
 
-pytestmark = [requiere_base, pytest.mark.rf("MATU-79")]
+pytestmark = [requiere_base, pytest.mark.rf("RNF-07")]
 
 PROBLEMA = "application/problem+json"
 
