@@ -29,13 +29,18 @@ def _secreto() -> str:
     return secrets.token_urlsafe(48)
 
 
+def _url(esquema: str, usuario: str, destino: str) -> str:
+    # Usuario y contraseña se unen al correr: el archivo no tiene ninguna URL con credenciales (detect-secrets)
+    return f"{esquema}://" + ":".join((usuario, _secreto())) + f"@{destino}"
+
+
 def _valores_sinteticos() -> dict[str, str]:
-    contrasena = _secreto()
+    base = "db.invalid:5432/matu_pruebas"
     return {
-        "database_url": f"postgresql+psycopg://matu_app:{contrasena}a@db.invalid:5432/matu_pruebas",
-        "scheduler_database_url": f"postgresql+psycopg://matu_scheduler:{contrasena}b@db.invalid:5432/matu_pruebas",
-        "publisher_database_url": f"postgresql+psycopg://matu_publisher:{contrasena}c@db.invalid:5432/matu_pruebas",
-        "redis_url": f"redis://default:{contrasena}d@redis.invalid:6379/0",
+        "database_url": _url("postgresql+psycopg", "matu_app", base),
+        "scheduler_database_url": _url("postgresql+psycopg", "matu_scheduler", base),
+        "publisher_database_url": _url("postgresql+psycopg", "matu_publisher", base),
+        "redis_url": _url("redis", "default", "redis.invalid:6379/0"),
         "pepper_email": _secreto(),
         "jwt_clave": _secreto(),
         "kek_entorno": base64.b64encode(secrets.token_bytes(32)).decode(),

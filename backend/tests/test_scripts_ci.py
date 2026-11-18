@@ -8,6 +8,7 @@ import importlib.util
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -83,7 +84,7 @@ def test_un_requisito_sin_prueba_falla(tmp_path: Path, capsys: pytest.CaptureFix
 
 
 def test_contratos_iguales_no_tienen_diferencias() -> None:
-    contrato = {"paths": {"/v1/salud": {"get": {"responses": {"200": {}}}}}}
+    contrato: dict[str, Any] = {"paths": {"/v1/salud": {"get": {"responses": {"200": {}}}}}}
     assert exportar_contrato.diferencias(contrato, {"paths": {"/v1/salud": {"get": {"responses": {"200": {}}}}}}) == []
 
 
@@ -92,8 +93,8 @@ def test_el_orden_de_las_claves_no_es_una_diferencia() -> None:
 
 
 def test_lista_las_diferencias_por_ruta() -> None:
-    versionado = {"paths": {"/v1/salud": {"get": {"responses": {"200": {}}}}, "/v1/vieja": {}}}
-    api = {"paths": {"/v1/salud": {"get": {"responses": {"200": {}, "503": {}}}}, "/v1/nueva": {}}}
+    versionado: dict[str, Any] = {"paths": {"/v1/salud": {"get": {"responses": {"200": {}}}}, "/v1/vieja": {}}}
+    api: dict[str, Any] = {"paths": {"/v1/salud": {"get": {"responses": {"200": {}, "503": {}}}}, "/v1/nueva": {}}}
     assert exportar_contrato.diferencias(versionado, api) == [
         "solo en la API: /paths//v1/nueva",
         "solo en la API: /paths//v1/salud/get/responses/503",
