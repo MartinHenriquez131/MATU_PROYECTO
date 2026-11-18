@@ -170,12 +170,12 @@ export interface paths {
         };
         /**
          * Ver Push Actual
-         * @description Lo que la pantalla necesita para «Recibir avisos en este teléfono» (MATU-55, decisión 261): la clave pública VAPID (`null` si no está configurada), si el dispositivo del claim `did` tiene un endpoint guardado (nunca lo devuelve) y si el envío es simulado. Sin `did`, o con el dispositivo revocado, el mismo 404 del `PUT` y del `DELETE`. No se audita. Orden: 401, 404 y 200.
+         * @description Lo que la pantalla necesita para «Recibir avisos en este teléfono» (MATU-55, decisión 261): la clave pública VAPID (`null` si no está configurada), si el dispositivo del claim `did` tiene un endpoint guardado (nunca lo devuelve) y si el envío es simulado. Desde MATU-107 (C14), `permitido` dice si la cuenta puede activar los avisos push: durante el piloto, fuera del ambiente local y de pruebas, solo las cuentas del equipo. Con `permitido` false, `clave_publica` es `null`. Sin `did`, o con el dispositivo revocado, el mismo 404 del `PUT` y del `DELETE`. No se audita. Orden: 401, 404 y 200.
          */
         get: operations["verPushActual"];
         /**
          * Guardar Push Actual
-         * @description Guarda el endpoint de Web Push del dispositivo del claim `did`. Solo se escribe: nunca aparece en una respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Audita `dispositivo.push_registrar` solo si el endpoint guardado cambió (MATU-55, decisión 260). Orden: 401, 404, 422 y 204.
+         * @description Guarda el endpoint de Web Push del dispositivo del claim `did`. Solo se escribe: nunca aparece en una respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Audita `dispositivo.push_registrar` solo si el endpoint guardado cambió (MATU-55, decisión 260). Desde MATU-107 (C14), si la cuenta no puede activar los avisos push (`permitido` false en el `GET`), responde 409 `push-no-permitido`, no guarda nada y no audita. Orden: 401, 404, 422, 409 y 204.
          */
         put: operations["guardar_push_actual_v1_dispositivos_actual_push_put"];
         post?: never;
@@ -922,7 +922,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * «Tus pedidos»: los pedidos pagados de la persona, de los últimos 2 años
+         * @description MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos, sin ningún monto (C3; MATU-113, decisión 472). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3
+         */
+        get: operations["listar_pedidos_v1_personas_cuidadas__persona_id__pedidos_get"];
         put?: never;
         /**
          * Crear el carrito (borrador) con productos del catálogo
@@ -944,7 +948,7 @@ export interface paths {
         };
         /**
          * El pedido sin pagar de la persona, para volver al carrito
-         * @description MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3). 404 si la persona no tiene un pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3
+         * @description MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3; el observador, sin montos, decisión 472). 404 si la persona no tiene un pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3
          */
         get: operations["ver_en_curso_v1_personas_cuidadas__persona_id__pedido_en_curso_get"];
         put?: never;
@@ -964,7 +968,7 @@ export interface paths {
         };
         /**
          * Leer el pedido, con el resumen antes de pagar si el total está confirmado
-         * @description MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y PedidoVistaObservador, sin entrega ni resumen, para el observador (C3). El vencimiento lo dice el Reloj. No se audita. Capa 3
+         * @description MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y PedidoVistaObservador para el observador (C3), sin entrega, resumen ni ningún monto en ningún estado (MATU-113, decisión 472). El vencimiento lo dice el Reloj. No se audita. Capa 3
          */
         get: operations["ver_pedido_v1_pedidos__pedido_id__get"];
         put?: never;
@@ -1415,6 +1419,430 @@ export interface paths {
          * @description MATU-54 (D-54-1 a D-54-15). Admin y cuidador. La copia completa, para la pantalla y para el archivo (Content-Disposition inline). Sin la autorización vigente, la ficha y los insumos van solo con su estado. 10 copias por hora por cuenta (429 tope-copias). Registra persona.datos_descargar. Orden: 401, 404, 503, 429 y 200
          */
         get: operations["verDatosPersona"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comercio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Comercio
+         * @description El comercio de la cuenta: nombre de fantasía, si es de prueba y el contacto de MATU (O2).
+         */
+        get: operations["ver_comercio_v1_comercio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comercio/partes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar Partes
+         * @description Las partes del comercio: las por preparar, preparando y listas, y las retiradas o canceladas hoy (fecha de Chile). Solo la proyección de D-63-1: referencia opaca, estado, cuándo llegó, «preparar antes de» (dos horas después), el estado del código y el número de productos.
+         */
+        get: operations["listar_partes_v1_comercio_partes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comercio/partes/{parte_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Parte
+         * @description Una parte con sus productos y lo marcado. El ETag es la versión de la parte.
+         */
+        get: operations["ver_parte_v1_comercio_partes__parte_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comercio/partes/{parte_id}/preparar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preparar
+         * @description «Empezar a preparar»: de enviada a preparando. Desde aquí la familia ya no cancela (R15).
+         */
+        post: operations["preparar_v1_comercio_partes__parte_id__preparar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comercio/partes/{parte_id}/lineas/{linea_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Marcar Linea
+         * @description Marca un producto: «Lo tengo» (preparada) o «No lo tengo» (faltante, con cuántos faltan; sin el número, faltan todos). Se puede cambiar mientras la parte esté preparando (O4). No mueve dinero.
+         */
+        put: operations["marcar_linea_v1_comercio_partes__parte_id__lineas__linea_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comercio/partes/{parte_id}/listo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Listo
+         * @description «Listo para retirar»: con todo marcado, la parte queda lista, y lo preparado sale del stock (O5). Si no tiene ninguno, queda cancelada con motivo producto_faltante (O3). Después, el sistema devuelve lo que faltó a la misma tarjeta (D-63-8).
+         */
+        post: operations["listo_v1_comercio_partes__parte_id__listo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comercio/partes/{parte_id}/validar-codigo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validar Codigo
+         * @description Revisa el código que muestra quien retira. El código va solo en el cuerpo. Correcto: la parte queda retirada. Cinco intentos fallidos lo bloquean; vence a los 90 minutos y sirve una vez (D-63-4).
+         */
+        post: operations["validar_codigo_v1_comercio_partes__parte_id__validar_codigo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comercio/productos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar Productos
+         * @description Los productos del comercio: precio (solo lectura), stock, apartado y disponibles (O5).
+         */
+        get: operations["listar_productos_v1_comercio_productos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comercio/productos/{oferta_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cambiar Producto
+         * @description Cambia cuántos tiene (0 a 9.999) y si lo ofrece en MATU. Nunca el precio (D-63-2).
+         */
+        patch: operations["cambiar_producto_v1_comercio_productos__oferta_id__patch"];
+        trace?: never;
+    };
+    "/v1/operacion/pedidos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar Pedidos
+         * @description Los pedidos pagados en curso con sus partes y el estado del código de cada una.
+         */
+        get: operations["listar_pedidos_v1_operacion_pedidos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/partes/{parte_id}/codigo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generar Codigo
+         * @description Genera (o regenera) el código de retiro de una parte lista y lo devuelve una sola vez (D-63-5). Vale 90 minutos y sirve una vez. Quien retira por MATU lo muestra en el comercio; la familia no lo ve.
+         */
+        post: operations["generar_codigo_v1_operacion_partes__parte_id__codigo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/pedidos/{pedido_id}/en-camino": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * En Camino
+         * @description Retirado (o reprogramado tras no entregarse) → en_ruta (D-63-6).
+         */
+        post: operations["en_camino_v1_operacion_pedidos__pedido_id__en_camino_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/pedidos/{pedido_id}/entregado": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Entregado
+         * @description en_ruta → entregado. Fija entregado_en, desde donde corren los 10 días hábiles del retracto, y registra lo que MATU debe a cada comercio por lo retirado (consumo_comercio, RF-31), con la boleta pendiente.
+         */
+        post: operations["entregado_v1_operacion_pedidos__pedido_id__entregado_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/pedidos/{pedido_id}/no-entregado": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * No Entregado
+         * @description en_ruta → no_entregado: nadie recibió el pedido (D-63-6).
+         */
+        post: operations["no_entregado_v1_operacion_pedidos__pedido_id__no_entregado_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/retractos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar Retractos
+         * @description Los retractos por resolver, con lo que se devolvería.
+         */
+        get: operations["listar_retractos_v1_operacion_retractos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/retractos/{retracto_id}/resolver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolver Retracto
+         * @description Operación recibió el producto. «devolver»: anula a la misma tarjeta los productos y, si corresponde, el envío (motivo retracto). «rechazar»: el sello no venía intacto. Antes de 45 días desde la solicitud (D-63-10).
+         */
+        post: operations["resolver_retracto_v1_operacion_retractos__retracto_id__resolver_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/cancelar-con-devolucion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancelar Con Devolucion
+         * @description R15 (D-63-11): el admin cancela un pedido pagado mientras ningún comercio empezó a preparar. Se devuelve todo, envío incluido, a la misma tarjeta, y las partes quedan canceladas. MATU-92: Idempotency-Key obligatoria (la repetición responde 200 con el estado actual, C8), y un pedido ya cancelado responde 409 estado-pedido (C11). Registra pedido.cancelar y pago.devolver. Capa 3
+         */
+        post: operations["cancelar_con_devolucion_v1_pedidos__pedido_id__cancelar_con_devolucion_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/retractos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Retractos
+         * @description Hasta cuándo se puede pedir el retracto (fecha exacta, D-63-9) y los retractos pedidos. MATU-92 (rutas 3 y 4): por línea, lo entregado, lo ya pedido, lo disponible, el precio pagado y si se pierde al abrir; si devolver todo incluye el envío; plazo_correo_hasta (C22); puede_arrepentirse con su motivo (C7); y en cada retracto sus líneas, es_tuyo (C18), origen (C21) y resuelto_en. admin, cuidador y pagador, pedido entregado. No se audita. Capa 3
+         */
+        get: operations["ver_retractos_v1_pedidos__pedido_id__retractos_get"];
+        put?: never;
+        /**
+         * Pedir Retracto
+         * @description R3: «Arrepentirme de la compra». El admin, o quien pagó si sigue en el grupo, elige los productos y cuántos. Se devuelven a precio pagado, y el envío según las condiciones aceptadas (D-63-10), cuando MATU recibe el producto con el sello intacto. MATU-92: el observador recibe 404 (C6); Idempotency-Key obligatoria (la repetición responde 201 con el mismo retracto, C8); el pedido se bloquea antes de leer lo ya pedido, y dos solicitudes a la vez no piden más de lo entregado. Registra pedido.retracto_solicitar. Capa 3
+         */
+        post: operations["pedir_retracto_v1_pedidos__pedido_id__retractos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/pedidos/{pedido_id}/cancelar-con-devolucion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancelar Con Devolucion
+         * @description H1 y H2 del cierre del analista: operación cancela y devuelve todo, envío incluido, a la misma tarjeta. Desde no_entregado (nadie lo recibió y no hay segunda ventana), o cuando la familia pidió por correo cancelar un pedido pagado que ningún comercio empezó a preparar (R15). Otro estado: 409 no-cancelable.
+         */
+        post: operations["cancelar_con_devolucion_v1_operacion_pedidos__pedido_id__cancelar_con_devolucion_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/pedidos/{pedido_id}/retractos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Registrar Retracto Por Correo
+         * @description H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la entrega. Va a nombre de quien pagó, o del admin que se indique. Se resuelve como cualquier retracto.
+         */
+        post: operations["registrar_retracto_por_correo_v1_operacion_pedidos__pedido_id__retractos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/seguimiento": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cómo va un pedido pagado, por comercio
+         * @description MATU-92 (ruta 2). admin, cuidador y pagador; el observador no tiene detalle (404, D-92-1 a). Cada parte con el nombre de fantasía del comercio, su estado y cancelada_por; cada línea con unidades_faltantes. Nunca el código de retiro, la referencia de la parte ni la cuenta del encargado (C15). El comprobante es GET …/pago (C14). No se audita. Capa 3
+         */
+        get: operations["ver_seguimiento_v1_pedidos__pedido_id__seguimiento_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2474,6 +2902,12 @@ export interface components {
             token_type: "bearer";
             /** Expira En */
             expira_en: number;
+            /**
+             * Tipo Cuenta
+             * @default familia
+             * @enum {string}
+             */
+            tipo_cuenta: "familia" | "comercio";
         };
         /** SolicitudAccesoVista */
         SolicitudAccesoVista: {
@@ -2912,6 +3346,14 @@ export interface components {
             /** @description El comercio del carrito, si el producto pasó a otro */
             comercio_antes: components["schemas"]["ComercioVista"] | null;
         };
+        /**
+         * CambioDeLineaObservador
+         * @description MATU-113 (decisión 472): el cambio de la línea sin el precio de antes.
+         */
+        CambioDeLineaObservador: {
+            /** @description El comercio del carrito; el producto pasó a otro */
+            comercio_antes: components["schemas"]["ComercioVista"];
+        };
         /** ComercioVista */
         ComercioVista: {
             /**
@@ -3149,7 +3591,9 @@ export interface components {
         };
         /**
          * PedidoVistaObservador
-         * @description Lo que ve el observador (C3): el carrito sin entrega, sin resumen y sin etag.
+         * @description Lo que ve el observador (C3; MATU-113, decisión 472): los productos, cuántos, de qué comercio y el estado
+         *     completo del pedido. Sin montos en ningún estado (ni precios, ni subtotales, ni envío, ni total, ni devolución),
+         *     sin entrega, sin resumen y sin etag.
          */
         PedidoVistaObservador: {
             /**
@@ -3166,21 +3610,18 @@ export interface components {
             /** Precios De Ejemplo */
             precios_de_ejemplo: boolean;
             /** Lineas */
-            lineas: components["schemas"]["LineaPedido"][];
+            lineas: components["schemas"]["LineaPedidoObservador"][];
             /** Salieron */
             salieron: components["schemas"]["LineaSalida"][];
-            /** Comercios */
-            comercios: components["schemas"]["ParteComercio"][];
-            /** Subtotal Productos */
-            subtotal_productos: number;
-            /** Costo Envio */
-            costo_envio: number;
-            /** Total */
-            total: number | null;
             /** Total Confirmado En */
             total_confirmado_en: string | null;
             /** Vence En */
             vence_en: string | null;
+            /**
+             * Pagado En
+             * @description Cuándo se pagó, para «Pagado el {fecha}». Sin el monto
+             */
+            pagado_en: string | null;
             /** Ventana Entrega */
             ventana_entrega: string;
             /**
@@ -3365,16 +3806,18 @@ export interface components {
         };
         /**
          * Devolucion
-         * @description Una anulación a la misma tarjeta (decisión 239). Las en_curso no restan del total pagado.
+         * @description Una anulación a la misma tarjeta (decisión 239). Las en_curso no restan del total pagado. MATU-92 (C13): suma
+         *     ``retracto``, por producto o por el envío (``producto`` null).
          */
         Devolucion: {
             /**
              * Motivo
              * @enum {string}
              */
-            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion";
+            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion" | "retracto";
             /** Monto */
             monto: number;
+            /** @description El producto devuelto, o null si es el envío o el pedido completo (cancelacion, pago_tardio) */
             producto: components["schemas"]["ProductoPedido"] | null;
             /**
              * Estado
@@ -3622,9 +4065,14 @@ export interface components {
         PushActualVista: {
             /**
              * Clave Publica
-             * @description Clave pública VAPID (RFC 8292): el punto P-256 sin comprimir (65 bytes) en base64url sin relleno, 87 caracteres. Es la applicationServerKey de PushManager.subscribe(). null si VAPID_CLAVE_PRIVADA no está configurada
+             * @description Clave pública VAPID (RFC 8292): el punto P-256 sin comprimir (65 bytes) en base64url sin relleno, 87 caracteres. Es la applicationServerKey de PushManager.subscribe(). null si VAPID_CLAVE_PRIVADA no está configurada, o si la cuenta no puede activar los avisos push (permitido false)
              */
             clave_publica: string | null;
+            /**
+             * Permitido
+             * @description MATU-107 (C14): si esta cuenta puede activar los avisos push en este teléfono. Durante el piloto, fuera del ambiente local y de pruebas, solo las cuentas del equipo. Con false, clave_publica es null y el PUT responde 409 push-no-permitido
+             */
+            permitido: boolean;
             /**
              * Registrado
              * @description Si el dispositivo del claim did tiene un endpoint de push guardado
@@ -4161,6 +4609,36 @@ export interface components {
              * @enum {string}
              */
             si_falta: "otro_comercio" | "quitar";
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "pendiente" | "sin_stock" | "preparada" | "faltante" | "devuelta" | "eliminada";
+            /** Unidades Faltantes */
+            unidades_faltantes: number;
+        };
+        /**
+         * LineaPedidoObservador
+         * @description MATU-113 (decisión 472): la línea que ve el observador. Sin precio, subtotal, oferta, precio de antes,
+         *     devolución ni retracto (no puede arrepentirse de una compra que no hizo): un DTO propio, nunca LineaPedido con
+         *     claves borradas.
+         */
+        LineaPedidoObservador: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            producto: components["schemas"]["ProductoPedido"];
+            /**
+             * Cantidad
+             * @description Envases del producto, de 1 a 99
+             */
+            cantidad: number;
+            comercio: components["schemas"]["ComercioVista"];
+            regla_faltante: components["schemas"]["Regla"];
+            /** @description null si el producto sigue en el mismo comercio */
+            cambio: components["schemas"]["CambioDeLineaObservador"] | null;
         };
         /** CondicionesCopia */
         CondicionesCopia: {
@@ -4299,6 +4777,12 @@ export interface components {
             pago: components["schemas"]["PagoPedidoCopia"] | null;
             /** Precios De Ejemplo */
             precios_de_ejemplo: boolean;
+            /** Entregado En */
+            entregado_en: string | null;
+            /** Partes */
+            partes: components["schemas"]["ParteCopia"][];
+            /** Retractos */
+            retractos: components["schemas"]["RetractoCopia"][];
         };
         /** PoliticaCopia */
         PoliticaCopia: {
@@ -4346,7 +4830,7 @@ export interface components {
              * Motivo
              * @enum {string}
              */
-            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion";
+            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion" | "retracto";
             /** Producto */
             producto: string | null;
             /** Monto */
@@ -4473,6 +4957,8 @@ export interface components {
             pagos: components["schemas"]["PagoCuentaCopia"][] | null;
             /** Condiciones Aceptadas */
             condiciones_aceptadas: components["schemas"]["CondicionesCopia"][] | null;
+            /** Retractos */
+            retractos: components["schemas"]["RetractoCuentaCopia"][] | null;
         };
         /** HechoCopia */
         HechoCopia: {
@@ -4480,7 +4966,7 @@ export interface components {
              * Tipo
              * @enum {string}
              */
-            tipo: "abrio_la_ficha" | "edito_la_ficha" | "quito_una_seccion" | "ficha_borrada" | "dio_una_autorizacion" | "retiro_una_autorizacion" | "compartio_la_ficha" | "corto_un_enlace" | "agrego_un_insumo" | "edito_un_insumo" | "dejo_de_seguir_un_insumo" | "volvio_a_seguir_un_insumo" | "quito_un_insumo" | "anoto_una_compra" | "aviso_de_insumo" | "descarto_un_aviso" | "resolvio_un_aviso" | "cambio_la_direccion" | "creo_un_pedido" | "confirmo_un_pedido" | "cancelo_un_pedido" | "cambio_que_hacer_si_falta" | "inicio_un_pago" | "pago_aprobado" | "pago_anulado" | "pidio_una_copia";
+            tipo: "abrio_la_ficha" | "edito_la_ficha" | "quito_una_seccion" | "ficha_borrada" | "dio_una_autorizacion" | "retiro_una_autorizacion" | "compartio_la_ficha" | "corto_un_enlace" | "agrego_un_insumo" | "edito_un_insumo" | "dejo_de_seguir_un_insumo" | "volvio_a_seguir_un_insumo" | "quito_un_insumo" | "anoto_una_compra" | "aviso_de_insumo" | "descarto_un_aviso" | "resolvio_un_aviso" | "cambio_la_direccion" | "creo_un_pedido" | "confirmo_un_pedido" | "cancelo_un_pedido" | "cambio_que_hacer_si_falta" | "inicio_un_pago" | "pago_aprobado" | "pago_anulado" | "pidio_una_copia" | "devolucion_a_la_tarjeta" | "pidio_un_retracto" | "codigo_de_retiro_generado" | "pedido_en_camino" | "pedido_entregado" | "pedido_no_entregado" | "retracto_resuelto";
             /** Ocurrido En */
             ocurrido_en: string;
             quien: components["schemas"]["QuienCopia"];
@@ -4553,6 +5039,845 @@ export interface components {
             unido_en: string;
             /** Retirado En */
             retirado_en: string | null;
+        };
+        /**
+         * CodigoGenerado
+         * @description El código se muestra **una sola vez**: no se guarda en claro ni se puede volver a leer (D-63-5).
+         */
+        CodigoGenerado: {
+            /**
+             * Parte Id
+             * Format: uuid
+             */
+            parte_id: string;
+            /** Codigo */
+            codigo: string;
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+        };
+        /**
+         * ComercioDeLaCuenta
+         * @description GET /v1/comercio: la barra de la consola, el rótulo del piloto y el contacto de «Avisa a MATU» (O2).
+         */
+        ComercioDeLaCuenta: {
+            /** Nombre Fantasia */
+            nombre_fantasia: string;
+            /** Ficticio */
+            ficticio: boolean;
+            /**
+             * Contacto
+             * @description El correo de contacto de MATU (CORREO_PRIVACIDAD), o null si no está configurado
+             */
+            contacto: string | null;
+        };
+        /** EstadoPedidoVista */
+        EstadoPedidoVista: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /** Estado */
+            estado: string;
+        };
+        /** LineaComercioVista */
+        LineaComercioVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            producto: components["schemas"]["ProductoLinea"];
+            /** Cantidad */
+            cantidad: number;
+            /**
+             * Estado Linea
+             * @enum {string}
+             */
+            estado_linea: "pendiente" | "preparada" | "faltante" | "devuelta";
+            /** Unidades Faltantes */
+            unidades_faltantes: number;
+        };
+        /** LineaRetracto */
+        LineaRetracto: {
+            /**
+             * Linea Id
+             * Format: uuid
+             */
+            linea_id: string;
+            /** Cantidad */
+            cantidad: number;
+        };
+        /**
+         * ListaPartes
+         * @description GET /v1/comercio/partes: las abiertas y las cerradas hoy (fecha de Chile).
+         */
+        ListaPartes: {
+            /** Partes */
+            partes: components["schemas"]["ParteResumen"][];
+        };
+        /** ListaPedidosOperacion */
+        ListaPedidosOperacion: {
+            /** Pedidos */
+            pedidos: components["schemas"]["PedidoOperacion"][];
+        };
+        /** ListaProductos */
+        ListaProductos: {
+            /** Productos */
+            productos: components["schemas"]["ProductoDelComercio"][];
+        };
+        /** ListaRetractos */
+        ListaRetractos: {
+            /** Retractos */
+            retractos: components["schemas"]["RetractoVista"][];
+        };
+        /** ParteOperacion */
+        ParteOperacion: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Comercio */
+            comercio: string;
+            /** Referencia */
+            referencia: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "enviada" | "preparando" | "lista" | "retirada" | "cancelada";
+            /**
+             * Estado Codigo
+             * @enum {string}
+             */
+            estado_codigo: "sin_codigo" | "vigente" | "usado" | "bloqueado" | "vencido";
+        };
+        /** ParteResumen */
+        ParteResumen: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Referencia
+             * @description Seis caracteres sin 0, O, 1, I ni L, aleatoria por parte (O6)
+             */
+            referencia: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "enviada" | "preparando" | "lista" | "retirada" | "cancelada";
+            /**
+             * Enviado En
+             * Format: date-time
+             */
+            enviado_en: string;
+            /**
+             * Preparar Antes De
+             * Format: date-time
+             */
+            preparar_antes_de: string;
+            /**
+             * Estado Codigo
+             * @enum {string}
+             */
+            estado_codigo: "sin_codigo" | "vigente" | "usado" | "bloqueado" | "vencido";
+            /** Numero Lineas */
+            numero_lineas: number;
+            /** Retirada En */
+            retirada_en: string | null;
+            /** Cancelada En */
+            cancelada_en: string | null;
+            /**
+             * Motivo Cancelacion
+             * @description Solo en cancelada: no tenía ninguno (O3) o la familia canceló antes de preparar (R15)
+             */
+            motivo_cancelacion: ("producto_faltante" | "cancelada_por_familia") | null;
+        };
+        /**
+         * ParteVista
+         * @description GET /v1/comercio/partes/{id}, con ETag. Las acciones devuelven la parte como queda.
+         */
+        ParteVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Referencia
+             * @description Seis caracteres sin 0, O, 1, I ni L, aleatoria por parte (O6)
+             */
+            referencia: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "enviada" | "preparando" | "lista" | "retirada" | "cancelada";
+            /**
+             * Enviado En
+             * Format: date-time
+             */
+            enviado_en: string;
+            /**
+             * Preparar Antes De
+             * Format: date-time
+             */
+            preparar_antes_de: string;
+            /**
+             * Estado Codigo
+             * @enum {string}
+             */
+            estado_codigo: "sin_codigo" | "vigente" | "usado" | "bloqueado" | "vencido";
+            /** Numero Lineas */
+            numero_lineas: number;
+            /** Retirada En */
+            retirada_en: string | null;
+            /** Cancelada En */
+            cancelada_en: string | null;
+            /**
+             * Motivo Cancelacion
+             * @description Solo en cancelada: no tenía ninguno (O3) o la familia canceló antes de preparar (R15)
+             */
+            motivo_cancelacion: ("producto_faltante" | "cancelada_por_familia") | null;
+            /** Lineas */
+            lineas: components["schemas"]["LineaComercioVista"][];
+        };
+        /** PedidoOperacion */
+        PedidoOperacion: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Estado */
+            estado: string;
+            /** Referencia */
+            referencia: string | null;
+            /** Entregado En */
+            entregado_en: string | null;
+            /** Partes */
+            partes: components["schemas"]["ParteOperacion"][];
+        };
+        /** ProductoDelComercio */
+        ProductoDelComercio: {
+            /**
+             * Oferta Id
+             * Format: uuid
+             */
+            oferta_id: string;
+            /** Nombre */
+            nombre: string;
+            /** Presentacion */
+            presentacion: string;
+            /** Precio */
+            precio: number;
+            /** Stock */
+            stock: number;
+            /** Apartado */
+            apartado: number;
+            /**
+             * Disponibles
+             * @description stock − apartado, nunca bajo 0 (O5)
+             */
+            disponibles: number;
+            /**
+             * Disponible
+             * @description Si lo ofrece en MATU
+             */
+            disponible: boolean;
+            /**
+             * Etag
+             * @description Para el If-Match de PATCH /v1/comercio/productos/{oferta_id}
+             */
+            etag: string;
+        };
+        /** ProductoLinea */
+        ProductoLinea: {
+            /** Nombre */
+            nombre: string;
+            /** Presentacion */
+            presentacion: string;
+        };
+        /** ResultadoCodigoVista */
+        ResultadoCodigoVista: {
+            /**
+             * Resultado
+             * @enum {string}
+             */
+            resultado: "correcto" | "no_es" | "bloqueado" | "vencido" | "usado" | "cancelada" | "sin_codigo";
+            /** Intentos Restantes */
+            intentos_restantes: number;
+            parte: components["schemas"]["ParteVista"];
+        };
+        /** RetractoVista */
+        RetractoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "solicitado" | "devuelto" | "rechazado";
+            /**
+             * Solicitado En
+             * Format: date-time
+             */
+            solicitado_en: string;
+            /**
+             * Plazo Hasta
+             * Format: date-time
+             */
+            plazo_hasta: string;
+            /** Incluye Envio */
+            incluye_envio: boolean;
+            /**
+             * Monto
+             * @description Los productos a precio pagado, más el envío si lo incluye
+             */
+            monto: number;
+            /**
+             * Origen
+             * @description correo: lo pidió la familia por correo y lo registró operación
+             * @enum {string}
+             */
+            origen: "app" | "correo";
+            /** Lineas */
+            lineas: components["schemas"]["LineaDelRetracto"][];
+            /**
+             * Resuelto En
+             * @description Cuándo se devolvió o no se aceptó; null si sigue
+             */
+            resuelto_en: string | null;
+        };
+        /**
+         * RetractosDelPedido
+         * @description GET /v1/pedidos/{id}/retractos: hasta cuándo se puede pedir (la fecha exacta que muestra la pantalla), lo que
+         *     se puede devolver y los retractos pedidos (MATU-92).
+         */
+        RetractosDelPedido: {
+            /**
+             * Plazo Hasta
+             * Format: date-time
+             * @description Fin del décimo día hábil desde la entrega, en hora de Chile
+             */
+            plazo_hasta: string;
+            /**
+             * Plazo Correo Hasta
+             * Format: date-time
+             * @description 90 días desde la entrega: hasta aquí, por correo (C22)
+             */
+            plazo_correo_hasta: string;
+            /** Puede Arrepentirse */
+            puede_arrepentirse: boolean;
+            /**
+             * Arrepentirse Motivo
+             * @description null si puede_arrepentirse. sin_entregar; plazo_app_vencido: pasaron los 10 días hábiles y queda el correo hasta plazo_correo_hasta (C22); plazo_vencido: pasaron también los 90 días; rol: pueden el admin y quien pagó; nada_disponible: ya se pidió devolver todo lo entregado
+             */
+            arrepentirse_motivo: ("rol" | "sin_entregar" | "plazo_app_vencido" | "plazo_vencido" | "nada_disponible") | null;
+            /**
+             * Condiciones Version
+             * @description La versión de las condiciones aceptada al pagar
+             */
+            condiciones_version: string | null;
+            /**
+             * Costo Envio
+             * @description El envío pagado, en pesos enteros
+             */
+            costo_envio: number;
+            /**
+             * Incluye Envio Si Todo
+             * @description Si devolver ahora todo lo disponible devuelve también el envío (D-63-10)
+             */
+            incluye_envio_si_todo: boolean;
+            /** Lineas */
+            lineas: components["schemas"]["LineaParaRetracto"][];
+            /** Retractos */
+            retractos: components["schemas"]["RetractoVistaFamilia"][];
+        };
+        /** SolicitudCodigo */
+        SolicitudCodigo: {
+            /**
+             * Codigo
+             * @description Las 6 cifras, solo en el cuerpo (D-63-4)
+             */
+            codigo: string;
+        };
+        /** SolicitudMarca */
+        SolicitudMarca: {
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "preparada" | "faltante";
+            /**
+             * Unidades Faltantes
+             * @description Solo con faltante: cuántos faltan. Sin valor, faltan todos
+             */
+            unidades_faltantes?: number | null;
+        };
+        /** SolicitudProducto */
+        SolicitudProducto: {
+            /** Stock */
+            stock?: number | null;
+            /** Disponible */
+            disponible?: boolean | null;
+        };
+        /** SolicitudResolverRetracto */
+        SolicitudResolverRetracto: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "devolver" | "rechazar";
+        };
+        /** SolicitudRetracto */
+        SolicitudRetracto: {
+            /** Lineas */
+            lineas: components["schemas"]["LineaRetracto"][];
+        };
+        /** LineaRetractoCopia */
+        LineaRetractoCopia: {
+            /** Producto */
+            producto: string;
+            /** Cantidad */
+            cantidad: number;
+        };
+        /**
+         * ParteCopia
+         * @description MATU-63: la parte de cada comercio, sin su referencia ni nada del encargado.
+         */
+        ParteCopia: {
+            /** Comercio */
+            comercio: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "enviada" | "preparando" | "lista" | "retirada" | "cancelada";
+            /** Enviado En */
+            enviado_en: string | null;
+            /** Lista En */
+            lista_en: string | null;
+            /** Retirada En */
+            retirada_en: string | null;
+            /** Cancelada En */
+            cancelada_en: string | null;
+            /** Motivo Cancelacion */
+            motivo_cancelacion: ("producto_faltante" | "familia_cancela") | null;
+        };
+        /**
+         * RetractoCopia
+         * @description MATU-63 (R3): el retracto pedido, con sus productos y cómo se resolvió.
+         */
+        RetractoCopia: {
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "solicitado" | "devuelto" | "rechazado";
+            /** Solicitado En */
+            solicitado_en: string;
+            /** Plazo Hasta */
+            plazo_hasta: string;
+            /** Incluye Envio */
+            incluye_envio: boolean;
+            /** Resuelto En */
+            resuelto_en: string | null;
+            /** Lineas */
+            lineas: components["schemas"]["LineaRetractoCopia"][];
+        };
+        /**
+         * RetractoCuentaCopia
+         * @description MATU-63 (R3): los retractos que pidió esta cuenta, sin el nombre de la persona.
+         */
+        RetractoCuentaCopia: {
+            /** Grupo */
+            grupo: string;
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "solicitado" | "devuelto" | "rechazado";
+            /** Solicitado En */
+            solicitado_en: string;
+            /** Resuelto En */
+            resuelto_en: string | null;
+            /** Productos */
+            productos: string[];
+        };
+        /**
+         * SolicitudRetractoPorCorreo
+         * @description H2: el retracto que la familia pidió por correo. ``solicitado_por``: la cuenta que pagó o el admin del grupo;
+         *     sin valor, quien pagó.
+         */
+        SolicitudRetractoPorCorreo: {
+            /** Lineas */
+            lineas: components["schemas"]["LineaRetracto"][];
+            /** Solicitado Por */
+            solicitado_por?: string | null;
+        };
+        /** ComercioDeLaParte */
+        ComercioDeLaParte: {
+            /**
+             * Nombre Fantasia
+             * @description null si el comercio ya no está activo
+             */
+            nombre_fantasia: string | null;
+            /**
+             * Ficticio
+             * @description Con true, la pantalla agrega «(comercio ficticio)»
+             */
+            ficticio: boolean;
+        };
+        /** LineaDeLaParte */
+        LineaDeLaParte: {
+            /**
+             * Linea Id
+             * Format: uuid
+             */
+            linea_id: string;
+            producto: components["schemas"]["ProductoPedido"];
+            /** Cantidad */
+            cantidad: number;
+            /**
+             * Unidades Faltantes
+             * @description Las que el comercio no tenía
+             */
+            unidades_faltantes: number;
+        };
+        /**
+         * LineaDelRetracto
+         * @description MATU-92 (ruta 4): un producto del retracto, con lo que se devuelve a precio pagado.
+         */
+        LineaDelRetracto: {
+            /**
+             * Linea Id
+             * Format: uuid
+             */
+            linea_id: string;
+            producto: components["schemas"]["ProductoPedido"];
+            /** Cantidad */
+            cantidad: number;
+            /**
+             * Monto
+             * @description cantidad × precio pagado, en pesos enteros
+             */
+            monto: number;
+        };
+        /**
+         * LineaParaRetracto
+         * @description MATU-92 (ruta 3): lo que se puede devolver de una línea entregada.
+         */
+        LineaParaRetracto: {
+            /**
+             * Linea Id
+             * Format: uuid
+             */
+            linea_id: string;
+            producto: components["schemas"]["ProductoPedido"];
+            /**
+             * Entregadas
+             * @description cantidad − unidades_faltantes
+             */
+            entregadas: number;
+            /**
+             * Ya Pedidas
+             * @description En retractos anteriores, también los no aceptados (H3 y H8)
+             */
+            ya_pedidas: number;
+            /**
+             * Disponibles
+             * @description entregadas − ya_pedidas: el máximo de un retracto nuevo
+             */
+            disponibles: number;
+            /**
+             * Precio Pagado
+             * @description El precio unitario pagado, en pesos enteros (C9)
+             */
+            precio_pagado: number;
+            /** Retracto Pierde Al Abrir */
+            retracto_pierde_al_abrir: boolean;
+        };
+        /** ListaPedidosPagados */
+        ListaPedidosPagados: {
+            /** Items */
+            items: components["schemas"]["PedidoPagadoFila"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
+        /** ListaPedidosPagadosObservador */
+        ListaPedidosPagadosObservador: {
+            /** Items */
+            items: components["schemas"]["PedidoPagadoFilaObservador"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
+        /**
+         * ParteDelPedido
+         * @description Una parte del pedido por comercio (C16): su estado, que la pantalla dice con los textos de la familia.
+         */
+        ParteDelPedido: {
+            comercio: components["schemas"]["ComercioDeLaParte"];
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "enviada" | "preparando" | "lista" | "retirada" | "cancelada";
+            /**
+             * Cancelada Por
+             * @description Solo con cancelada: el comercio no tenía nada (faltante) o se canceló el pedido
+             */
+            cancelada_por: ("faltante" | "pedido") | null;
+            /** Lineas */
+            lineas: components["schemas"]["LineaDeLaParte"][];
+        };
+        /**
+         * PedidoPagadoFila
+         * @description Una fila de «Tus pedidos» para admin, cuidador y pagador (C5).
+         */
+        PedidoPagadoFila: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /** Referencia */
+            referencia: string;
+            /**
+             * Pagado En
+             * Format: date-time
+             */
+            pagado_en: string;
+            /**
+             * Estado
+             * @description El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado
+             * @enum {string}
+             */
+            estado: "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cancelado_con_devolucion";
+            /** Entregado En */
+            entregado_en: string | null;
+            /** Cancelado En */
+            cancelado_en: string | null;
+            /** Productos */
+            productos: components["schemas"]["ProductoDeLaFila"][];
+            resumen_productos: components["schemas"]["ResumenProductos"] | null;
+            /**
+             * Productos Borrados
+             * @description C28: ya no se guardan los productos del pedido
+             */
+            productos_borrados: boolean;
+            /**
+             * Total
+             * @description El total pagado, envío incluido, en pesos enteros
+             */
+            total: number;
+            /**
+             * Devuelto
+             * @description Lo devuelto a la tarjeta con anulaciones hechas
+             */
+            devuelto: number;
+            /**
+             * Devuelto Todo
+             * @description devuelto = total: «Devolvimos», y no «Estamos devolviendo»
+             */
+            devuelto_todo: boolean;
+            /** Puede Cancelar */
+            puede_cancelar: boolean;
+            /**
+             * Cancelar Motivo
+             * @description null si puede_cancelar. rol: solo el admin cancela; ya_se_prepara: un comercio ya empezó (o el pedido ya salió); cancelado: el pedido ya se canceló
+             */
+            cancelar_motivo: ("rol" | "ya_se_prepara" | "cancelado") | null;
+            /** Puede Arrepentirse */
+            puede_arrepentirse: boolean;
+            /**
+             * Arrepentirse Motivo
+             * @description null si puede_arrepentirse. sin_entregar; plazo_app_vencido: pasaron los 10 días hábiles y queda el correo hasta plazo_correo_hasta (C22); plazo_vencido: pasaron también los 90 días; rol: pueden el admin y quien pagó; nada_disponible: ya se pidió devolver todo lo entregado
+             */
+            arrepentirse_motivo: ("rol" | "sin_entregar" | "plazo_app_vencido" | "plazo_vencido" | "nada_disponible") | null;
+            /**
+             * Plazo Hasta
+             * @description Fin del décimo día hábil desde la entrega, en hora de Chile. null sin entrega
+             */
+            plazo_hasta: string | null;
+            /**
+             * Plazo Correo Hasta
+             * @description 90 días desde la entrega. null sin entrega
+             */
+            plazo_correo_hasta: string | null;
+        };
+        /**
+         * PedidoPagadoFilaObservador
+         * @description Lo que ve el observador (D-92-1 a, C3; MATU-113, decisión 472): la fecha del pago, el estado de familia, la
+         *     fecha de entrega y los productos. Sin referencia, montos, comprobante, código ni acciones.
+         */
+        PedidoPagadoFilaObservador: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /**
+             * Pagado En
+             * Format: date-time
+             */
+            pagado_en: string;
+            /**
+             * Estado
+             * @description El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado
+             * @enum {string}
+             */
+            estado: "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cancelado_con_devolucion";
+            /** Entregado En */
+            entregado_en: string | null;
+            /** Productos */
+            productos: components["schemas"]["ProductoDeLaFila"][];
+            resumen_productos: components["schemas"]["ResumenProductos"] | null;
+            /** Productos Borrados */
+            productos_borrados: boolean;
+        };
+        /** ProductoDeLaFila */
+        ProductoDeLaFila: {
+            producto: components["schemas"]["ProductoPedido"];
+            /** Cantidad */
+            cantidad: number;
+        };
+        /**
+         * ResumenProductos
+         * @description O5 del diseño: «{primero} y {otros} productos más».
+         */
+        ResumenProductos: {
+            /** Primero */
+            primero: string;
+            /** Otros */
+            otros: number;
+        };
+        /**
+         * RetractoVistaFamilia
+         * @description El retracto para la familia (MATU-92, C18): quién lo pidió solo como es_tuyo, nunca su nombre ni su id.
+         */
+        RetractoVistaFamilia: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "solicitado" | "devuelto" | "rechazado";
+            /**
+             * Solicitado En
+             * Format: date-time
+             */
+            solicitado_en: string;
+            /**
+             * Plazo Hasta
+             * Format: date-time
+             */
+            plazo_hasta: string;
+            /** Incluye Envio */
+            incluye_envio: boolean;
+            /**
+             * Monto
+             * @description Los productos a precio pagado, más el envío si lo incluye
+             */
+            monto: number;
+            /**
+             * Origen
+             * @description correo: lo pidió la familia por correo y lo registró operación
+             * @enum {string}
+             */
+            origen: "app" | "correo";
+            /** Lineas */
+            lineas: components["schemas"]["LineaDelRetracto"][];
+            /**
+             * Resuelto En
+             * @description Cuándo se devolvió o no se aceptó; null si sigue
+             */
+            resuelto_en: string | null;
+            /** Es Tuyo */
+            es_tuyo: boolean;
+        };
+        /**
+         * SeguimientoPedido
+         * @description GET /v1/pedidos/{id}/seguimiento (ruta 2): cómo va el pedido pagado, por comercio. Sin la referencia de la
+         *     parte, el código de retiro ni nada del encargado (C15). El comprobante es GET …/pago (C14).
+         */
+        SeguimientoPedido: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /** Referencia */
+            referencia: string;
+            /**
+             * Pagado En
+             * Format: date-time
+             */
+            pagado_en: string;
+            /**
+             * Estado
+             * @description El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado
+             * @enum {string}
+             */
+            estado: "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cancelado_con_devolucion";
+            /** Entregado En */
+            entregado_en: string | null;
+            /** Cancelado En */
+            cancelado_en: string | null;
+            /** Partes */
+            partes: components["schemas"]["ParteDelPedido"][];
+            /** Productos Borrados */
+            productos_borrados: boolean;
+            /** Total */
+            total: number;
+            /** Devuelto */
+            devuelto: number;
+            /** Devuelto Todo */
+            devuelto_todo: boolean;
+            /** Puede Cancelar */
+            puede_cancelar: boolean;
+            /**
+             * Cancelar Motivo
+             * @description null si puede_cancelar. rol: solo el admin cancela; ya_se_prepara: un comercio ya empezó (o el pedido ya salió); cancelado: el pedido ya se canceló
+             */
+            cancelar_motivo: ("rol" | "ya_se_prepara" | "cancelado") | null;
+            /** Puede Arrepentirse */
+            puede_arrepentirse: boolean;
+            /**
+             * Arrepentirse Motivo
+             * @description null si puede_arrepentirse. sin_entregar; plazo_app_vencido: pasaron los 10 días hábiles y queda el correo hasta plazo_correo_hasta (C22); plazo_vencido: pasaron también los 90 días; rol: pueden el admin y quien pagó; nada_disponible: ya se pidió devolver todo lo entregado
+             */
+            arrepentirse_motivo: ("rol" | "sin_entregar" | "plazo_app_vencido" | "plazo_vencido" | "nada_disponible") | null;
+            /** Plazo Hasta */
+            plazo_hasta: string | null;
+            /** Plazo Correo Hasta */
+            plazo_correo_hasta: string | null;
         };
     };
     responses: never;
@@ -5018,6 +6343,15 @@ export interface operations {
             };
             /** @description El dispositivo no existe, es de otro usuario o el token no trae did */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description push-no-permitido: durante el piloto, esta cuenta no puede activar los avisos push (C14) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8590,6 +9924,60 @@ export interface operations {
             };
         };
     };
+    listar_pedidos_v1_personas_cuidadas__persona_id__pedidos_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaPedidosPagados"] | components["schemas"]["ListaPedidosPagadosObservador"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El rol no alcanza, o el pedido no es del grupo, es de una persona eliminada, venció o no se entregó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description cursor inválido o limite fuera de 1 a 100 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     crear_pedido_v1_personas_cuidadas__persona_id__pedidos_post: {
         parameters: {
             query?: never;
@@ -10423,6 +11811,1387 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_comercio_v1_comercio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComercioDeLaCuenta"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description comercio-inactivo: la cuenta o el comercio no están activos */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de comercio, o la parte o la línea no son de este comercio */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listar_partes_v1_comercio_partes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaPartes"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description comercio-inactivo: la cuenta o el comercio no están activos */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de comercio, o la parte o la línea no son de este comercio */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_parte_v1_comercio_partes__parte_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                parte_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParteVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description comercio-inactivo: la cuenta o el comercio no están activos */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de comercio, o la parte o la línea no son de este comercio */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preparar_v1_comercio_partes__parte_id__preparar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string | null;
+            };
+            path: {
+                parte_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParteVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description comercio-inactivo: la cuenta o el comercio no están activos */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de comercio, o la parte o la línea no son de este comercio */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-parte: la parte no está en el estado que la acción pide */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description version-desactualizada: el If-Match no es la versión actual de la parte */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido, o lineas-pendientes al marcar listo */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    marcar_linea_v1_comercio_partes__parte_id__lineas__linea_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string | null;
+            };
+            path: {
+                parte_id: string;
+                linea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudMarca"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParteVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description comercio-inactivo: la cuenta o el comercio no están activos */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de comercio, o la parte o la línea no son de este comercio */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-parte: la parte no está en el estado que la acción pide */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description version-desactualizada: el If-Match no es la versión actual de la parte */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido, o lineas-pendientes al marcar listo */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listo_v1_comercio_partes__parte_id__listo_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string | null;
+            };
+            path: {
+                parte_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParteVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description comercio-inactivo: la cuenta o el comercio no están activos */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de comercio, o la parte o la línea no son de este comercio */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-parte: la parte no está en el estado que la acción pide */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description version-desactualizada: el If-Match no es la versión actual de la parte */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido, o lineas-pendientes al marcar listo */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    validar_codigo_v1_comercio_partes__parte_id__validar_codigo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                parte_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCodigo"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultadoCodigoVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description comercio-inactivo: la cuenta o el comercio no están activos */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de comercio, o la parte o la línea no son de este comercio */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El código no son 6 cifras. No cuenta como intento */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiados-intentos: 20 por hora por cuenta, con Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta CODIGO_RETIRO_SECRETO o PEPPER_LIMITES, o Redis no responde */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listar_productos_v1_comercio_productos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaProductos"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description comercio-inactivo: la cuenta o el comercio no están activos */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de comercio, o la parte o la línea no son de este comercio */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cambiar_producto_v1_comercio_productos__oferta_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string | null;
+            };
+            path: {
+                oferta_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudProducto"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductoDelComercio"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description comercio-inactivo: la cuenta o el comercio no están activos */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de comercio, o la parte o la línea no son de este comercio */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description version-desactualizada: el If-Match no es la versión actual de la parte */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido, o lineas-pendientes al marcar listo */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listar_pedidos_v1_operacion_pedidos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaPedidosOperacion"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-pedido o estado-parte: el estado no permite la acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    generar_codigo_v1_operacion_partes__parte_id__codigo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                parte_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodigoGenerado"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-pedido o estado-parte: el estado no permite la acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Falta CODIGO_RETIRO_SECRETO */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    en_camino_v1_operacion_pedidos__pedido_id__en_camino_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstadoPedidoVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-pedido o estado-parte: el estado no permite la acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    entregado_v1_operacion_pedidos__pedido_id__entregado_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstadoPedidoVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-pedido o estado-parte: el estado no permite la acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    no_entregado_v1_operacion_pedidos__pedido_id__no_entregado_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstadoPedidoVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-pedido o estado-parte: el estado no permite la acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listar_retractos_v1_operacion_retractos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaRetractos"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-pedido o estado-parte: el estado no permite la acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    resolver_retracto_v1_operacion_retractos__retracto_id__resolver_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                retracto_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudResolverRetracto"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetractoVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-pedido o estado-parte: el estado no permite la acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Sin PASARELA_PAGO no se puede devolver */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cancelar_con_devolucion_v1_pedidos__pedido_id__cancelar_con_devolucion_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstadoPedidoVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El rol no alcanza, o el pedido no es del grupo, es de una persona eliminada, venció o no se entregó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado): el pedido ya se canceló o no está pagado (C11); /errores/ya-se-prepara: un comercio empezó a preparar; o /errores/idempotencia-en-curso: una petición con la misma clave todavía no termina */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Idempotency-Key o cuerpo inválidos, o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin PASARELA_PAGO no se puede devolver: no se cancela */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_retractos_v1_pedidos__pedido_id__retractos_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetractosDelPedido"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El rol no alcanza, o el pedido no es del grupo, es de una persona eliminada, venció o no se entregó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pedir_retracto_v1_pedidos__pedido_id__retractos_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudRetracto"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetractoVistaFamilia"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El rol no alcanza, o el pedido no es del grupo, es de una persona eliminada, venció o no se entregó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/fuera-de-plazo: pasaron los 10 días hábiles (extensión plazo_hasta); o /errores/idempotencia-en-curso: una petición con la misma clave todavía no termina */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/producto-no-retractable: un producto no se entregó, ya se pidió o la cantidad no calza; Idempotency-Key o cuerpo inválidos; o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cancelar_con_devolucion_v1_operacion_pedidos__pedido_id__cancelar_con_devolucion_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstadoPedidoVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-pedido o estado-parte: el estado no permite la acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Sin PASARELA_PAGO no se puede devolver: no se cancela */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    registrar_retracto_por_correo_v1_operacion_pedidos__pedido_id__retractos_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudRetractoPorCorreo"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetractoVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description fuera-de-plazo: pasaron los 90 días desde la entrega (CL-54) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description producto-no-retractable, o solicitado_por no es quien pagó ni un admin */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_seguimiento_v1_pedidos__pedido_id__seguimiento_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeguimientoPedido"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El rol no alcanza, o el pedido no es del grupo, es de una persona eliminada, venció o no se entregó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

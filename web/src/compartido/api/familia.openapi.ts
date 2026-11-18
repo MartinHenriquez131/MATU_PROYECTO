@@ -924,7 +924,7 @@ export interface paths {
         };
         /**
          * «Tus pedidos»: los pedidos pagados de la persona, de los últimos 2 años
-         * @description MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, solo la fecha, los productos y «Pagado» (C3). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3
+         * @description MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos, sin ningún monto (C3; MATU-113, decisión 472). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3
          */
         get: operations["listar_pedidos_v1_personas_cuidadas__persona_id__pedidos_get"];
         put?: never;
@@ -948,7 +948,7 @@ export interface paths {
         };
         /**
          * El pedido sin pagar de la persona, para volver al carrito
-         * @description MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3). 404 si la persona no tiene un pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3
+         * @description MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3; el observador, sin montos, decisión 472). 404 si la persona no tiene un pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3
          */
         get: operations["ver_en_curso_v1_personas_cuidadas__persona_id__pedido_en_curso_get"];
         put?: never;
@@ -968,7 +968,7 @@ export interface paths {
         };
         /**
          * Leer el pedido, con el resumen antes de pagar si el total está confirmado
-         * @description MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y PedidoVistaObservador, sin entrega ni resumen, para el observador (C3). El vencimiento lo dice el Reloj. No se audita. Capa 3
+         * @description MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y PedidoVistaObservador para el observador (C3), sin entrega, resumen ni ningún monto en ningún estado (MATU-113, decisión 472). El vencimiento lo dice el Reloj. No se audita. Capa 3
          */
         get: operations["ver_pedido_v1_pedidos__pedido_id__get"];
         put?: never;
@@ -3346,6 +3346,14 @@ export interface components {
             /** @description El comercio del carrito, si el producto pasó a otro */
             comercio_antes: components["schemas"]["ComercioVista"] | null;
         };
+        /**
+         * CambioDeLineaObservador
+         * @description MATU-113 (decisión 472): el cambio de la línea sin el precio de antes.
+         */
+        CambioDeLineaObservador: {
+            /** @description El comercio del carrito; el producto pasó a otro */
+            comercio_antes: components["schemas"]["ComercioVista"];
+        };
         /** ComercioVista */
         ComercioVista: {
             /**
@@ -3583,7 +3591,9 @@ export interface components {
         };
         /**
          * PedidoVistaObservador
-         * @description Lo que ve el observador (C3): el carrito sin entrega, sin resumen y sin etag.
+         * @description Lo que ve el observador (C3; MATU-113, decisión 472): los productos, cuántos, de qué comercio y el estado
+         *     completo del pedido. Sin montos en ningún estado (ni precios, ni subtotales, ni envío, ni total, ni devolución),
+         *     sin entrega, sin resumen y sin etag.
          */
         PedidoVistaObservador: {
             /**
@@ -3600,21 +3610,18 @@ export interface components {
             /** Precios De Ejemplo */
             precios_de_ejemplo: boolean;
             /** Lineas */
-            lineas: components["schemas"]["LineaPedido"][];
+            lineas: components["schemas"]["LineaPedidoObservador"][];
             /** Salieron */
             salieron: components["schemas"]["LineaSalida"][];
-            /** Comercios */
-            comercios: components["schemas"]["ParteComercio"][];
-            /** Subtotal Productos */
-            subtotal_productos: number;
-            /** Costo Envio */
-            costo_envio: number;
-            /** Total */
-            total: number | null;
             /** Total Confirmado En */
             total_confirmado_en: string | null;
             /** Vence En */
             vence_en: string | null;
+            /**
+             * Pagado En
+             * @description Cuándo se pagó, para «Pagado el {fecha}». Sin el monto
+             */
+            pagado_en: string | null;
             /** Ventana Entrega */
             ventana_entrega: string;
             /**
@@ -4609,6 +4616,29 @@ export interface components {
             estado: "pendiente" | "sin_stock" | "preparada" | "faltante" | "devuelta" | "eliminada";
             /** Unidades Faltantes */
             unidades_faltantes: number;
+        };
+        /**
+         * LineaPedidoObservador
+         * @description MATU-113 (decisión 472): la línea que ve el observador. Sin precio, subtotal, oferta, precio de antes,
+         *     devolución ni retracto (no puede arrepentirse de una compra que no hizo): un DTO propio, nunca LineaPedido con
+         *     claves borradas.
+         */
+        LineaPedidoObservador: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            producto: components["schemas"]["ProductoPedido"];
+            /**
+             * Cantidad
+             * @description Envases del producto, de 1 a 99
+             */
+            cantidad: number;
+            comercio: components["schemas"]["ComercioVista"];
+            regla_faltante: components["schemas"]["Regla"];
+            /** @description null si el producto sigue en el mismo comercio */
+            cambio: components["schemas"]["CambioDeLineaObservador"] | null;
         };
         /** CondicionesCopia */
         CondicionesCopia: {
@@ -5695,8 +5725,8 @@ export interface components {
         };
         /**
          * PedidoPagadoFilaObservador
-         * @description Lo que ve el observador (D-92-1 a, C3): la fecha, los productos y «Pagado». Sin referencia, montos, estado de
-         *     la entrega ni acciones.
+         * @description Lo que ve el observador (D-92-1 a, C3; MATU-113, decisión 472): la fecha del pago, el estado de familia, la
+         *     fecha de entrega y los productos. Sin referencia, montos, comprobante, código ni acciones.
          */
         PedidoPagadoFilaObservador: {
             /**
@@ -5711,9 +5741,12 @@ export interface components {
             pagado_en: string;
             /**
              * Estado
-             * @constant
+             * @description El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado
+             * @enum {string}
              */
-            estado: "pagado";
+            estado: "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cancelado_con_devolucion";
+            /** Entregado En */
+            entregado_en: string | null;
             /** Productos */
             productos: components["schemas"]["ProductoDeLaFila"][];
             resumen_productos: components["schemas"]["ResumenProductos"] | null;
