@@ -84,12 +84,13 @@ def fila(p: PedidoDeLaFamilia) -> PedidoPagadoFila:
 
 def fila_pagaste(p: PedidoDeLaFamilia) -> PedidoPagadoFilaPagaste:
     """MATU-116 (C5): la forma de «Paga»; el esquema exige puede_cancelar en false (el rol nunca alcanza)."""
-    return PedidoPagadoFilaPagaste.model_validate({**_con_pago(p), **_productos(p)})
+    return PedidoPagadoFilaPagaste.model_validate({"vista": "pagaste", **_con_pago(p), **_productos(p)})
 
 
 def fila_observador(p: PedidoDeLaFamilia) -> PedidoPagadoFilaObservador:
     return PedidoPagadoFilaObservador.model_validate(
         {
+            "vista": "se_informa",
             "pedido_id": p.cabecera.id,
             "pagado_en": _utc(p.cabecera.pagado_en),
             # MATU-113 (decisión 472): el estado real de familia, ya no siempre «pagado»

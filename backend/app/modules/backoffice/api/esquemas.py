@@ -360,9 +360,10 @@ class PedidoPagadoFilaObservador(_Estricto):
     """Lo que ve el observador (D-92-1 a, C3; MATU-113, decisión 472): la fecha del pago, el estado de familia, la
     fecha de entrega y los productos. Sin referencia, montos, comprobante, código ni acciones."""
 
+    # MATU-116: obligatoria y sin valor por omisión, para que vaya en required del contrato
     vista: Annotated[
         Literal["se_informa"], Field(description="MATU-116: la fila de «Se informa», de un pedido que no pagó")
-    ] = "se_informa"
+    ]
     pedido_id: uuid.UUID
     pagado_en: datetime
     estado: Annotated[EstadoFamiliaApi, Field(description=_DESCRIPCION_ESTADO)]
@@ -376,7 +377,7 @@ class PedidoPagadoFilaPagaste(_Estricto):
     """MATU-116 (J1, C5; decisión 475): la fila del observador en un pedido que pagó. La de quien paga
     (PedidoPagadoFila), con puede_cancelar siempre false: puede arrepentirse de la compra, nunca cancelar."""
 
-    vista: Annotated[Literal["pagaste"], Field(description="MATU-116: el pedido lo pagó quien lee")] = "pagaste"
+    vista: Annotated[Literal["pagaste"], Field(description="MATU-116: el pedido lo pagó quien lee")]
     pedido_id: uuid.UUID
     referencia: Referencia
     pagado_en: datetime

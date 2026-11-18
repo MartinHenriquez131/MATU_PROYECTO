@@ -56,7 +56,7 @@ PUBLICADAS: dict[str, str] = {
     # MATU-116: quien pagó un pedido sigue viendo sus pagos en «Tus datos» aunque cambie de rol o salga del grupo, y
     # puede arrepentirse de esa compra si pasa a «Se informa». Solo ve más de sus propios datos: nadie vuelve a
     # aceptar; las anteriores siguen
-    "0.25": "f31a624ebc1ea23e1f14b1d97f556333eb4216edde4a149ec1f066f516e27600",  # pragma: allowlist secret
+    "0.25": "aa1167e62cdc0c3467972d4789f55020da11ef2f7f98cba1a45a1a499ebc64c8",  # pragma: allowlist secret
 }
 
 

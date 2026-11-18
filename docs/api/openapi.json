@@ -22060,8 +22060,7 @@
             "type": "string",
             "const": "se_informa",
             "title": "Vista",
-            "description": "MATU-116: la fila de «Se informa», de un pedido que no pagó",
-            "default": "se_informa"
+            "description": "MATU-116: la fila de «Se informa», de un pedido que no pagó"
           },
           "pedido_id": {
             "type": "string",
@@ -22126,6 +22125,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "vista",
           "pedido_id",
           "pagado_en",
           "estado",
@@ -23973,8 +23973,7 @@
             "type": "string",
             "const": "pagaste",
             "title": "Vista",
-            "description": "MATU-116: el pedido lo pagó quien lee",
-            "default": "pagaste"
+            "description": "MATU-116: el pedido lo pagó quien lee"
           },
           "pedido_id": {
             "type": "string",
@@ -24138,6 +24137,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "vista",
           "pedido_id",
           "referencia",
           "pagado_en",
