@@ -2089,7 +2089,7 @@ function Conflicto({
   )
   const l = lineaDias(actual.dias_restantes)
   // MATU-60 9.4: el envase, si lo cambió esta persona o la otra.
-  const envaseDe = (u: number | null | undefined) => (u == null ? LISTA.sinEnvase : LISTA.envaseConflicto(miles(u), sufijoCantidad(u, actual.unidad, null)))
+  const envaseDe = (u: number | null | undefined) => (u == null ? LISTA.sinEnvase(actual.unidad) : LISTA.envaseConflicto(miles(u), sufijoCantidad(u, actual.unidad, null)))
   const envaseLeido = leido.unidades_por_envase ?? null
   const envaseActual = actual.unidades_por_envase ?? null
   const verEnvase = mio.unidades_por_envase !== undefined || envaseActual !== envaseLeido
