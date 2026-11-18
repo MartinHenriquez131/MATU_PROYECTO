@@ -174,3 +174,45 @@ def test_una_capa_bajo_su_piso_falla(
     monkeypatch.setattr(cobertura_por_capa, "PISOS", {"dominio": 86.0, "aplicacion": 70.0})
     assert cobertura_por_capa.main([str(archivo)]) == 1
     assert "bajo el piso en: dominio" in capsys.readouterr().err
+
+
+def test_h1_una_capa_sin_lineas_medidas_no_pasa(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Hallazgo H1 de la QA: sin líneas de casos de uso, antes contaba 100% y pasaba
+    informe = {"files": {"app/modules/consumption/domain/quiebre.py": _archivo(10, 10)}}
+    archivo = tmp_path / "cobertura.json"
+    archivo.write_text(json.dumps(informe), encoding="utf-8")
+    assert cobertura_por_capa.main([str(archivo)]) == 2
+    assert "Ninguna línea medida en: aplicacion" in capsys.readouterr().err
+
+
+def test_h1_un_informe_vacio_no_pasa(tmp_path: Path) -> None:
+    archivo = tmp_path / "cobertura.json"
+    archivo.write_text(json.dumps({"files": {}}), encoding="utf-8")
+    assert cobertura_por_capa.main([str(archivo)]) == 2
+
+
+@pytest.mark.parametrize(
+    ("ruta", "esperada"),
+    [
+        (
+            "/home/runner/work/myapp/backend/app/modules/ordering/domain/pedido.py",
+            "app/modules/ordering/domain/pedido.py",
+        ),
+        (r"C:\trabajo\miapp\backend\app\shared\eventos.py", "app/shared/eventos.py"),
+        ("app/modules/catalog/application/catalogo.py", "app/modules/catalog/application/catalogo.py"),
+    ],
+)
+def test_h1_la_ruta_se_corta_en_la_ultima_carpeta_app(ruta: str, esperada: str) -> None:
+    assert cobertura_por_capa.ruta_del_paquete(ruta) == esperada
+
+
+def test_h1_una_ruta_absoluta_con_myapp_cuenta_en_su_capa() -> None:
+    informe = {
+        "files": {
+            "/home/runner/work/myapp/backend/app/modules/ordering/domain/pedido.py": _archivo(9, 10),
+            "/home/runner/work/myapp/backend/app/modules/ordering/application/casos.py": _archivo(7, 10),
+        }
+    }
+    por_capa, _, _ = cobertura_por_capa.medir(informe)
+    assert (por_capa["dominio"].cubiertas, por_capa["dominio"].total) == (9, 10)
+    assert (por_capa["aplicacion"].cubiertas, por_capa["aplicacion"].total) == (7, 10)

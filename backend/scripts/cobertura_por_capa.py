@@ -42,14 +42,23 @@ class Suma:
         return 100.0 if self.total == 0 else 100.0 * self.cubiertas / self.total
 
 
+def ruta_del_paquete(ruta: str) -> str:
+    """La ruta desde app/, con barras normales. Corta en la última aparición de /app/, no en la primera de «app/»: en
+    /home/runner/work/myapp/backend/app/... la primera estaría dentro de «myapp/» (hallazgo H1 de la QA)."""
+    ruta = ruta.replace("\\", "/")
+    if ruta.startswith("app/"):
+        return ruta
+    corte = ruta.rfind("/app/")
+    return ruta[corte + 1 :] if corte >= 0 else ruta
+
+
 def medir(informe: dict[str, Any]) -> tuple[dict[str, Suma], dict[str, dict[str, Suma]], Suma]:
     """Las líneas cubiertas y totales por capa, por capa y módulo, y del paquete app completo."""
     por_capa = {capa: Suma() for capa in CAPAS}
     por_modulo: dict[str, dict[str, Suma]] = {capa: {} for capa in CAPAS}
     total = Suma()
     for ruta, datos in informe["files"].items():
-        ruta = ruta.replace("\\", "/")
-        ruta = ruta[ruta.index("app/") :] if "app/" in ruta else ruta
+        ruta = ruta_del_paquete(ruta)
         resumen = datos["summary"]
         cubiertas, lineas = resumen["covered_lines"], resumen["num_statements"]
         total.cubiertas += cubiertas
@@ -73,6 +82,7 @@ def main(argv: list[str] | None = None) -> int:
 
     por_capa, por_modulo, total = medir(json.loads(args.informe.read_text(encoding="utf-8")))
     bajo_el_piso = []
+    sin_lineas = [capa for capa, suma in por_capa.items() if suma.total == 0]
     for capa, suma in por_capa.items():
         print(
             f"{capa}: {suma.porcentaje:.1f}% ({suma.cubiertas} de {suma.total} líneas)"
@@ -83,6 +93,14 @@ def main(argv: list[str] | None = None) -> int:
         if suma.porcentaje < PISOS[capa]:
             bajo_el_piso.append(capa)
     print(f"total app/ (sin meta): {total.porcentaje:.1f}% ({total.cubiertas} de {total.total} líneas)")
+    if sin_lineas:
+        # Hallazgo H1 de la QA: una capa sin líneas medidas no es un 100%. Es un informe que no midió lo que debía
+        # (otra carpeta, otro --cov, rutas que no calzan) y la puerta no puede pasar con él
+        print(
+            f"Ninguna línea medida en: {', '.join(sin_lineas)}. Revisa --cov=app y las rutas del informe",
+            file=sys.stderr,
+        )
+        return 2
     if bajo_el_piso:
         print(f"Cobertura bajo el piso en: {', '.join(bajo_el_piso)}", file=sys.stderr)
         return 1
