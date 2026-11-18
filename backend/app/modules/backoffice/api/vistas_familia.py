@@ -18,10 +18,12 @@ from app.modules.backoffice.api.esquemas import (
     ParteDelPedido,
     PedidoPagadoFila,
     PedidoPagadoFilaObservador,
+    PedidoPagadoFilaPagaste,
     ProductoDeLaFila,
     ResumenProductos,
     RetractoVistaFamilia,
     SeguimientoPedido,
+    SeguimientoPedidoPagaste,
 )
 from app.modules.backoffice.application.pedidos_familia import LineaLeida, PedidoDeLaFamilia
 from app.modules.ordering.api.esquemas import ProductoPedido
@@ -80,6 +82,17 @@ def fila(p: PedidoDeLaFamilia) -> PedidoPagadoFila:
     return PedidoPagadoFila.model_validate({**_con_pago(p), **_productos(p)})
 
 
+def _sin_cancelar(p: PedidoDeLaFamilia) -> dict[str, object]:
+    """MATU-116 (C5): lo de quien paga, sin cancelar."""
+    datos = _con_pago(p)
+    del datos["puede_cancelar"], datos["cancelar_motivo"]
+    return datos
+
+
+def fila_pagaste(p: PedidoDeLaFamilia) -> PedidoPagadoFilaPagaste:
+    return PedidoPagadoFilaPagaste.model_validate({**_sin_cancelar(p), **_productos(p)})
+
+
 def fila_observador(p: PedidoDeLaFamilia) -> PedidoPagadoFilaObservador:
     return PedidoPagadoFilaObservador.model_validate(
         {
@@ -93,8 +106,8 @@ def fila_observador(p: PedidoDeLaFamilia) -> PedidoPagadoFilaObservador:
     )
 
 
-def seguimiento(p: PedidoDeLaFamilia) -> SeguimientoPedido:
-    partes = [
+def _partes(p: PedidoDeLaFamilia) -> list[ParteDelPedido]:
+    return [
         ParteDelPedido(
             comercio=ComercioDeLaParte(nombre_fantasia=x.nombre_fantasia, ficticio=x.ficticio),
             estado=x.estado,  # type: ignore[arg-type]
@@ -108,8 +121,16 @@ def seguimiento(p: PedidoDeLaFamilia) -> SeguimientoPedido:
         )
         for x in p.partes
     ]
+
+
+def seguimiento(p: PedidoDeLaFamilia) -> SeguimientoPedido | SeguimientoPedidoPagaste:
+    """MATU-116 (C5): para el observador que pagó, sin cancelar."""
+    if p.pagaste:
+        return SeguimientoPedidoPagaste.model_validate(
+            {**_sin_cancelar(p), "partes": _partes(p), "productos_borrados": p.productos_borrados}
+        )
     return SeguimientoPedido.model_validate(
-        {**_con_pago(p), "partes": partes, "productos_borrados": p.productos_borrados}
+        {**_con_pago(p), "partes": _partes(p), "productos_borrados": p.productos_borrados}
     )
 
 

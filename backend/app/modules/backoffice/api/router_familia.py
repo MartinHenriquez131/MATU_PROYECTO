@@ -2,10 +2,10 @@
 D-63-9 y D-63-10). Decisiones 422 a 424 y 436 en adelante.
 
     GET  /v1/personas-cuidadas/{persona_id}/pedidos       los cuatro roles (el observador, su vista). 200
-    GET  /v1/pedidos/{pedido_id}/seguimiento              admin, cuidador y pagador. 200
+    GET  /v1/pedidos/{pedido_id}/seguimiento              admin, cuidador, pagador y el observador que pagó. 200
     POST /v1/pedidos/{pedido_id}/cancelar-con-devolucion  admin. Idempotency-Key. 200
-    GET  /v1/pedidos/{pedido_id}/retractos                admin, cuidador y pagador, pedido entregado. 200
-    POST /v1/pedidos/{pedido_id}/retractos                admin o quien pagó. Idempotency-Key. 201
+    GET  /v1/pedidos/{pedido_id}/retractos                admin, cuidador, pagador y el observador que pagó. 200
+    POST /v1/pedidos/{pedido_id}/retractos                admin o quien pagó, en cualquier rol. Idempotency-Key. 201
 
 Viven en backoffice porque orquestan el despacho (fulfillment) y la devolución (payments). Un rol que no alcanza, un
 pedido o una persona de otro grupo, una persona eliminada, un pedido vencido (2 años desde el cierre) o un id que no
@@ -16,8 +16,10 @@ es UUID: 404, nunca 403. No piden la autorización despacho (C1). Cache-Control:
   bloquea el pedido como comercio_preparar, cancela las partes y devuelve todo, envío incluido, a la misma tarjeta.
   Orden: 401, 404, 428, 422 (cabecera), idempotencia, 503, 409 estado-pedido (ya cancelado, C11) o ya-se-prepara.
 - retractos: el admin, o quien pagó si sigue en el grupo, dentro de los 10 días hábiles desde la entrega. Orden: 401,
-  404 (rol, C6: el observador antes de llegar a la base), 428, 422, idempotencia, 404 (sin entregar), 409
-  fuera-de-plazo, 422 producto-no-retractable y 201.
+  404 (C6 revisado en MATU-116: quien no es admin y no pagó este pedido, también el observador; lo dice la base), 428,
+  422, idempotencia, 404 (sin entregar), 409 fuera-de-plazo, 422 producto-no-retractable y 201.
+- MATU-116 (J1, C5; decisión 475): el observador que pagó un pedido lo ve en la lista con la fila «pagaste», tiene su
+  detalle (sin cancelar) y puede arrepentirse. De los pedidos que no pagó, la fila «se_informa» y 404 en el resto.
 """
 
 import uuid
@@ -38,6 +40,7 @@ from app.modules.backoffice.api.esquemas import (
     RetractosDelPedido,
     RetractoVistaFamilia,
     SeguimientoPedido,
+    SeguimientoPedidoPagaste,
     SolicitudRetracto,
 )
 from app.modules.backoffice.application import pedidos_familia as tus_pedidos
@@ -119,7 +122,8 @@ def _actor(request: Request, contexto: SesionDeGrupo) -> Actor:
         " admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo"
         " que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador:"
         " ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos,"
-        " sin ningún monto (C3; MATU-113, decisión 472). Del más reciente al más antiguo;"
+        " sin ningún monto (C3; MATU-113, decisión 472), con vista = se_informa; y en los pedidos que pagó, la fila de"
+        " quien paga sin cancelar, con vista = pagaste (MATU-116, C5). Del más reciente al más antiguo;"
         " sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita."
         " Capa 3"
     ),
@@ -144,24 +148,29 @@ def listar_pedidos(
     siguiente = None if pagina.siguiente is None else vistas.codificar_cursor(pagina.siguiente)
     if not pagina.ve_el_pago:
         return ListaPedidosPagadosObservador(
-            items=[vistas.fila_observador(p) for p in pagina.pedidos], siguiente_cursor=siguiente
+            items=[vistas.fila_pagaste(p) if p.pagaste else vistas.fila_observador(p) for p in pagina.pedidos],
+            siguiente_cursor=siguiente,
         )
     return ListaPedidosPagados(items=[vistas.fila(p) for p in pagina.pedidos], siguiente_cursor=siguiente)
 
 
 @router.get(
     "/pedidos/{pedido_id}/seguimiento",
-    response_model=SeguimientoPedido,
+    response_model=SeguimientoPedido | SeguimientoPedidoPagaste,
     responses=_RESPUESTAS,
     summary="Cómo va un pedido pagado, por comercio",
     description=(
-        "MATU-92 (ruta 2). admin, cuidador y pagador; el observador no tiene detalle (404, D-92-1 a). Cada parte con el"
+        "MATU-92 (ruta 2). admin, cuidador y pagador: SeguimientoPedido. El observador que pagó el pedido:"
+        " SeguimientoPedidoPagaste, sin puede_cancelar (MATU-116, C5); de uno que no pagó, no tiene detalle (404,"
+        " D-92-1 a). Cada parte con el"
         " nombre de fantasía del comercio, su estado y cancelada_por; cada línea con unidades_faltantes. Nunca el"
         " código de retiro, la referencia de la parte ni la cuenta del encargado (C15). El comprobante es GET …/pago"
         " (C14). No se audita. Capa 3"
     ),
 )
-def ver_seguimiento(response: Response, pedido_id: _ID, contexto: SesionDeGrupo, reloj: RelojDep) -> SeguimientoPedido:
+def ver_seguimiento(
+    response: Response, pedido_id: _ID, contexto: SesionDeGrupo, reloj: RelojDep
+) -> SeguimientoPedido | SeguimientoPedidoPagaste:
     try:
         pedido = tus_pedidos.seguimiento(
             _lectura(contexto), contexto.rol, contexto.usuario_id, _uuid(pedido_id), reloj.ahora()
@@ -192,9 +201,9 @@ def _pedido_para_cancelar(request: Request, contexto: SesionDeGrupo, pedido_id: 
 
 
 def _pedido_para_retracto(request: Request, contexto: SesionDeGrupo, pedido_id: _ID) -> PedidoDeLaFamilia:
-    """C6: el observador recibe 404 antes de llegar a la base (antes dependía de que RLS le escondiera el cargo).
-    Quien no es admin tiene que haber pagado el pedido."""
-    if contexto.rol not in tus_pedidos.ROLES_QUE_VEN_EL_PAGO:
+    """C6, revisado en MATU-116 (C5): quien no es admin tiene que haber pagado el pedido, en cualquier rol, también el
+    observador. Si no, 404 antes de la cabecera y el cuerpo. La base lo vuelve a exigir (retracto_familia_crear)."""
+    if contexto.rol not in tus_pedidos.ROLES_QUE_LEEN:
         raise ErrorMATU(404)
     identificador = _uuid(pedido_id)
     if contexto.rol != "admin":
@@ -278,8 +287,8 @@ def cancelar_con_devolucion(
         "Hasta cuándo se puede pedir el retracto (fecha exacta, D-63-9) y los retractos pedidos. MATU-92 (rutas 3 y"
         " 4): por línea, lo entregado, lo ya pedido, lo disponible, el precio pagado y si se pierde al abrir; si"
         " devolver todo incluye el envío; plazo_correo_hasta (C22); puede_arrepentirse con su motivo (C7); y en cada"
-        " retracto sus líneas, es_tuyo (C18), origen (C21) y resuelto_en. admin, cuidador y pagador, pedido"
-        " entregado. No se audita. Capa 3"
+        " retracto sus líneas, es_tuyo (C18), origen (C21) y resuelto_en. admin, cuidador y pagador, y el observador"
+        " que pagó el pedido (MATU-116, C5); pedido entregado. No se audita. Capa 3"
     ),
 )
 def ver_retractos(pedido_id: _ID, contexto: SesionDeGrupo, reloj: RelojDep) -> RetractosDelPedido:
@@ -337,9 +346,11 @@ def _retracto_de_la_clave(contexto: SesionDeGrupo, endpoint: str, clave: str, ve
         },
     },
     description=(
-        "R3: «Arrepentirme de la compra». El admin, o quien pagó si sigue en el grupo, elige los productos y cuántos."
+        "R3: «Arrepentirme de la compra». El admin, o quien pagó si sigue en el grupo en cualquier rol (MATU-116, C5),"
+        " elige los productos y cuántos."
         " Se devuelven a precio pagado, y el envío según las condiciones aceptadas (D-63-10), cuando MATU recibe el"
-        " producto con el sello intacto. MATU-92: el observador recibe 404 (C6); Idempotency-Key obligatoria (la"
+        " producto con el sello intacto. MATU-92: quien no pagó y no es admin recibe 404 (C6);"
+        " Idempotency-Key obligatoria (la"
         " repetición responde 201 con el mismo retracto, C8); el pedido se bloquea antes de leer lo ya pedido, y dos"
         " solicitudes a la vez no piden más de lo entregado. Registra pedido.retracto_solicitar. Capa 3"
     ),

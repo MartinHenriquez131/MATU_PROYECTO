@@ -7,6 +7,9 @@ Vive en backoffice porque junta el pedido y sus partes (ordering, fulfillment) c
 - Roles (C3, C5): admin, cuidador y pagador ven el pedido con sus montos; el observador, la fecha del pago, el estado
   para la familia, la fecha de entrega y los productos, sin ningún monto (D-92-1 a; MATU-113, decisión 472).
   Quien salió del grupo no llega aquí (sesion_de_grupo responde 404, C4).
+- MATU-116 (J1, C5; decisión 475): el observador que pagó un pedido ve ese pedido como quien paga (``pagaste``), con
+  el detalle y «Arrepentirme de la compra», sin cancelar. Quien pagó lo dice la base (pagados_por, con RLS de la 0032),
+  nunca el cliente. Los pedidos que no pagó siguen con su fila de observador, y su detalle responde 404.
 - Lo que el servidor decide (C7, C10): ``puede_cancelar`` y ``puede_arrepentirse``, con su motivo cuando no.
 - Conservación (C27): un pedido que cumplió 2 años desde su cierre (regla de ``ordering/domain/seguimiento.py``) no
   aparece en ``listar`` y responde 404 en ``seguimiento`` y en ``para_devolver`` (GET …/retractos), es decir, solo en
@@ -161,6 +164,8 @@ class PedidoDeLaFamilia:
     # Solo para quien ve el pago; None para el observador
     devuelto: int | None
     acciones: Acciones | None
+    # MATU-116 (C5): el observador que pagó este pedido. Ve el pago y puede arrepentirse; nunca cancelar
+    pagaste: bool = False
 
     @property
     def productos_borrados(self) -> bool:
@@ -233,14 +238,17 @@ def _armar(
         return []
     lineas = lectura.lineas(ids)
     partes = lectura.partes(ids)
-    ve_pago = rol in ROLES_QUE_VEN_EL_PAGO
-    devuelto = lectura.devuelto(ids) if ve_pago else {}
-    pagados = lectura.pagados_por(ids, usuario_id) if ve_pago else set()
-    pedidas = lectura.ya_pedidas(ids) if ve_pago else {}
+    por_rol = rol in ROLES_QUE_VEN_EL_PAGO
+    # C5: para el observador, solo los que pagó (RLS no le deja ver la participación de otro)
+    pagados = lectura.pagados_por(ids, usuario_id)
+    con_pago = ids if por_rol else [i for i in ids if i in pagados]
+    devuelto = lectura.devuelto(con_pago) if con_pago else {}
+    pedidas = lectura.ya_pedidas(con_pago) if con_pago else {}
     resultado: list[PedidoDeLaFamilia] = []
     for c in cabeceras:
         suyas = tuple(x for x in lineas if x.pedido_id == c.id)
         sus_partes = [p for p in partes if p.pedido_id == c.id]
+        ve_pago = c.id in con_pago
         resultado.append(
             PedidoDeLaFamilia(
                 cabecera=c,
@@ -258,6 +266,7 @@ def _armar(
                 ),
                 devuelto=devuelto.get(c.id, 0) if ve_pago else None,
                 acciones=_acciones(c, rol, c.id in pagados, sus_partes, suyas, pedidas, ahora) if ve_pago else None,
+                pagaste=ve_pago and not por_rol,
             )
         )
     return resultado
@@ -295,11 +304,14 @@ def listar(
 def seguimiento(
     lectura: LecturaPedidos, rol: str, usuario_id: uuid.UUID, pedido_id: uuid.UUID, ahora: datetime
 ) -> PedidoDeLaFamilia:
-    """El detalle de un pedido pagado: admin, cuidador y pagador. El observador no tiene detalle (D-92-1 a)."""
-    if rol not in ROLES_QUE_VEN_EL_PAGO:
+    """El detalle de un pedido pagado: admin, cuidador y pagador, y el observador que lo pagó (MATU-116, C5). De un
+    pedido que no pagó, el observador no tiene detalle (D-92-1 a): 404, nunca 403."""
+    if rol not in ROLES_QUE_LEEN:
         raise PedidoNoEncontrado()
     c = lectura.cabecera(pedido_id)
     if c is None or not _vigente(c, ahora):
+        raise PedidoNoEncontrado()
+    if rol not in ROLES_QUE_VEN_EL_PAGO and c.id not in lectura.pagados_por([c.id], usuario_id):
         raise PedidoNoEncontrado()
     [pedido] = _armar([c], lectura, rol, usuario_id, ahora)
     return pedido
