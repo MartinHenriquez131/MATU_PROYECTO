@@ -18,6 +18,7 @@ import type {
 import { miles } from './textoLista'
 import { GRUPO_FAMILIAR } from './textosGrupo'
 import { GRUPO_PEDIDOS } from './textosPedido'
+import { MOTIVO_RECHAZO_FAMILIA, TUS_PEDIDOS } from './textosTusPedidos'
 
 /** Frases de una fecha: `[antes, después]`, la fecha va en medio, en su `cifras`. */
 type Partes = readonly [string, string]
@@ -260,18 +261,46 @@ export const MIS_DATOS = {
     /** Decisión 471: la clave de las notas se destruyó con los datos de la persona. Texto aprobado por Jorge el 17-11. */
     notaNoDisponible: 'La nota ya no está disponible: se borró con los datos de la persona.',
   },
-  /** «Se devolvieron {monto} porque…» o, en curso, «Se están devolviendo…» [NUEVO] */
+  /**
+   * «Se devolvieron {monto} porque…» o, en curso, «Se están devolviendo…» [NUEVO]. MATU-115 (1.6, R6 y
+   * R7): el arrepentimiento tiene su frase, y un motivo que el cliente no conoce no lleva «porque»:
+   * antes caía en «se canceló el pedido», que no había pasado.
+   */
   devolucion: (d: DevolucionCopia) => {
     const verbo = d.estado === 'en_curso' ? 'Se están devolviendo ' : 'Se devolvieron '
+    const motivo: string = d.motivo
     const porque =
-      d.motivo === 'producto_no_entregado'
+      motivo === 'producto_no_entregado'
         ? d.producto
           ? ` porque no se pudo entregar ${d.producto}.`
           : ' porque no se pudo entregar un producto.'
-        : d.motivo === 'pago_tardio'
+        : motivo === 'pago_tardio'
           ? ' porque el pago llegó cuando el total ya había vencido.'
-          : ' porque se canceló el pedido.'
+          : motivo === 'cancelacion'
+            ? ' porque se canceló el pedido.'
+            : motivo === 'retracto'
+              ? d.producto
+                ? ` porque se pidió devolver ${d.producto}.` // R6
+                : ' porque se pidió devolver productos de este pedido.' // R6
+              : '.' // R7
     return [verbo, porque] as const
+  },
+
+  /**
+   * MATU-115 (1.4 y 1.11): lo que se pidió devolver, dentro de cada pedido. Las etiquetas y los motivos
+   * se importan de «Tus pedidos» [L 38]; nunca se copian. Nunca «retracto» ni «rechazo» (C26). Sin
+   * quién lo pidió: `RetractoCopia` no lo trae, y está en el historial (hecho 28).
+   */
+  seLePidioDevolver: {
+    titulo: 'Lo que se pidió devolver', // R1 [AJUSTE] de 116 N2
+    devolucionPedida: TUS_PEDIDOS.devolucionPedida, // [L 38]
+    devueltoEl: TUS_PEDIDOS.devueltoEl, // [L 38]
+    devuelto: 'Devuelto', // R5 [NUEVO]
+    noSeAcepto: TUS_PEDIDOS.noSeAcepto, // [L 38]
+    sePidio: ['Se pidió el ', '.'] as Partes, // R2 [AJUSTE] de 116 N4
+    tambienElEnvio: 'También se pidió devolver el envío.', // R4 [NUEVO]
+    respondimos: ['Respondimos el ', '.'] as Partes, // 116 N5
+    motivo: MOTIVO_RECHAZO_FAMILIA as Record<string, string>, // [L 38]
   },
 
   // 3.4.9 Quién abrió o editó la ficha

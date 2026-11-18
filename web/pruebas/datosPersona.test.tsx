@@ -276,7 +276,8 @@ describe('«Datos de María»: los bloques (3.4)', () => {
     abrir()
     await listo()
     const b = bloque('Sus pedidos')
-    const [entregado, borrador] = within(b).getAllByRole('listitem')
+    // Los pedidos (con su `h3`), no las filas de sus subsecciones.
+    const [entregado, borrador] = within(b).getAllByRole('listitem').filter((li) => li.querySelector(':scope > h3'))
     expect(within(entregado).getByRole('heading', { level: 3 })).toHaveTextContent('Pedido 4821')
     expect(entregado).toHaveTextContent('Entregado')
     expect(entregado).toHaveTextContent('Lo armaron el 08/11/2026 a las 11:02.')
@@ -295,6 +296,88 @@ describe('«Datos de María»: los bloques (3.4)', () => {
     expect(borrador).not.toHaveTextContent('Total')
     expect(b).not.toHaveTextContent(/IVA|Neto/)
     expect(within(b).getAllByText('Precios de ejemplo.')).toHaveLength(1)
+  })
+
+  it('MATU-115 (1.6, P1): la devolución por arrepentimiento dice que se pidió devolver, nunca «se canceló el pedido»', async () => {
+    const base = copiaPersona()
+    const [pedido, ...resto] = base.pedidos!
+    type Devolucion = NonNullable<typeof pedido.pago>['devoluciones'][number]
+    const dev = (cambios: Partial<Devolucion> | Record<string, unknown>) =>
+      ({ motivo: 'retracto', producto: 'Pañal adulto M', monto: 13_990, estado: 'hecha', solicitada_en: '2026-11-10T10:00:00-03:00', hecha_en: '2026-11-10T10:30:00-03:00', ...cambios }) as Devolucion
+    const devoluciones = [dev({}), dev({ producto: null, monto: 3_990, estado: 'en_curso', hecha_en: null }), dev({ motivo: 'otro_que_no_conocemos', producto: null, monto: 1_000 })]
+    abrir(copiaPersona({ pedidos: [{ ...pedido, pago: { ...pedido.pago!, devoluciones } }, ...resto] }))
+    await listo()
+    const b = bloque('Sus pedidos')
+    expect(b).toHaveTextContent('Se devolvieron $13.990 porque se pidió devolver Pañal adulto M.')
+    expect(b).toHaveTextContent('Se están devolviendo $3.990 porque se pidió devolver productos de este pedido.')
+    expect(within(b).getByText((_, el) => el?.tagName === 'P' && el.textContent === 'Se devolvieron $1.000.')).toBeVisible()
+    expect(b).not.toHaveTextContent('se canceló el pedido')
+  })
+
+  it('MATU-115 (1.4): «Lo que se pidió devolver» dentro del pedido, después de la entrega y antes de «Lo que pasó con tu pedido»', async () => {
+    const base = copiaPersona()
+    const [pedido, borrador] = base.pedidos!
+    type Retracto = (typeof pedido.retractos)[number]
+    const r = (cambios: Partial<Retracto> | Record<string, unknown>) =>
+      ({ estado: 'solicitado', solicitado_en: '2026-11-09T09:00:00-03:00', plazo_hasta: '2026-11-19T09:00:00-03:00', incluye_envio: false, resuelto_en: null, motivo_rechazo: null, lineas: [{ producto: 'Pañal adulto M', cantidad: 1 }], ...cambios }) as Retracto
+    const retractos = [
+      r({ estado: 'devuelto', resuelto_en: '2026-11-15T12:00:00-03:00', incluye_envio: true, lineas: [{ producto: 'Toallitas', cantidad: 2 }] }),
+      r({ estado: 'rechazado', solicitado_en: '2026-11-13T09:00:00-03:00', resuelto_en: '2026-11-16T12:00:00-03:00', motivo_rechazo: 'sello_abierto' }),
+      r({ estado: 'rechazado', resuelto_en: '2026-11-16T12:00:00-03:00', motivo_rechazo: 'producto_no_recibido' }),
+      r({ estado: 'rechazado', resuelto_en: null, motivo_rechazo: null }),
+      r({}),
+      r({ estado: 'devuelto', resuelto_en: null, lineas: [] }),
+      r({ estado: 'que_no_conocemos', motivo_rechazo: 'tampoco' }),
+    ]
+    const loQuePaso = [{ tipo: 'faltante', estado: 'resuelta', anotado_en: '2026-11-09T10:00:00-03:00', resuelto_en: null, nota: null, resolucion: null }]
+    abrir(copiaPersona({ pedidos: [{ ...pedido, retractos, lo_que_paso: loQuePaso } as typeof pedido, borrador] }))
+    await listo()
+    const b = bloque('Sus pedidos')
+    const sub = within(b).getByRole('region', { name: 'Lo que se pidió devolver' })
+    expect(within(sub).getByRole('heading', { level: 4, name: 'Lo que se pidió devolver' })).toHaveClass('font-bold')
+    // Orden dentro del pedido: entrega, lo que se pidió devolver, lo que pasó.
+    const entrega = within(b).getByText(/^Entrega: /)
+    const loQuePasoT = within(b).getByRole('heading', { level: 4, name: 'Lo que pasó con tu pedido' })
+    expect(entrega.compareDocumentPosition(sub) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(sub.compareDocumentPosition(loQuePasoT) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    const filas = within(sub).getAllByRole('listitem').filter((li) => li.parentElement?.parentElement === sub)
+    expect(filas).toHaveLength(7)
+    const [devuelto, sello, noRecibido, sinMotivo, pedida, devueltoSinFecha, desconocido] = filas
+    // Ninguna fila con `items-start` (MATU-54 3.4); la etiqueta se alinea con `self-start`.
+    for (const f of filas) expect(f).not.toHaveClass('items-start')
+
+    expect(devuelto.firstElementChild).toHaveTextContent(/^Devuelto el 15\/11\/2026$/)
+    expect(devuelto.firstElementChild).toHaveClass('self-start')
+    expect(devuelto.firstElementChild!.querySelector('svg')).toHaveAttribute('aria-hidden')
+    expect(within(devuelto).getByText('15/11/2026').tagName).toBe('TIME')
+    expect(devuelto).toHaveTextContent('Se pidió el 09/11/2026.')
+    // El espacio no separable entre «×» y la cantidad (MATU-54 3.4.8, 1.3).
+    expect(within(devuelto).getByRole('listitem').textContent).toBe('Toallitas ×\u00A02')
+    expect(devuelto).toHaveTextContent('También se pidió devolver el envío.')
+    expect(devuelto).not.toHaveTextContent('Respondimos')
+
+    expect(sello.firstElementChild).toHaveTextContent(/^No se aceptó la devolución$/)
+    expect(sello).toHaveTextContent('Se pidió el 13/11/2026.')
+    expect(sello).toHaveTextContent('Respondimos el 16/11/2026.')
+    expect(within(sello).getByText('El producto volvió con el sello abierto.')).toBeVisible()
+    expect(sello).not.toHaveTextContent('envío')
+    expect(within(noRecibido).getByText('No recibimos el producto de vuelta.')).toBeVisible()
+    expect(sinMotivo).toHaveTextContent('No se aceptó la devolución')
+    expect(sinMotivo).not.toHaveTextContent(/Respondimos|sello abierto|No recibimos/)
+
+    expect(pedida.firstElementChild).toHaveTextContent(/^Devolución pedida$/)
+    expect(pedida).not.toHaveTextContent(/Respondimos|Devuelto/)
+    expect(devueltoSinFecha.firstElementChild).toHaveTextContent(/^Devuelto$/)
+    expect(within(devueltoSinFecha).queryByRole('list')).toBeNull()
+    // Un estado o un motivo que el cliente no conoce: se omite esa palabra, y el resto se ve.
+    expect(desconocido.firstElementChild!.tagName).toBe('P')
+    expect(desconocido.textContent).toBe('Se pidió el 09/11/2026.Pañal adulto M ×\u00A01')
+
+    // Sin montos, sin hora, sin el plazo y sin las palabras del contrato.
+    expect(sub).not.toHaveTextContent(/\$|a las|19\/11\/2026|retracto|rechaz|sello_abierto|producto_no_recibido/i)
+    // Un pedido sin pedidos de devolución no tiene la subsección.
+    expect(within(b).getAllByRole('region', { name: 'Lo que se pidió devolver' })).toHaveLength(1)
   })
 
   it('con la capa 3 quitada (`pedidos: null`) no hay bloque ni entrada en el índice', async () => {
