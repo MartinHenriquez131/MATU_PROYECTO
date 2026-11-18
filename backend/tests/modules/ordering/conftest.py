@@ -205,9 +205,12 @@ def claves_a_cualquier_profundidad(valor: Any) -> set[str]:
 # UUID, del sufijo del catálogo sintético («Producto panal 199901») o de los microsegundos de actualizado_en.
 # Los UUID y los instantes ISO 8601 (con fecha y hora) se sacan del texto antes de buscar: también dentro de un texto
 # más largo, como «/pedidos/e372bab4-9990-…» o «2026-11-18T07:58:43.912990Z total $9.990».
+# La hora, los segundos y el desfase solo con valores válidos: si no, un monto pegado a la hora
+# («2026-11-18T12:00-9990», «…12:00:00+9990») se perdería como si fuera parte del instante.
 _UUID_O_INSTANTE = re.compile(
     r"(?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-f])"
-    r"|(?<!\d)\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}(?::?\d{2})?)?(?!\d)",
+    r"|(?<!\d)\d{4}-\d{2}-\d{2}[T ](?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:[.,]\d+)?)?"
+    r"(?:Z|[+-](?:[01]\d|2[0-3])(?::?[0-5]\d)?)?(?!\d)",
     re.IGNORECASE,
 )
 

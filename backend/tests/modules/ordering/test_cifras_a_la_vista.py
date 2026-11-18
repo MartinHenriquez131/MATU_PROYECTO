@@ -58,6 +58,13 @@ def test_las_cifras_dentro_de_un_uuid_un_nombre_o_un_instante_no_cuentan() -> No
         # Un UUID o un instante dentro del texto se saca, y lo demás se sigue revisando
         ({"aviso": "2026-11-18T12:00:00Z total $9.990"}, {9990}),
         ({"aviso": "e372bab4-9990-4b8b-b9b9-016659a10826 $12.990"}, {12990}),
+        # Un monto pegado a la hora no se toma por desfase, segundos ni minutos (QA de eced18b)
+        ({"aviso": "2026-11-18T12:00-9990"}, {9990}),
+        ({"aviso": "2026-11-18T12:00:00+9990"}, {9990}),
+        ({"aviso": "2026-11-18T12:00:00-03:00-9990"}, {9990}),
+        ({"aviso": "2026-11-18T12:00:9990"}, {9990}),
+        ({"aviso": "2026-11-18T12:9990"}, {9990}),
+        ({"aviso": "2026-11-18T12:00:00+03:00 $12.990"}, {12990}),
     ],
 )
 def test_un_monto_con_cualquier_clave_anidado_o_en_un_texto_si_cuenta(cuerpo: object, esperado: set[int]) -> None:
