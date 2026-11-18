@@ -739,7 +739,7 @@ def test_la_0_23_esta_publicada_y_es_la_de_env_example() -> None:
     vuelve a aceptar. De la 0.11 a la 0.22 siguen publicadas."""
     anteriores = {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21", "0.22"}
     assert anteriores | {"0.23"} <= set(PUBLICADAS)
-    huella = "17dbcdae8f40bfe629991648d5235ff44e733ec87df4fb3d4aadc46ea6f9299c"  # pragma: allowlist secret
+    huella = "d3a606c71399a0bccf90c274bab44cb228c7689893fe0270caeca8aef519247f"  # pragma: allowlist secret
     assert PUBLICADAS["0.23"] == huella
     valores = dotenv_values(BACKEND.parent / ".env.example")
     assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.23", "2026-11-18")
@@ -756,10 +756,14 @@ def test_la_0_23_esta_publicada_y_es_la_de_env_example() -> None:
         " cancelación.",
         # §12: el cambio de la 0.23 y por qué nadie vuelve a aceptar
         "- La versión 0.23 agrega los avisos de tus pedidos, que le llegan solo a quien pagó,",
-        "No te pedimos aceptar de nuevo esta política ni volver a dar las autorizaciones: avisarte de tu pedido es"
-        " parte de responder por él, y eso ya lo autorizaste.",
+        # §12, desde el cierre del analista: la base son las condiciones que aceptó quien pagó
+        "No te pedimos aceptar de nuevo esta política ni volver a dar las autorizaciones: avisarte de un pedido que"
+        " pagaste es parte de responder por esa compra, y las condiciones del pedido que aceptaste al pagar ya dicen"
+        " que te avisamos.",
     ):
         assert parte in texto, parte
+    # El texto de §12 antes del cierre del analista ya no está
+    assert "y eso ya lo autorizaste" not in texto
     # El texto anterior de la notificación, que nombraba el insumo, ya no está
     assert "El aviso dice solo «MATU: un insumo se está acabando." not in texto
     # Lo de la 0.22 sigue en el texto vigente

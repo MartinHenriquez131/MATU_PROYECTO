@@ -49,7 +49,7 @@ PUBLICADAS: dict[str, str] = {
     # MATU-76: los avisos de un pedido le llegan solo a quien lo pagó, y la notificación en el teléfono tiene un solo
     # texto para todo («Tienes una novedad»). Avisar del pedido es parte de responder por él: nadie vuelve a aceptar;
     # las anteriores siguen
-    "0.23": "17dbcdae8f40bfe629991648d5235ff44e733ec87df4fb3d4aadc46ea6f9299c",  # pragma: allowlist secret
+    "0.23": "d3a606c71399a0bccf90c274bab44cb228c7689893fe0270caeca8aef519247f",  # pragma: allowlist secret
 }
 
 
