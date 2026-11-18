@@ -36,6 +36,56 @@ def test_toda_etiqueta_paso_del_script_tiene_su_umbral_y_su_fila_en_el_resumen()
     assert "const PASOS = ['entrar', ...PASOS_RNF05]" in SCRIPT
 
 
+LLAMADA_HTTP = re.compile(r"\bhttp\.(?:get|post|put|patch|del|request)\s*\(")
+ETIQUETA_PASO = re.compile(r"\bpaso:\s*['\"][\w-]+['\"]")
+# Las de setup() son la comprobación previa, antes de medir: no son pasos del flujo
+COMPROBACION_PREVIA = {"`${BASE_URL}/v1/salud`", "`${BASE_URL}/v1/condiciones-pedido`"}
+
+
+def _argumentos(desde: int) -> str:
+    """El texto de la llamada desde su paréntesis de apertura hasta el que la cierra, sin contar los paréntesis que
+    van dentro de cadenas."""
+    profundidad, comilla, i = 0, "", desde
+    while i < len(SCRIPT):
+        c = SCRIPT[i]
+        if comilla:
+            if c == "\\":
+                i += 1
+            elif c == comilla:
+                comilla = ""
+        elif c in "'\"`":
+            comilla = c
+        elif c == "(":
+            profundidad += 1
+        elif c == ")":
+            profundidad -= 1
+            if profundidad == 0:
+                return SCRIPT[desde : i + 1]
+        i += 1
+    raise AssertionError(f"llamada sin cerrar en la línea {SCRIPT.count(chr(10), 0, desde) + 1}")
+
+
+def _rango_de_setup() -> range:
+    inicio = SCRIPT.index("export function setup()")
+    return range(inicio, SCRIPT.index("\n}\n", inicio))
+
+
+def test_toda_peticion_del_flujo_lleva_su_paso() -> None:
+    # Una petición sin `paso` solo cuenta en el total: ningún umbral por paso la vería
+    setup = _rango_de_setup()
+    sin_paso, previas = [], []
+    for llamada in LLAMADA_HTTP.finditer(SCRIPT):
+        argumentos = _argumentos(llamada.end() - 1)
+        linea = SCRIPT.count("\n", 0, llamada.start()) + 1
+        if llamada.start() in setup:
+            previas.append(argumentos[1:].split(",")[0].strip().rstrip(")"))
+        elif not ETIQUETA_PASO.search(argumentos):
+            sin_paso.append(f"línea {linea}: {SCRIPT.splitlines()[linea - 1].strip()}")
+    assert not sin_paso, "peticiones sin la etiqueta paso en pedido.js:\n" + "\n".join(sin_paso)
+    # setup() no puede esconder un paso del flujo: solo la comprobación previa
+    assert set(previas) == COMPROBACION_PREVIA
+
+
 def test_entrar_se_mide_sin_exigirle_la_meta() -> None:
     assert "umbrales['http_req_duration{paso:entrar}'] = ['max>=0']" in SCRIPT
     assert "'no se exige'" in SCRIPT
