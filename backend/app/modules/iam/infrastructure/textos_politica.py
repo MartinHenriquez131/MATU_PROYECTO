@@ -57,6 +57,10 @@ PUBLICADAS: dict[str, str] = {
     # puede arrepentirse de esa compra si pasa a «Se informa». Solo ve más de sus propios datos: nadie vuelve a
     # aceptar; las anteriores siguen
     "0.25": "aa1167e62cdc0c3467972d4789f55020da11ef2f7f98cba1a45a1a499ebc64c8",  # pragma: allowlist secret
+    # MATU-128: quien pagó un pedido ve, en ese pedido, lo que anotó el equipo de MATU si hubo un problema. Es
+    # información de una compra que esa persona pagó, sin nuevos usos, datos, destinatarios fuera del grupo ni
+    # declaraciones: nadie vuelve a aceptar; las anteriores siguen
+    "0.26": "e23feafa0cfe125ea94e004c0103abf5738c55bbab469aef09e0178ba266e232",  # pragma: allowlist secret
 }
 
 
