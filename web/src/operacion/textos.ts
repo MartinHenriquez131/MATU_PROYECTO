@@ -410,7 +410,7 @@ export const INCIDENCIAS = {
   pasarAGestion: 'Pasar a en gestión',
   quedoEnGestion: 'La incidencia quedó en gestión.',
   // MATU-128 (C8 del cierre del analista): qué no lleva y quién la lee, como en el contrato.
-  ayuda: 'No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida.', // [A81, C11, C8]
+  ayuda: 'No escribas nombres, RUT, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida.', // [A81, C11, C8]
   contador: (n: number) => `${n} de 500 caracteres`, // [L, textos.ts]
   anotarTitulo: 'Anotar una incidencia',
   quePaso: '¿Qué pasó?',
@@ -421,8 +421,10 @@ export const INCIDENCIAS = {
   eligeQuePaso: 'Elige qué pasó.',
   notaVacia: 'Escribe qué pasó, sin nombres ni datos de salud.',
   muyLarga: 'La nota admite hasta 500 caracteres. Acórtala un poco para guardarla.',
-  /** MATU-128 (C8): el 422 nota-con-contacto, al anotar y al resolver. */
+  /** MATU-128 (C8): el 422 nota-con-contacto al anotar. */
   conContacto: 'La nota no puede llevar correos, teléfonos ni RUT. Quítalos para guardarla.',
+  /** MATU-128 (revisión visual, P3): el mismo 422 al resolver, porque el campo se llama «Cómo se resolvió». */
+  conContactoResolucion: 'Lo que escribas aquí no puede llevar correos, teléfonos ni RUT. Quítalos para guardarlo.',
   soloPagados: 'Solo se anotan incidencias de pedidos pagados.',
   marcarResuelta: 'Marcar resuelta',
   sinResolucion: 'Escribe cómo se resolvió, sin nombres ni datos de salud.',

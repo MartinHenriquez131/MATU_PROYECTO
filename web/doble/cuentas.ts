@@ -166,7 +166,7 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'tus-pedidos-lo-que-paso@example.com', que: 'Lo que pasó: Paga; el entregado con dos cosas anotadas, el recién pagado sin nada, y los que pagó otra persona sin bloque (404)' },
   { email: 'lo-que-paso-se-informa@example.com', que: 'Lo que pasó: Se informa y pagó el entregado (con dos cosas anotadas) y el recién pagado (sin nada)' },
   { email: 'lo-que-paso-sin-clave@example.com', que: 'Lo que pasó: el entregado responde 503 («Por ahora no podemos revisar…»); el recién pagado, sin bloque' },
-  { email: 'lo-que-paso-red@example.com', que: 'Lo que pasó: las dos primeras lecturas de cada pedido responden 500 (con StrictMode, npm run dev, el detalle pide dos veces al abrirse: se ve N2, «No pudimos revisar…»); «Volver a intentar» trae el bloque o «No hay nada anotado…». Sin StrictMode, el primer reintento falla otra vez' },
+  { email: 'lo-que-paso-red@example.com', que: 'Lo que pasó: las dos primeras lecturas de cada pedido responden 500, de nuevo cada vez que se entra con la cuenta (con StrictMode, npm run dev, el detalle pide dos veces al abrirse: se ve N2, «No pudimos revisar…»); «Volver a intentar» trae el bloque o «No hay nada anotado…». Sin StrictMode, el primer reintento falla otra vez' },
   { email: 'lo-que-paso-lento@example.com', que: 'Lo que pasó: tarda 2 s, para oír «Más abajo está lo que pasó con tu pedido.» sin que se mueva el foco' },
   { email: 'pedido-retirada@example.com', que: 'Pedido: la autorización de pedidos retirada; Grupo familiar con «Ver la dirección de entrega» y «Volver a autorizar»' },
   // MATU-42 y MATU-53: invitar y quiénes forman el grupo (/grupo, /grupo/invitar). Familia Soto: Carmen y

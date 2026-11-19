@@ -358,8 +358,10 @@ describe('El retracto que llegó por correo', () => {
 
 describe('Incidencias', () => {
   const NOTA = 'El comercio avisó que faltó la crema.'
-  const AYUDA = 'No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida.'
+  const AYUDA = 'No escribas nombres, RUT, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida.'
   const CON_CONTACTO = 'La nota no puede llevar correos, teléfonos ni RUT. Quítalos para guardarla.'
+  /** MATU-128 (P3): al resolver, el error no dice «La nota», porque el campo es «Cómo se resolvió». */
+  const CON_CONTACTO_RESOLUCION = 'Lo que escribas aquí no puede llevar correos, teléfonos ni RUT. Quítalos para guardarlo.'
   /** MATU-128 (C8): el 422 cuando la nota o la resolución tiene forma de correo, de teléfono o de RUT (el RUT lo suma el backend). */
   const NOTA_CON_CONTACTO = { status: 422, cuerpo: { type: '/errores/nota-con-contacto', status: 422 } }
 
@@ -431,16 +433,17 @@ describe('Incidencias', () => {
     expect(document.body.textContent).not.toMatch(/No pudimos|Lo que escribiste sigue aquí/)
   })
 
-  it('MATU-128 (C8): 422 nota-con-contacto al resolver: su texto con el foco en el campo, no el general', async () => {
+  it('MATU-128 (C8 y P3): 422 nota-con-contacto al resolver: su texto propio, sin «La nota», con el foco en el campo, no el general', async () => {
     const { usuario } = await abrir('/operacion/incidencias', (l) => (l === `PATCH /v1/operacion/incidencias/${ID.incidenciaAbierta}` ? NOTA_CON_CONTACTO : undefined))
     await usuario.click(await screen.findByRole('button', { name: /^Falta un producto, Abiertas/ }))
     await usuario.click(await screen.findByRole('button', { name: 'Resolver' }))
     const campo = await screen.findByLabelText('Cómo se resolvió')
     await usuario.type(campo, 'Se devolvió el suplemento a la tarjeta.')
     await usuario.click(screen.getByRole('button', { name: 'Marcar resuelta' }))
-    expect(await screen.findByText(CON_CONTACTO)).toBeVisible()
+    expect(await screen.findByText(CON_CONTACTO_RESOLUCION)).toBeVisible()
+    expect(screen.queryByText(CON_CONTACTO)).toBeNull()
     await waitFor(() => expect(campo).toHaveFocus())
-    expect(campo).toHaveAccessibleDescription(expect.stringContaining(CON_CONTACTO))
+    expect(campo).toHaveAccessibleDescription(expect.stringContaining(CON_CONTACTO_RESOLUCION))
     expect(campo).toHaveValue('Se devolvió el suplemento a la tarjeta.')
     expect(screen.queryByText('Escribe cómo se resolvió, sin nombres ni datos de salud.')).toBeNull()
     expect(document.body.textContent).not.toMatch(/No pudimos|Lo que escribiste sigue aquí/)

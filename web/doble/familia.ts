@@ -29,7 +29,7 @@ import { alEntrar, alSalir, anotarCuenta, atenderDispositivos, dispositivoVivo, 
 import { atenderMisDatos } from './misDatos'
 import { atenderComercio, CUENTAS_COMERCIO, esCuentaDeComercio } from './comercio'
 import { crearConsola, crearMfa, type ModoOperacion, type RespuestaDoble } from './operacion'
-import { fijarSeguimiento } from './tusPedidos'
+import { fijarSeguimiento, olvidarLecturasLoQuePaso } from './tusPedidos'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type CampoApi = 'rutina' | 'manejo_situaciones' | 'red_apoyo'
@@ -969,6 +969,8 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     if (!u || u.contrasena !== cuerpo?.contrasena) return problema(res, 401, '/errores/credenciales-invalidas'), true
     // MATU-81 (decisión 450): con la contraseña de una cuenta de operación, el desafío y sin tokens.
     if (esCuentaDeOperacion(u.modo)) return enviarDoble(res, mfa.desafiar(u.email)), true
+    // MATU-128 (P3): entrar de nuevo con lo-que-paso-red@ vuelve a mostrar N2 en cada pedido (solo en el doble).
+    if (u.modo === 'lo-que-paso-red') olvidarLecturasLoQuePaso(u.id)
     const did = alEntrar(u.email, String(req.headers['user-agent'] ?? ''), u.modo)
     emitirRefresh(res, u, did)
     return json(res, 200, emitirToken(u, did)), true

@@ -356,7 +356,7 @@ function DetalleIncidencia({ id, onVolver, onCambio }: { id: string; onVolver: (
               contador={T.contador}
             />
           </div>
-          {(sinTexto || conContacto) && <MensajeError id="resolucion-error">{sinTexto ? T.sinResolucion : T.conContacto}</MensajeError>}
+          {(sinTexto || conContacto) && <MensajeError id="resolucion-error">{sinTexto ? T.sinResolucion : T.conContactoResolucion}</MensajeError>}
           <Acciones>
             <Boton type="submit" ocupado={ocupado === 'resolver'} textoOcupado={T.guardando}>
               {T.marcarResuelta}

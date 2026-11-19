@@ -13,7 +13,8 @@
 // `vista: 'pagaste'` y la fila de quien paga, con `puede_cancelar` en false; los demás, con `se_informa`).
 // MATU-128: `GET /v1/pedidos/{id}/lo-que-paso` responde solo a quien pagó ese pedido (nunca según el rol):
 // a los demás, 404. Con tus-pedidos-lo-que-paso@ (Paga), lo-que-paso-se-informa@ (Se informa y pagó),
-// lo-que-paso-sin-clave@ (503), lo-que-paso-red@ (500 las dos primeras lecturas de cada pedido) y
+// lo-que-paso-sin-clave@ (503), lo-que-paso-red@ (500 las dos primeras lecturas de cada pedido, de nuevo
+// cada vez que se entra con la cuenta) y
 // lo-que-paso-lento@ (2 s).
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -157,10 +158,19 @@ export function listarPagados(req: IncomingMessage, res: ServerResponse, { json,
 
 const usadas = new Map<string, unknown>()
 const primeraVez = new Set<string>()
-/** lo-que-paso-red@: cuántas lecturas de `lo-que-paso` lleva cada pedido (se cuenta cada petición). */
+/** lo-que-paso-red@: cuántas lecturas de `lo-que-paso` lleva cada pedido de cada cuenta (se cuenta cada petición). */
 const lecturasLoQuePaso = new Map<string, number>()
+const claveLectura = (usuarioId: string, pedidoId: string) => `${usuarioId} ${pedidoId}`
 /** Las lecturas que responden 500 antes del 200: dos, porque con `StrictMode` el detalle pide la ruta dos veces. */
 const LECTURAS_CON_500 = 2
+
+/**
+ * MATU-128 (P3 de la revisión): entrar con lo-que-paso-red@ vuelve a cero sus lecturas, para que N2 se vea
+ * de nuevo en cada pedido sin reiniciar `npm run dev`. Solo en el doble.
+ */
+export function olvidarLecturasLoQuePaso(usuarioId: string) {
+  for (const clave of [...lecturasLoQuePaso.keys()]) if (clave.startsWith(`${usuarioId} `)) lecturasLoQuePaso.delete(clave)
+}
 
 /**
  * MATU-128 (decisión 484): lo que anotó el equipo de MATU, para quien pagó este pedido. Lo decide quién
@@ -176,8 +186,9 @@ export function verLoQuePaso(req: IncomingMessage, res: ServerResponse, { json, 
   // diera 500, la segunda traería el 200 y N2 nunca se vería. Las dos primeras responden 500 (N2) y
   // «Volver a intentar», la tercera, trae lo que hay. Sin `StrictMode`, el primer reintento da 500 otra vez.
   if (u.modo === 'lo-que-paso-red') {
-    const lecturas = (lecturasLoQuePaso.get(p.id) ?? 0) + 1
-    lecturasLoQuePaso.set(p.id, lecturas)
+    const clave = claveLectura(u.id, p.id)
+    const lecturas = (lecturasLoQuePaso.get(clave) ?? 0) + 1
+    lecturasLoQuePaso.set(clave, lecturas)
     if (lecturas <= LECTURAS_CON_500) return problema(res, 500, '/errores/interno')
   }
   if (u.modo === 'lo-que-paso-sin-clave' && items.length) return problema(res, 503, '/errores/servicio-no-disponible')

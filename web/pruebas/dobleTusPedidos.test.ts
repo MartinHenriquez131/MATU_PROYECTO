@@ -178,4 +178,16 @@ describe('El doble de «Lo que pasó con tu pedido» (MATU-128)', () => {
     expect(otra.status).toBe(200)
     expect(otra.cuerpo.lo_que_paso as Cosa[]).toHaveLength(2)
   })
+
+  it('red (P3): entrar de nuevo con la cuenta vuelve a cero las lecturas, y N2 se ve otra vez en el mismo pedido', async () => {
+    const primera = await lqp('lo-que-paso-red@example.com')
+    expect((await primera.ver(primera.entregado)).status).toBe(500)
+    expect((await primera.ver(primera.entregado)).status).toBe(500)
+    expect((await primera.ver(primera.entregado)).status).toBe(200)
+    const otraVez = await lqp('lo-que-paso-red@example.com')
+    expect(otraVez.entregado.pedido_id).toBe(primera.entregado.pedido_id)
+    expect((await otraVez.ver(otraVez.entregado)).status).toBe(500)
+    expect((await otraVez.ver(otraVez.entregado)).status).toBe(500)
+    expect((await otraVez.ver(otraVez.entregado)).status).toBe(200)
+  })
 })

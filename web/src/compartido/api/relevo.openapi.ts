@@ -2030,7 +2030,7 @@ export interface paths {
         put?: never;
         /**
          * Crear Incidencia
-         * @description Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la leen quien pagó el pedido, en «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, teléfonos, correos, datos de salud, la dirección ni quién de la familia reclamó (D5, ampliada por MATU-128). Un texto con forma de correo, de teléfono chileno o de RUT responde 422 nota-con-contacto, sin guardar nada. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.
+         * @description Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la leen quien pagó el pedido, en «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, RUT, teléfonos, correos, datos de salud, la dirección ni quién de la familia reclamó (D5, ampliada por MATU-128). Un texto con forma de correo, de teléfono chileno o de RUT responde 422 nota-con-contacto, sin guardar nada. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.
          */
         post: operations["crear_incidencia_v1_operacion_pedidos__pedido_id__incidencias_post"];
         delete?: never;
@@ -6727,7 +6727,7 @@ export interface components {
             estado?: ("abierta" | "en_gestion" | "resuelta") | null;
             /**
              * Resolucion
-             * @description Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo, de teléfono o de RUT responde 422 nota-con-contacto
+             * @description Hasta 500 caracteres. No escribas nombres, RUT, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo, de teléfono o de RUT responde 422 nota-con-contacto
              */
             resolucion?: string | null;
             /** Asignacion */
@@ -6742,7 +6742,7 @@ export interface components {
             tipo: "faltante" | "entrega_fallida" | "reclamo_familia" | "cobro_sin_respuesta" | "devolucion_pendiente" | "otro";
             /**
              * Descripcion
-             * @description Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo, de teléfono o de RUT responde 422 nota-con-contacto
+             * @description Hasta 500 caracteres. No escribas nombres, RUT, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo, de teléfono o de RUT responde 422 nota-con-contacto
              */
             descripcion: string;
             /**
