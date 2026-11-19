@@ -824,7 +824,9 @@ def test_estados_de_la_captura_diferida_ya_no_existen(cx, tabla, columna, valor)
 
 @pytest.mark.rf("ADR-027")
 def test_estado_del_cargo_coincide_con_sus_montos(cx):
-    como(cx, rol="operacion")  # MATU-62: el cargo lo actualizan el sistema y operación
+    # MATU-62: el cargo lo actualizan el sistema y operación. MATU-122 (C4): la participación, con el grupo del pedido
+    # y sin cuenta, como en la devolución
+    como(cx, rol="operacion", grupo_id=G_A)
     for estado, cobrado, devuelto in (("pagado", 0, 0), ("pendiente", 28970, 0), ("rechazado", 28970, 0),
                                       ("anulado", 28970, 100), ("devuelto_parcial", 28970, 0),
                                       ("devuelto_parcial", 28970, 28970), ("pagado", 28970, 100)):
@@ -832,8 +834,8 @@ def test_estado_del_cargo_coincide_con_sus_montos(cx):
             cx.execute("UPDATE cargo SET estado = %s, monto_cobrado = %s, monto_devuelto = %s",
                        (estado, cobrado, devuelto))
     # Cancelación sin costo antes de preparar: se anula el total
-    cx.execute("UPDATE cargo SET estado = 'anulado', monto_devuelto = monto_cobrado")
-    cx.execute("UPDATE participacion SET estado = 'anulada', monto_devuelto = monto_cobrado")
+    assert cx.execute("UPDATE cargo SET estado = 'anulado', monto_devuelto = monto_cobrado").rowcount == 1
+    assert cx.execute("UPDATE participacion SET estado = 'anulada', monto_devuelto = monto_cobrado").rowcount == 1
 
 
 @pytest.mark.rf("ADR-027")
