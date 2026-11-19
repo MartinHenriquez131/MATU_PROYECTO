@@ -159,7 +159,7 @@ def test_sin_variables_quedan_los_valores_por_omision(monkeypatch: pytest.Monkey
     # El CI define DATABASE_URL, y la fixture _sin_env la deja a propósito: la prueba borra todas las que compara
     for campo in (*MIGRADOS_A_SECRETSTR, "webpay_llave", "pasarela_pago"):
         monkeypatch.delenv(campo.upper(), raising=False)
-    config = Configuracion(_env_file=None)
+    config = Configuracion(_env_file=None)  # type: ignore[call-arg]
     assert config.database_url.get_secret_value() == ""
     assert config.scheduler_database_url.get_secret_value() == ""
     assert config.publisher_database_url.get_secret_value() == ""
