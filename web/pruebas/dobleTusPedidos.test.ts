@@ -170,8 +170,9 @@ describe('El doble de «Lo que pasó con tu pedido» (MATU-128)', () => {
     expect(await ver(reciente)).toMatchObject({ status: 200, cuerpo: { lo_que_paso: [] } })
   })
 
-  it('red: la primera lectura de cada pedido responde 500 y la segunda lo que hay', async () => {
+  it('red: las dos primeras lecturas de cada pedido responden 500 (StrictMode pide dos veces) y la tercera lo que hay', async () => {
     const { ver, entregado } = await lqp('lo-que-paso-red@example.com')
+    expect((await ver(entregado)).status).toBe(500)
     expect((await ver(entregado)).status).toBe(500)
     const otra = await ver(entregado)
     expect(otra.status).toBe(200)

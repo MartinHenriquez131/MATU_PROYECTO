@@ -131,6 +131,18 @@ describe('MATU-128: «Lo que pasó con tu pedido» en el detalle', () => {
     expect(g.cabeceras['X-Grupo-Id']).toBe(GRUPO_ID)
   })
 
+  it('P1 (WCAG 1.4.10): la fila no lleva `items-start` y la etiqueta lleva `self-start`, para que una palabra larga no desplace el detalle', async () => {
+    const larga = 'Bolsa'.repeat(40)
+    api(con([{ ...COSAS[0], nota: larga }]))
+    abrir('pagador')
+    const fila = within((await screen.findByRole('heading', { level: 2, name: TITULO })).closest('section')!).getByRole('listitem')
+    // Con `items-start`, cada `p` toma su ancho mínimo de contenido: la nota sin espacios queda más ancha que la tarjeta.
+    expect(fila.className).not.toMatch(/\bitems-start\b/)
+    expect(fila).toHaveClass('flex', 'flex-col', 'min-w-0')
+    expect(within(fila).getByText('Resuelto').closest('span.inline-flex')).toHaveClass('self-start')
+    expect(within(fila).getByText(larga)).toHaveClass('break-words')
+  })
+
   it('en el orden que trae la API, y un tipo desconocido como «Otra cosa»', async () => {
     api(con([COSAS[1], { ...COSAS[0], tipo: 'que_no_conocemos' as never }]))
     abrir('pagador')

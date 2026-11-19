@@ -20,11 +20,14 @@ const L = MIS_DATOS.loQuePaso
  */
 type Variante = 'tarjeta' | 'copia'
 
+// MATU-128 (P1 de la revisión visual, WCAG 1.4.10): ninguna de las dos lleva `items-start` en la fila.
+// Con él, cada `p` toma su ancho mínimo de contenido y una palabra larga sin espacios en la nota
+// desplazaba el detalle hacia el lado a 360 px y a 320 px al 200 %. La etiqueta se alinea con `self-start`.
 const CLASES: Record<Variante, { fila: string; icono: string; etiqueta: string; fecha: string; texto: string }> = {
   tarjeta: {
-    fila: 'flex min-w-0 flex-col items-start gap-2 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea',
+    fila: 'flex min-w-0 flex-col gap-2 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea',
     icono: 'size-4 shrink-0',
-    etiqueta: '',
+    etiqueta: 'self-start',
     fecha: 'text-base text-tenue',
     texto: 'max-w-prose text-base',
   },
