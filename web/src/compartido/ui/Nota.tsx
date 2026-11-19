@@ -29,7 +29,7 @@ export function Nota({
   className = '',
   id,
   enfocable = false,
-  iconoEnLinea = false,
+  iconoEnLinea = true,
 }: {
   titulo?: ReactNode
   children?: ReactNode
@@ -45,12 +45,21 @@ export function Nota({
    * MATU-44 (revisión del 07-11): en modo angosto el ícono va en la primera línea del título, como
    * en `MensajeError`, para que el título use todo el ancho y una palabra larga no se salga. Sin
    * título (MATU-54), en la primera línea del texto.
+   *
+   * MATU-121 (docs/diseno/matu-121-nota-icono.md): es el valor por omisión, en los cuatro tonos y con
+   * `borde`. En línea el ícono mide siempre `size-5`, sin margen superior; sin título flota al comienzo
+   * del texto, así sirve con texto suelto y con párrafos. Una nota sin título cuyo cuerpo empieza con
+   * un botón o un enlace lleva `iconoEnLinea={false}`. Fuera del modo angosto no cambia nada.
    */
   iconoEnLinea?: boolean
 }) {
   const linea = borde ? { rocio: 'border-l-4 border-turquesa', atenta: 'border-l-4 border-atenta', pronto: 'border-l-4 border-pronto', ok: 'border-l-4 border-ok' }[tono] : ''
   const ref = useRef<HTMLDivElement>(null)
   useAnunciarAlMostrar(ref, rol)
+  // Sin título ni texto no hay línea donde ponerlo: el ícono se queda en su columna.
+  const enLinea = iconoEnLinea && Boolean(titulo || children)
+  const flota = enLinea && !titulo
+  const dibujo = icono ?? ICONO_NOTA[tono]
   return (
     <div
       ref={ref}
@@ -59,18 +68,20 @@ export function Nota({
       tabIndex={enfocable ? -1 : undefined}
       className={`flex max-w-prose gap-3 angosto:gap-2 rounded-xl px-4 angosto:px-2 py-3 ${FONDO_NOTA[tono]} ${linea} ${enfocable ? 'outline-none' : ''} ${className}`}
     >
-      {iconoEnLinea ? <span className="contents angosto:hidden">{icono ?? ICONO_NOTA[tono]}</span> : (icono ?? ICONO_NOTA[tono])}
+      {enLinea ? <span className="contents angosto:hidden">{dibujo}</span> : dibujo}
       <div className="min-w-0">
         {titulo && (
           <p className="mb-0.5 font-bold">
-            {iconoEnLinea && <span className="hidden angosto:me-1.5 angosto:inline-flex angosto:align-middle">{icono ?? ICONO_NOTA[tono]}</span>}
+            {enLinea && <span className="hidden angosto:me-1.5 angosto:inline-flex angosto:align-middle angosto:[&>svg]:size-5 angosto:[&>svg]:mt-0">{dibujo}</span>}
             {titulo}
           </p>
         )}
         {children && (
-          <div className="text-base leading-relaxed">
-            {/* MATU-54 (1.2, P1-2): sin título, el ícono va al comienzo del texto en modo angosto. */}
-            {iconoEnLinea && !titulo && <span className="hidden angosto:me-1.5 angosto:inline-flex angosto:align-middle">{icono ?? ICONO_NOTA[tono]}</span>}
+          <div className={`text-base leading-relaxed ${flota ? 'angosto:flow-root' : ''}`}>
+            {/* MATU-54 (1.2, P1-2) y MATU-121: sin título, el ícono flota al comienzo del texto en modo angosto. */}
+            {flota && (
+              <span className="hidden angosto:block angosto:float-start angosto:me-1.5 angosto:mt-0.75 angosto:leading-none angosto:[&>svg]:size-5 angosto:[&>svg]:mt-0">{dibujo}</span>
+            )}
             {children}
           </div>
         )}
