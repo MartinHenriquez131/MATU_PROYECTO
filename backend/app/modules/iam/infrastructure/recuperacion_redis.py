@@ -26,8 +26,7 @@ PREFIJO_HORA = "matu:envios:h:"
 PREFIJO_DIA = "matu:envios:d:"
 
 _SUMAR_INTENTO = (
-    "if redis.call('exists', KEYS[1]) == 1 then return redis.call('hincrby', KEYS[1], 'intentos', 1)"
-    " else return 0 end"
+    "if redis.call('exists', KEYS[1]) == 1 then return redis.call('hincrby', KEYS[1], 'intentos', 1) else return 0 end"
 )
 
 

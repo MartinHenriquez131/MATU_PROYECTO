@@ -108,8 +108,13 @@ SIN_GRUPO_0029 = (
 )
 # Las de la cuenta de operación y la del catálogo, sin grupo (C4 y C32). tests/test_migraciones.py verifica que
 # coinciden con el código
-SIN_GRUPO_0030 = (*SIN_GRUPO_0029, "cuenta.mfa_alta", "sesion.mfa_correcto", "sesion.mfa_fallido",
-                  "catalogo.oferta_cambiar")
+SIN_GRUPO_0030 = (
+    *SIN_GRUPO_0029,
+    "cuenta.mfa_alta",
+    "sesion.mfa_correcto",
+    "sesion.mfa_fallido",
+    "catalogo.oferta_cambiar",
+)
 
 ACCIONES_DE_PERSONA_0029 = (
     "plan.leer",
@@ -152,13 +157,15 @@ ACCIONES_DE_PERSONA_0029 = (
     "despacho.no_entregado",
     "retracto.resolver",
 )
-ACCIONES_DE_PERSONA_0030 = (*ACCIONES_DE_PERSONA_0029, "operacion.pedido_ver", "incidencia.crear",
-                            "incidencia.resolver")
+ACCIONES_DE_PERSONA_0030 = (
+    *ACCIONES_DE_PERSONA_0029,
+    "operacion.pedido_ver",
+    "incidencia.crear",
+    "incidencia.resolver",
+)
 
 TIPOS_0001 = "'desviacion_monto', 'faltante', 'entrega_fallida', 'captura_rechazada', 'reclamo_familia', 'otro'"
-TIPOS_0030 = (
-    "'faltante', 'entrega_fallida', 'reclamo_familia', 'cobro_sin_respuesta', 'devolucion_pendiente', 'otro'"
-)
+TIPOS_0030 = "'faltante', 'entrega_fallida', 'reclamo_familia', 'cobro_sin_respuesta', 'devolucion_pendiente', 'otro'"
 FUNCION = "current_setting('app.funcion', true)"
 
 # Opción B de Jorge (17-11, decisión 471): la nota y la resolución van cifradas con AES-256-GCM y una clave propia de
@@ -623,12 +630,21 @@ CREATE POLICY aceptacion_operacion_leer ON aceptacion_politica FOR SELECT USING 
 # (retracto_operacion_leer)
 UPGRADE = (
     "SELECT set_config('app.rol', 'operacion', true);\n"
-    + CLAVE_NOTAS + INCIDENCIA + POLITICAS + AUDITORIA + MFA + RETRACTO_Y_OFERTA
+    + CLAVE_NOTAS
+    + INCIDENCIA
+    + POLITICAS
+    + AUDITORIA
+    + MFA
+    + RETRACTO_Y_OFERTA
     + "SELECT set_config('app.rol', '', true);\n"
 )
 DOWNGRADE = (
     "SELECT set_config('app.rol', 'operacion', true);\n"
-    + RETRACTO_Y_OFERTA_BAJADA + MFA_BAJADA + AUDITORIA_BAJADA + POLITICAS_BAJADA + INCIDENCIA_BAJADA
+    + RETRACTO_Y_OFERTA_BAJADA
+    + MFA_BAJADA
+    + AUDITORIA_BAJADA
+    + POLITICAS_BAJADA
+    + INCIDENCIA_BAJADA
     + CLAVE_NOTAS_BAJADA
     + "SELECT set_config('app.rol', '', true);\n"
 )

@@ -67,8 +67,9 @@ def test_una_clave_sin_vencimiento_recibe_uno() -> None:
 
 def test_la_clave_lleva_el_prefijo_y_la_huella_nunca_la_ip() -> None:
     pepper = secrets.token_bytes(32)
-    claves = {clave_de(lim, huella(pepper, lim.prefijo, IP)) for lim in (LIMITE_REGISTRO, LIMITE_CANJE,
-                                                                         LIMITE_PRESENTACION)}
+    claves = {
+        clave_de(lim, huella(pepper, lim.prefijo, IP)) for lim in (LIMITE_REGISTRO, LIMITE_CANJE, LIMITE_PRESENTACION)
+    }
     assert len(claves) == 3
     for clave in claves:
         assert IP not in clave

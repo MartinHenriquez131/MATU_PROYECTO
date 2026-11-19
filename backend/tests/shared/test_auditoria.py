@@ -269,6 +269,7 @@ def test_la_preferencia_de_avisos_es_de_la_cuenta_y_va_sin_grupo() -> None:
     )
     assert entrada.detalle() is None
 
+
 HUELLA = "ab" * 32
 
 
@@ -357,8 +358,12 @@ def test_las_acciones_del_grupo_llevan_siempre_y_solo_el_rol() -> None:
         EntradaAuditoria(**campos, rol="jefe")
     with pytest.raises(TypeError):
         EntradaAuditoria(**_campos(), rol="admin")
-    sistema = _campos(actor_tipo=ActorTipo.SISTEMA, actor_ref=None, accion=AccionAuditoria.INVITACION_BLOQUEO,
-                      entidad=EntidadAuditoria.INVITACION)
+    sistema = _campos(
+        actor_tipo=ActorTipo.SISTEMA,
+        actor_ref=None,
+        accion=AccionAuditoria.INVITACION_BLOQUEO,
+        entidad=EntidadAuditoria.INVITACION,
+    )
     assert EntradaAuditoria(**sistema, rol="pagador").detalle() == {"rol": "pagador"}
 
 
@@ -376,8 +381,9 @@ def test_las_acciones_de_persona_llevan_siempre_y_solo_su_persona() -> None:
         EntradaAuditoria(**_campos(persona_cuidada_id=str(PERSONA)))
     with pytest.raises(TypeError):
         EntradaAuditoria(
-            **_campos(accion=AccionAuditoria.MEMBRESIA_SACAR, entidad=EntidadAuditoria.MEMBRESIA,
-                      persona_cuidada_id=PERSONA),
+            **_campos(
+                accion=AccionAuditoria.MEMBRESIA_SACAR, entidad=EntidadAuditoria.MEMBRESIA, persona_cuidada_id=PERSONA
+            ),
             rol="admin",
         )
     # Exige grupo: una acción de persona nunca es de la cuenta
@@ -392,11 +398,19 @@ def test_la_copia_de_la_cuenta_va_sin_grupo_y_la_de_la_persona_con_su_persona() 
     assert AccionAuditoria.PERSONA_DATOS_DESCARGAR in ACCIONES_DE_PERSONA
     assert not ACCIONES_DE_CUENTA & ACCIONES_DE_PERSONA
     cuenta = EntradaAuditoria(
-        grupo_id=None, actor_tipo=ActorTipo.USUARIO, actor_ref=USUARIO,
-        accion=AccionAuditoria.CUENTA_DATOS_DESCARGAR, entidad=EntidadAuditoria.USUARIO, entidad_id=USUARIO,
+        grupo_id=None,
+        actor_tipo=ActorTipo.USUARIO,
+        actor_ref=USUARIO,
+        accion=AccionAuditoria.CUENTA_DATOS_DESCARGAR,
+        entidad=EntidadAuditoria.USUARIO,
+        entidad_id=USUARIO,
     )
     assert cuenta.detalle() is None and cuenta.persona_cuidada_id is None
-    persona = EntradaAuditoria(**_campos(
-        accion=AccionAuditoria.PERSONA_DATOS_DESCARGAR, entidad=EntidadAuditoria.PERSONA_CUIDADA, entidad_id=PERSONA,
-    ))
+    persona = EntradaAuditoria(
+        **_campos(
+            accion=AccionAuditoria.PERSONA_DATOS_DESCARGAR,
+            entidad=EntidadAuditoria.PERSONA_CUIDADA,
+            entidad_id=PERSONA,
+        )
+    )
     assert persona.detalle() is None and persona.persona_cuidada_id == PERSONA

@@ -89,8 +89,18 @@ def test_alta_titular_crea_persona_direccion_consentimiento_y_auditoria(entorno_
         " FROM direccion WHERE id = %s",
         persona[4],
     )
-    assert direccion == (grupo, "Casa", "Calle Ficticia", "100", None, "Comuna Sintética", "Metropolitana",
-                         None, None, None)
+    assert direccion == (
+        grupo,
+        "Casa",
+        "Calle Ficticia",
+        "100",
+        None,
+        "Comuna Sintética",
+        "Metropolitana",
+        None,
+        None,
+        None,
+    )
 
     # Y el consentimiento para plan_cuidado, con la versión del servidor y el instante del reloj
     consentimiento = _una(
@@ -125,8 +135,17 @@ def test_alta_titular_crea_persona_direccion_consentimiento_y_auditoria(entorno_
         grupo,
     )
     assert auditoria == [
-        ("usuario", a.id, "consentimiento.otorgar", "consentimiento", consentimiento_id, None, False,
-         respuesta.headers["x-request-id"], OTORGADO_EN)
+        (
+            "usuario",
+            a.id,
+            "consentimiento.otorgar",
+            "consentimiento",
+            consentimiento_id,
+            None,
+            False,
+            respuesta.headers["x-request-id"],
+            OTORGADO_EN,
+        )
     ]
 
     # Y no se crea la clave de datos: es de MATU-11
@@ -390,8 +409,10 @@ def test_lista_proyecta_por_rol(entorno_personas: EntornoPersonas) -> None:
     persona_id = alta.json()["id"]
 
     # Cuando cada uno lista
-    listas = {rol: entorno_personas.listar(cuenta.token, grupo) for rol, cuenta in
-              {"admin": a, "cuidador": c, "pagador": p, "observador": o}.items()}
+    listas = {
+        rol: entorno_personas.listar(cuenta.token, grupo)
+        for rol, cuenta in {"admin": a, "cuidador": c, "pagador": p, "observador": o}.items()
+    }
 
     # Entonces admin y cuidador ven todo, con el consentimiento vigente y su revisión
     direccion = alta.json()["direccion"]

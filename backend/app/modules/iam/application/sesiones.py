@@ -288,8 +288,11 @@ def renovar(
             )
             log.warning(
                 "reutilizacion de refresh: familia revocada",
-                extra={"evento": "seguridad.reutilizacion_refresh", "familia_id": str(guardada.familia_id),
-                       "usuario_id": str(usuario_id)},
+                extra={
+                    "evento": "seguridad.reutilizacion_refresh",
+                    "familia_id": str(guardada.familia_id),
+                    "usuario_id": str(usuario_id),
+                },
             )
         elif guardada is not None and veredicto is Veredicto.VIGENTE:
             tx.sesiones.marcar_usado(guardada.id, ahora)

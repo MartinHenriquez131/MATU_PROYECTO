@@ -15,16 +15,45 @@ DOCS = Path(__file__).resolve().parents[4] / "docs" / "api"
 PREFIJOS = ("/v1/comercio", "/v1/operacion")
 DE_LA_FAMILIA = ("/v1/pedidos/{pedido_id}/cancelar-con-devolucion", "/v1/pedidos/{pedido_id}/retractos")
 VISTAS_DEL_COMERCIO = (
-    "ComercioDeLaCuenta", "ListaPartes", "ParteResumen", "ParteVista", "LineaComercioVista", "ProductoLinea",
-    "ResultadoCodigoVista", "ListaProductos", "ProductoDelComercio", "SolicitudMarca", "SolicitudCodigo",
+    "ComercioDeLaCuenta",
+    "ListaPartes",
+    "ParteResumen",
+    "ParteVista",
+    "LineaComercioVista",
+    "ProductoLinea",
+    "ResultadoCodigoVista",
+    "ListaProductos",
+    "ProductoDelComercio",
+    "SolicitudMarca",
+    "SolicitudCodigo",
     "SolicitudProducto",
 )
 # D-63-1: lo que la proyección del comercio nunca trae
 NUNCA_AL_COMERCIO = {
-    "pedido_id", "grupo_id", "persona_cuidada_id", "persona_id", "creado_por", "condiciones_version",
-    "condiciones_huella", "condiciones_aceptadas_por", "total", "subtotal_productos", "costo_envio",
-    "precio_unitario", "precio_carrito", "monto_devuelto", "oferta_carrito_id", "codigo_hash", "codigo",
-    "transiciones", "entrega", "direccion", "telefono", "telefono_contacto", "nombre_pila", "comuna",
+    "pedido_id",
+    "grupo_id",
+    "persona_cuidada_id",
+    "persona_id",
+    "creado_por",
+    "condiciones_version",
+    "condiciones_huella",
+    "condiciones_aceptadas_por",
+    "total",
+    "subtotal_productos",
+    "costo_envio",
+    "precio_unitario",
+    "precio_carrito",
+    "monto_devuelto",
+    "oferta_carrito_id",
+    "codigo_hash",
+    "codigo",
+    "transiciones",
+    "entrega",
+    "direccion",
+    "telefono",
+    "telefono_contacto",
+    "nombre_pila",
+    "comuna",
 }
 
 
@@ -107,6 +136,7 @@ def test_el_motivo_de_cancelacion_es_uno_de_dos_y_nada_mas(esquema: dict[str, An
     for nombre in ("ParteResumen", "ParteVista"):
         motivo = esquema["components"]["schemas"][nombre]["properties"]["motivo_cancelacion"]
         valores = {x.get("const") or tuple(x.get("enum", ())) for x in motivo["anyOf"]} - {None}
-        assert {"producto_faltante", "cancelada_por_familia"} == {v for x in valores for v in (
-            x if isinstance(x, tuple) else (x,))}, nombre
+        assert {"producto_faltante", "cancelada_por_familia"} == {
+            v for x in valores for v in (x if isinstance(x, tuple) else (x,))
+        }, nombre
         assert "motivo_cancelacion" in esquema["components"]["schemas"][nombre]["required"], nombre

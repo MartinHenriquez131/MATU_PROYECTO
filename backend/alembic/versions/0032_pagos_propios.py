@@ -186,9 +186,7 @@ _ACTIVA = (
     "EXISTS (SELECT 1 FROM public.membresia m WHERE m.grupo_id = {grupo} AND m.usuario_id = public.app_usuario()"
     " AND m.estado = 'activa')"
 )
-_NOMBRE = (
-    "(SELECT g.nombre FROM public.grupo_familiar g WHERE g.id = {grupo} AND " + _ACTIVA + ")"
-)
+_NOMBRE = "(SELECT g.nombre FROM public.grupo_familiar g WHERE g.id = {grupo} AND " + _ACTIVA + ")"
 
 
 def _funcion(nombre: str, columnas: str, consulta: str) -> str:
@@ -213,7 +211,10 @@ CUENTA_PAGOS = _funcion(
     " (SELECT COALESCE(sum(a.monto), 0) FROM public.transaccion_pasarela a WHERE a.venta_id = t.id"
     "  AND a.tipo = 'anulacion' AND a.estado = 'aprobada')::bigint,"
     " t.tipo_tarjeta::text, t.ultimos4::text, t.cuotas::integer, t.codigo_autorizacion::text, "
-    + _NOMBRE.format(grupo="pe.grupo_id") + "::text, COALESCE(" + _ACTIVA.format(grupo="pe.grupo_id") + ", false)"
+    + _NOMBRE.format(grupo="pe.grupo_id")
+    + "::text, COALESCE("
+    + _ACTIVA.format(grupo="pe.grupo_id")
+    + ", false)"
     " FROM public.transaccion_pasarela t JOIN public.participacion pa ON pa.id = t.participacion_id"
     " JOIN public.cargo c ON c.id = t.cargo_id LEFT JOIN public.pedido pe ON pe.id = c.pedido_id"
     " WHERE t.tipo = 'venta' AND t.estado = 'aprobada' AND pa.usuario_id = public.app_usuario()"
@@ -229,7 +230,9 @@ CUENTA_RETRACTOS = _funcion(
     " CASE WHEN " + _ACTIVA.format(grupo="r.grupo_id") + " THEN ARRAY(SELECT pr.nombre::text"
     "  FROM public.retracto_linea rl JOIN public.pedido_linea l ON l.id = rl.pedido_linea_id"
     "  JOIN public.producto pr ON pr.id = l.producto_id WHERE rl.retracto_id = r.id ORDER BY pr.nombre, l.id) END, "
-    + _NOMBRE.format(grupo="r.grupo_id") + "::text, " + _ACTIVA.format(grupo="r.grupo_id")
+    + _NOMBRE.format(grupo="r.grupo_id")
+    + "::text, "
+    + _ACTIVA.format(grupo="r.grupo_id")
     + " FROM public.retracto r LEFT JOIN public.pedido pe ON pe.id = r.pedido_id"
     " WHERE r.solicitado_por = public.app_usuario() ORDER BY r.solicitado_en DESC, r.id DESC",
 )
@@ -238,7 +241,9 @@ CUENTA_CONDICIONES = _funcion(
     "cuenta_condiciones",
     "referencia text, version text, huella text, aceptadas_en timestamptz, grupo text, sigue_en_el_grupo boolean",
     "SELECT pe.referencia::text, pe.condiciones_version::text, pe.condiciones_huella::text,"
-    " pe.condiciones_aceptadas_en, " + _NOMBRE.format(grupo="pe.grupo_id") + "::text, "
+    " pe.condiciones_aceptadas_en, "
+    + _NOMBRE.format(grupo="pe.grupo_id")
+    + "::text, "
     + _ACTIVA.format(grupo="pe.grupo_id")
     + " FROM public.pedido pe WHERE pe.condiciones_aceptadas_por = public.app_usuario()"
     " AND pe.condiciones_aceptadas_en IS NOT NULL ORDER BY pe.condiciones_aceptadas_en DESC, pe.id DESC",

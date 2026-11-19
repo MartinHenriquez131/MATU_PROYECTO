@@ -197,7 +197,8 @@ class RepositorioPagosEnMemoria:
 
     def ultimo_pagado_de(self, persona_id: uuid.UUID) -> uuid.UUID | None:
         pagados = [
-            p for p in self._base.pedidos.values()
+            p
+            for p in self._base.pedidos.values()
             if p.grupo_id == self._grupo_id and p.persona_id == persona_id and p.pagado_en is not None
         ]
         return max(pagados, key=lambda p: p.pagado_en or datetime.min).id if pagados else None
@@ -223,7 +224,9 @@ class RepositorioPagosEnMemoria:
         assert p is not None and p.pagado_en is None and p.estado in ("total_confirmado", "vencido")
         # La base exige la venta aprobada y no anulada del mismo total (trigger pedido_escritura_del_pago)
         assert any(
-            v.estado is EstadoVenta.APROBADA and not v.anulacion_total and v.monto == p.total
+            v.estado is EstadoVenta.APROBADA
+            and not v.anulacion_total
+            and v.monto == p.total
             and v.total_confirmado_en == p.total_confirmado_en
             for v in self._base.ventas.values()
             if self._base.cargos[v.cargo_id].pedido_id == p.id
@@ -325,7 +328,9 @@ class RepositorioPagosEnMemoria:
         assert anterior.estado not in (EstadoVenta.APROBADA, EstadoVenta.RECHAZADA) or anterior.estado is venta.estado
         if venta.estado is EstadoVenta.APROBADA and not venta.anulacion_total:
             assert not any(
-                v.id != venta.id and v.cargo_id == venta.cargo_id and v.estado is EstadoVenta.APROBADA
+                v.id != venta.id
+                and v.cargo_id == venta.cargo_id
+                and v.estado is EstadoVenta.APROBADA
                 and not v.anulacion_total
                 for v in self._base.ventas.values()
             ), "una sola venta aprobada y no anulada por cargo"
@@ -361,13 +366,14 @@ class SistemaEnMemoria:
         self.base = base
         self.aperturas = 0
 
-    def resolver(
-        self, token: str | None, orden: str | None, sesion: str | None
-    ) -> tuple[uuid.UUID, uuid.UUID] | None:
+    def resolver(self, token: str | None, orden: str | None, sesion: str | None) -> tuple[uuid.UUID, uuid.UUID] | None:
         for v in self.base.ventas.values():
             if (token is not None and v.token == token) or (
-                token is None and orden is not None and sesion is not None
-                and v.buy_order == orden and v.session_id == sesion
+                token is None
+                and orden is not None
+                and sesion is not None
+                and v.buy_order == orden
+                and v.session_id == sesion
             ):
                 return v.id, self.base.pedidos[self.base.cargos[v.cargo_id].pedido_id].grupo_id
         return None
@@ -380,7 +386,8 @@ class SistemaEnMemoria:
 
     def listar(self, limite: datetime, cantidad: int) -> list[tuple[uuid.UUID, uuid.UUID]]:
         pendientes = [
-            v for v in self.base.ventas.values()
+            v
+            for v in self.base.ventas.values()
             if v.estado is EstadoVenta.AUTORIZANDO or (v.estado is EstadoVenta.INICIADA and v.creado_en <= limite)
         ]
         anulaciones = [

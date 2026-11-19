@@ -14,14 +14,22 @@ pytestmark = pytest.mark.rf("RF-07")
 AHORA = datetime(2026, 10, 29, 12, 0, tzinfo=UTC)
 
 
-def _vida(expira_en: datetime = AHORA + timedelta(hours=1), revocado_en: datetime | None = None,
-          intentos: int = 0) -> VidaAcceso:
+def _vida(
+    expira_en: datetime = AHORA + timedelta(hours=1), revocado_en: datetime | None = None, intentos: int = 0
+) -> VidaAcceso:
     return VidaAcceso(expira_en=expira_en, revocado_en=revocado_en, pin_intentos_fallidos=intentos)
 
 
-@pytest.mark.parametrize(("rol", "puede"), [
-    ("admin", True), ("cuidador", True), ("pagador", False), ("observador", False), ("otro", False),
-])
+@pytest.mark.parametrize(
+    ("rol", "puede"),
+    [
+        ("admin", True),
+        ("cuidador", True),
+        ("pagador", False),
+        ("observador", False),
+        ("otro", False),
+    ],
+)
 def test_revocan_admin_y_cuidador(rol: str, puede: bool) -> None:
     assert puede_revocar(rol) is puede
 

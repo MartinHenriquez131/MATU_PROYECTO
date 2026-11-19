@@ -198,8 +198,13 @@ class RepositorioSesionesSql:
                 "INSERT INTO dispositivo (id, usuario_id, plataforma, nombre, creado_en, ultimo_uso_en)"
                 " VALUES (:id, :usuario_id, :plataforma, :nombre, :ahora, :ahora)"
             ),
-            {"id": dispositivo_id, "usuario_id": usuario_id, "plataforma": PLATAFORMA_WEB, "nombre": nombre,
-             "ahora": ahora},
+            {
+                "id": dispositivo_id,
+                "usuario_id": usuario_id,
+                "plataforma": PLATAFORMA_WEB,
+                "nombre": nombre,
+                "ahora": ahora,
+            },
         )
         return dispositivo_id
 
@@ -240,9 +245,7 @@ class RepositorioSesionesSql:
         return None if fila is None else bool(fila.registrado)
 
     def ingresos(self, desde: datetime, acciones: frozenset[str], limite: int) -> list[FilaIngreso]:
-        filas = self._sesion.execute(
-            _INGRESOS, {"acciones": sorted(acciones), "desde": desde, "limite": limite}
-        ).all()
+        filas = self._sesion.execute(_INGRESOS, {"acciones": sorted(acciones), "desde": desde, "limite": limite}).all()
         return [
             FilaIngreso(
                 accion=fila.accion,

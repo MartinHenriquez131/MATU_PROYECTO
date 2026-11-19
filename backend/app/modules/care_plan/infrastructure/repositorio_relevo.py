@@ -128,7 +128,9 @@ class SeccionesRelevoSQL:
             SeccionDelRelevo(
                 tipo=f.tipo,
                 cifrada=SeccionCifrada(
-                    contenido_cifrado=bytes(f.contenido_cifrado), nonce=bytes(f.nonce), tag_auth=bytes(f.tag_auth),
+                    contenido_cifrado=bytes(f.contenido_cifrado),
+                    nonce=bytes(f.nonce),
+                    tag_auth=bytes(f.tag_auth),
                     kek_version=f.kek_version,
                 ),
                 creado_en=f.creado_en.astimezone(UTC),

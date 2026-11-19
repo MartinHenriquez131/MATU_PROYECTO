@@ -44,9 +44,7 @@ def test_registro_guarda_el_celular_normalizado(
     assert set(respuesta.json()) == {"id", "nombre", "email"}
     with psycopg.connect(DSN) as cx:
         fila = cx.execute("SELECT telefono FROM usuario WHERE id = %s", (entorno_iam.creados[0],)).fetchone()
-        auditado = cx.execute(
-            "SELECT count(*) FROM auditoria WHERE detalle::text LIKE %s", ("%900000042%",)
-        ).fetchone()
+        auditado = cx.execute("SELECT count(*) FROM auditoria WHERE detalle::text LIKE %s", ("%900000042%",)).fetchone()
     assert fila == ("+56900000042",)
     assert auditado == (0,)
     log = entorno_iam.texto_log()

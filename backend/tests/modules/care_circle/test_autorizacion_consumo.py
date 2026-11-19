@@ -42,11 +42,17 @@ class Repo:
         self.guardadas.append(autorizacion)
 
 
-def _solicitud(calidad: CalidadOtorgante, rol: str = "cuidador", aviso: AvisoMostrado | None = None,
-               referencia: str | None = None) -> SolicitudAutorizacion:
+def _solicitud(
+    calidad: CalidadOtorgante, rol: str = "cuidador", aviso: AvisoMostrado | None = None, referencia: str | None = None
+) -> SolicitudAutorizacion:
     return SolicitudAutorizacion(
-        usuario_id=uuid.uuid4(), grupo_id=uuid.uuid4(), rol=rol, persona_id=uuid.uuid4(),
-        calidad_otorgante=calidad, referencia_documento=referencia, aviso=aviso,
+        usuario_id=uuid.uuid4(),
+        grupo_id=uuid.uuid4(),
+        rol=rol,
+        persona_id=uuid.uuid4(),
+        calidad_otorgante=calidad,
+        referencia_documento=referencia,
+        aviso=aviso,
     )
 
 
@@ -62,7 +68,9 @@ def test_cuidador_de_hecho_con_aviso_queda_con_revision_anual() -> None:
     repo = Repo()
     resultado = otorgar_autorizacion_consumo(
         _solicitud(CalidadOtorgante.CUIDADOR_DE_HECHO, aviso=AvisoMostrado("aviso_cuidador_de_hecho", "1.1")),
-        "0.10", RelojFijo(AHORA), repo,
+        "0.10",
+        RelojFijo(AHORA),
+        repo,
     )
     [guardada] = repo.guardadas
     assert guardada.finalidad == FINALIDAD_CONSUMO and guardada.otorgado_en == AHORA
@@ -80,9 +88,7 @@ def test_las_reglas_de_la_calidad_son_las_del_alta() -> None:
     with pytest.raises(OtorgamientoInvalido):
         otorgar_autorizacion_consumo(_solicitud(CalidadOtorgante.CUIDADOR_DE_HECHO), "0.10", RelojFijo(AHORA), Repo())
     with pytest.raises(OtorgamientoInvalido):
-        otorgar_autorizacion_consumo(
-            _solicitud(CalidadOtorgante.REPRESENTANTE_LEGAL), "0.10", RelojFijo(AHORA), Repo()
-        )
+        otorgar_autorizacion_consumo(_solicitud(CalidadOtorgante.REPRESENTANTE_LEGAL), "0.10", RelojFijo(AHORA), Repo())
 
 
 def test_ya_vigente_es_conflicto_y_no_escribe() -> None:

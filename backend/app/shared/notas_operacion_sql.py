@@ -31,9 +31,9 @@ _CREAR = text(
     " VALUES (:grupo, :persona, :dek, :version)"
     " ON CONFLICT (persona_cuidada_id) WHERE destruida_en IS NULL DO NOTHING RETURNING id"
 )
-_CLAVES = text(
-    "SELECT id, dek_cifrada_con_kek, kek_version FROM clave_notas WHERE id = ANY(:ids)"
-).bindparams(bindparam("ids", type_=ARRAY(UUID(as_uuid=True))))
+_CLAVES = text("SELECT id, dek_cifrada_con_kek, kek_version FROM clave_notas WHERE id = ANY(:ids)").bindparams(
+    bindparam("ids", type_=ARRAY(UUID(as_uuid=True)))
+)
 
 
 @dataclass(frozen=True)

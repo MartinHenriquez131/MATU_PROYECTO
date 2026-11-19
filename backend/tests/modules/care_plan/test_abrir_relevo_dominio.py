@@ -76,10 +76,17 @@ class AccesoEnMemoria:
 def _acceso(intentos: int = 0, expira_en: datetime = AHORA + timedelta(days=1), **cambios: object) -> AccesoDelRelevo:
     acceso_id = uuid.uuid4()
     base = AccesoDelRelevo(
-        id=acceso_id, grupo_id=uuid.uuid4(), plan_id=uuid.uuid4(), campos=("rutina", "manejo_situaciones"),
-        nombre_pila_persona="María", nombre_pila_comparte="Carmen",
-        pin_hash=HUELLAS.huella_pin(acceso_id, "4821"), pin_intentos_fallidos=intentos, expira_en=expira_en,
-        creado_en=AHORA - timedelta(hours=1), persona_cuidada_id=uuid.uuid4(),
+        id=acceso_id,
+        grupo_id=uuid.uuid4(),
+        plan_id=uuid.uuid4(),
+        campos=("rutina", "manejo_situaciones"),
+        nombre_pila_persona="María",
+        nombre_pila_comparte="Carmen",
+        pin_hash=HUELLAS.huella_pin(acceso_id, "4821"),
+        pin_intentos_fallidos=intentos,
+        expira_en=expira_en,
+        creado_en=AHORA - timedelta(hours=1),
+        persona_cuidada_id=uuid.uuid4(),
     )
     return replace(base, **cambios)  # type: ignore[arg-type]
 
@@ -156,7 +163,7 @@ def test_presentar_da_los_dos_nombres_y_audita(reloj: RelojFijo) -> None:
 @pytest.mark.parametrize(
     ("repo", "error"),
     [
-        (AccesoEnMemoria(None), RelevoNoDisponible),                      # C5: RLS no lo muestra
+        (AccesoEnMemoria(None), RelevoNoDisponible),  # C5: RLS no lo muestra
         (AccesoEnMemoria(_acceso(intentos=5)), RelevoBloqueado),
         (AccesoEnMemoria(_acceso(), vigente=False), RelevoNoDisponible),  # decisión 33
     ],
@@ -230,8 +237,7 @@ def test_canje_pausado_no_cuenta_intento(reloj: RelojFijo) -> None:
 
 def test_canje_sin_pepper_falla_cerrado(reloj: RelojFijo) -> None:
     with pytest.raises(PinNoVerificable):
-        canjear("4821", AccesoEnMemoria(_acceso()), None, RegistroAuditoriaEnMemoria(),
-                reloj, None)
+        canjear("4821", AccesoEnMemoria(_acceso()), None, RegistroAuditoriaEnMemoria(), reloj, None)
 
 
 # --- Ficha -------------------------------------------------------------------------------------------
@@ -264,8 +270,9 @@ class CifradorTexto:
     def cifrar(self, **_: object) -> SeccionCifrada:
         raise AssertionError("el relevo nunca cifra")
 
-    def descifrar(self, *, persona_cuidada_id: uuid.UUID, plan_id: uuid.UUID, tipo: str,
-                  seccion: SeccionCifrada) -> str:
+    def descifrar(
+        self, *, persona_cuidada_id: uuid.UUID, plan_id: uuid.UUID, tipo: str, seccion: SeccionCifrada
+    ) -> str:
         return "" if tipo == "manejo_situaciones" else f"texto de {tipo}"
 
 
@@ -280,7 +287,10 @@ def test_ficha_del_relevo_solo_campos_habilitados_y_auditada(reloj: RelojFijo) -
     assert (ficha.nombre_pila, ficha.nombre_pila_comparte, ficha.vence_en) == ("María", "Carmen", acceso.expira_en)
     [entrada] = registro.entradas
     assert (entrada.accion, entrada.entidad, entrada.entidad_id) == (
-        AccionAuditoria.RELEVO_ABRIR, EntidadAuditoria.PLAN_CUIDADO, acceso.plan_id)
+        AccionAuditoria.RELEVO_ABRIR,
+        EntidadAuditoria.PLAN_CUIDADO,
+        acceso.plan_id,
+    )
     assert repo.usos == [AHORA]
 
 
@@ -296,5 +306,11 @@ def test_ficha_sin_auditoria_no_devuelve_texto(reloj: RelojFijo) -> None:
 
 def test_ficha_bloqueada_despues_del_canje(reloj: RelojFijo) -> None:
     with pytest.raises(RelevoBloqueado):
-        leer_ficha_relevo(AccesoEnMemoria(_acceso(intentos=5)), SeccionesEnMemoria(uuid.uuid4(), []),
-                          CifradorTexto(), RegistroAuditoriaEnMemoria(), reloj, None)
+        leer_ficha_relevo(
+            AccesoEnMemoria(_acceso(intentos=5)),
+            SeccionesEnMemoria(uuid.uuid4(), []),
+            CifradorTexto(),
+            RegistroAuditoriaEnMemoria(),
+            reloj,
+            None,
+        )

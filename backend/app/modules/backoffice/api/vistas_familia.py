@@ -49,9 +49,7 @@ def _productos(p: PedidoDeLaFamilia) -> dict[str, object]:
     lineas = p.lineas
     return {
         "productos": [ProductoDeLaFila(producto=_producto(x), cantidad=x.cantidad) for x in lineas],
-        "resumen_productos": None
-        if not lineas
-        else ResumenProductos(primero=lineas[0].nombre, otros=len(lineas) - 1),
+        "resumen_productos": None if not lineas else ResumenProductos(primero=lineas[0].nombre, otros=len(lineas) - 1),
         "productos_borrados": p.productos_borrados,
     }
 
@@ -178,8 +176,11 @@ def retracto_familia(
     unidad: Unidad, retractos: RepositorioRetractos, r: Retracto, usuario_id: uuid.UUID
 ) -> RetractoVistaFamilia:
     return RetractoVistaFamilia.model_validate(
-        {**_datos_retracto(unidad, retractos, r), "es_tuyo": r.solicitado_por == usuario_id,
-         "motivo_rechazo": r.motivo_rechazo}
+        {
+            **_datos_retracto(unidad, retractos, r),
+            "es_tuyo": r.solicitado_por == usuario_id,
+            "motivo_rechazo": r.motivo_rechazo,
+        }
     )
 
 

@@ -177,7 +177,11 @@ def test_crear_ver_listar_editar_desactivar_activar_eliminar(entorno_consumo: En
     assert _una("SELECT 1 FROM perfil_consumo WHERE id = %s", perfil["id"]) is None
     assert e.pedir("GET", familia.admin, familia, ruta).status_code == 404
     assert _acciones(familia.grupo.id) == [
-        "consumo.crear", "consumo.editar", "consumo.desactivar", "consumo.activar", "consumo.eliminar",
+        "consumo.crear",
+        "consumo.editar",
+        "consumo.desactivar",
+        "consumo.activar",
+        "consumo.eliminar",
     ]
 
 
@@ -242,7 +246,10 @@ def test_412_trae_el_actual_y_quien_guardo_y_428_sin_if_match(entorno_consumo: E
     actual = conflicto.json()["actual"]
     assert actual["stock_unidades"] == 18 and actual["etag"] == '"v2"'
     assert actual["actualizado_por"] == {
-        "id": str(cuidadora.id), "nombre": cuidadora.nombre.split()[0], "autor_activo": True}
+        "id": str(cuidadora.id),
+        "nombre": cuidadora.nombre.split()[0],
+        "autor_activo": True,
+    }
     assert cuidadora.nombre.split()[0] in conflicto.json()["detail"]
     for valor in (None, "", "*"):
         if valor is None:
@@ -293,8 +300,12 @@ def test_crear_con_cuerpo_invalido_es_422_sin_repetir_el_valor(
 @pytest.mark.rf("RF-10")
 @pytest.mark.parametrize(
     ("cuerpo", "tipo"),
-    [({}, "cuerpo_vacio"), ({"stock_unidades": None}, "null_no_admitido"), ({"activo": False}, "extra_forbidden"),
-     ({"nombre_libre": "Pañal\r\nM"}, "value_error")],
+    [
+        ({}, "cuerpo_vacio"),
+        ({"stock_unidades": None}, "null_no_admitido"),
+        ({"activo": False}, "extra_forbidden"),
+        ({"nombre_libre": "Pañal\r\nM"}, "value_error"),
+    ],
 )
 def test_editar_con_cuerpo_invalido_es_422(entorno_consumo: EntornoConsumo, cuerpo: dict[str, Any], tipo: str) -> None:
     e = entorno_consumo

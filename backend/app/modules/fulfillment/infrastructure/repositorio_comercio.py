@@ -16,9 +16,7 @@ from sqlalchemy.orm import Session
 from app.modules.fulfillment.application.ports import Comercio, LineaComercio, ParteComercio, ProductoComercio
 from app.modules.fulfillment.domain.despacho import EstadoParte
 
-_COMERCIO = text(
-    "SELECT id, nombre_fantasia, ficticio FROM comercio WHERE id = app_comercio() AND estado = 'activo'"
-)
+_COMERCIO = text("SELECT id, nombre_fantasia, ficticio FROM comercio WHERE id = app_comercio() AND estado = 'activo'")
 _PARTES = text("SELECT * FROM comercio_partes(:desde)")
 _LINEAS = text("SELECT * FROM comercio_lineas(:parte)")
 _PREPARAR = text("SELECT comercio_preparar(:parte, :version, :ahora)")

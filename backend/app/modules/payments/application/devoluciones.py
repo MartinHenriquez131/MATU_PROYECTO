@@ -39,11 +39,7 @@ def _venta_pagada(unidad: Unidad, pedido_id: uuid.UUID) -> tuple[Venta, list[Anu
     if cargo is None or cargo.estado not in CON_COBRO:
         raise SinPagoQueDevolver()
     venta = next(
-        (
-            v
-            for v in repo.ventas(cargo.id)
-            if v.estado is EstadoVenta.APROBADA and not v.anulada_por_pago_tardio
-        ),
+        (v for v in repo.ventas(cargo.id) if v.estado is EstadoVenta.APROBADA and not v.anulada_por_pago_tardio),
         None,
     )
     if venta is None:
@@ -71,9 +67,7 @@ def devolver_linea(
     return anular(unidad, pasarela, venta, linea.subtotal, MotivoAnulacion.PRODUCTO_NO_ENTREGADO, ahora, linea_id)
 
 
-def devolver_todo(
-    unidad: Unidad, pasarela: PasarelaWebpay, pedido_id: uuid.UUID, ahora: datetime
-) -> EstadoAnulacion:
+def devolver_todo(unidad: Unidad, pasarela: PasarelaWebpay, pedido_id: uuid.UUID, ahora: datetime) -> EstadoAnulacion:
     """Anula todo lo que queda cobrado, envío incluido (caso 4)."""
     repo = unidad.repositorio
     venta, anulaciones = _venta_pagada(unidad, pedido_id)
@@ -111,9 +105,7 @@ def devolver_de_linea(
     linea = next((x for x in repo.lineas_pagadas(pedido_id) if x.id == linea_id), None)
     if linea is None or linea.salio or monto <= 0:
         raise SinPagoQueDevolver()
-    if any(
-        a.pedido_linea_id == linea_id and a.motivo is motivo and a.retracto_id == retracto_id for a in anulaciones
-    ):
+    if any(a.pedido_linea_id == linea_id and a.motivo is motivo and a.retracto_id == retracto_id for a in anulaciones):
         raise DevolucionInvalida("una línea se devuelve una vez por motivo y retracto")
     en_curso_linea = sum(a.monto for a in anulaciones if a.pedido_linea_id == linea_id and not a.hecha)
     if linea.monto_devuelto + en_curso_linea + monto > linea.subtotal:

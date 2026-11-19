@@ -187,8 +187,14 @@ def resolver(
         precios = {x.id: x.precio_unitario for x in unidad.repositorio.lineas_pagadas(retracto.pedido_id)}
         for linea_id, cantidad in retractos.lineas_de(retracto.id).items():
             devoluciones.devolver_de_linea(
-                unidad, pasarela, retracto.pedido_id, linea_id, cantidad * precios[linea_id],
-                MotivoAnulacion.RETRACTO, ahora, retracto_id=retracto.id,
+                unidad,
+                pasarela,
+                retracto.pedido_id,
+                linea_id,
+                cantidad * precios[linea_id],
+                MotivoAnulacion.RETRACTO,
+                ahora,
+                retracto_id=retracto.id,
             )
         if retracto.incluye_envio and pedido.costo_envio > 0:
             devoluciones.devolver_envio_de_retracto(

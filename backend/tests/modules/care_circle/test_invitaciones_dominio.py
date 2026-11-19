@@ -29,7 +29,10 @@ AHORA = datetime(2026, 11, 12, 21, 30, tzinfo=UTC)
 
 def _vida(**cambios: datetime | None) -> VidaInvitacion:
     datos: dict[str, datetime | None] = {
-        "expira_en": AHORA + timedelta(days=1), "aceptada_en": None, "revocada_en": None, "bloqueada_en": None,
+        "expira_en": AHORA + timedelta(days=1),
+        "aceptada_en": None,
+        "revocada_en": None,
+        "bloqueada_en": None,
     }
     datos.update(cambios)
     return VidaInvitacion(**datos)  # type: ignore[arg-type]
@@ -76,8 +79,9 @@ def test_nombre_de_pila_y_url_con_el_token_en_el_fragmento() -> None:
     assert url_invitacion("https://matu.example", "abc") == "https://matu.example/invitacion#abc"
 
 
-@pytest.mark.parametrize(("codigo", "valido"), [("0000", True), ("4827", True), ("482", False), ("48a7", False),
-                                                ("٤٨٢٧", False)])
+@pytest.mark.parametrize(
+    ("codigo", "valido"), [("0000", True), ("4827", True), ("482", False), ("48a7", False), ("٤٨٢٧", False)]
+)
 def test_el_codigo_son_4_digitos_ascii(codigo: str, valido: bool) -> None:
     assert codigo_valido(codigo) is valido
 

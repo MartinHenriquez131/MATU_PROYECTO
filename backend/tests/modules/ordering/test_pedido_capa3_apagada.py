@@ -75,7 +75,10 @@ def test_con_la_capa_3_apagada_retirar_despacho_cancela_lo_no_pagado(
     # La vista trae despacho porque tiene un registro, sin «Volver a autorizar», y no se otorga (decisión 251)
     vista = e.pedir("GET", ruta, familia.admin, familia).json()
     assert [(a["finalidad"], a["se_puede_otorgar"]) for a in vista["autorizaciones"]] == [
-        ("plan_cuidado", True), ("consumo", True), ("despacho", False)]
+        ("plan_cuidado", True),
+        ("consumo", True),
+        ("despacho", False),
+    ]
     assert vista["autorizaciones"][2]["estado"] == "retirada"
     assert e.autorizar_pedidos(familia).status_code == 422
     # Una segunda vez, ya retirada

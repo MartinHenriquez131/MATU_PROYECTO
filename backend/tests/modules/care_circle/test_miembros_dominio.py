@@ -64,8 +64,9 @@ def test_aplicar_cambio(actual: RolYPermiso, rol: str | None, permiso: bool | No
     assert aplicar_cambio(actual, rol, permiso) == esperado
 
 
-@pytest.mark.parametrize(("actual", "rol"), [(RolYPermiso("cuidador", False), None), (RolYPermiso("pagador", True),
-                                                                                     "observador")])
+@pytest.mark.parametrize(
+    ("actual", "rol"), [(RolYPermiso("cuidador", False), None), (RolYPermiso("pagador", True), "observador")]
+)
 def test_el_permiso_con_un_rol_que_no_es_pagador_es_422(actual: RolYPermiso, rol: str | None) -> None:
     with pytest.raises(PermisoSoloPagador) as error:
         aplicar_cambio(actual, rol, True)

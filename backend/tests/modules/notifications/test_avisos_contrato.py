@@ -57,6 +57,8 @@ def test_contrato_de_yo_avisos(esquema: dict[str, Any]) -> None:
     assert cuerpo == {"$ref": "#/components/schemas/SolicitudPreferenciaAvisos"}
     solicitud = esquemas["SolicitudPreferenciaAvisos"]
     assert set(solicitud["properties"]) == {"correo", "push", "pedido"} and set(solicitud["required"]) == {
-        "correo", "push"}
+        "correo",
+        "push",
+    }
     assert solicitud["additionalProperties"] is False
     assert "412" not in ruta["put"]["responses"]

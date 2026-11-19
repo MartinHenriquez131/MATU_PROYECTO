@@ -42,9 +42,7 @@ PREFIJO_VERIFICAR_IP = "recuperar-verificar-ip"
 PREFIJO_VERIFICAR_EMAIL = "recuperar-verificar-email"
 PREFIJO_VERIFICAR_CELULAR = "celular-verificar-usuario"
 
-MENSAJE_AVISO = (
-    "MATU: se cambió la contraseña de tu cuenta. Si no fuiste tú, pide un código para recuperar tu acceso."
-)
+MENSAJE_AVISO = "MATU: se cambió la contraseña de tu cuenta. Si no fuiste tú, pide un código para recuperar tu acceso."
 
 
 class Proposito(StrEnum):

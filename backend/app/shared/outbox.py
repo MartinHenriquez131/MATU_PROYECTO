@@ -123,9 +123,7 @@ def _consumir(consumidor: Consumidor, evento: EventoTomado) -> ResultadoConsumo:
         return consumidor.consumir(evento)
     except Exception as error:  # noqa: BLE001 - un consumidor que falla no detiene al publicador
         # Solo el tipo: el mensaje de la excepción puede traer valores de la base
-        log.warning(
-            "consumidor fallo", extra={"evento_id": evento.id, "tipo_error": type(error).__name__}
-        )
+        log.warning("consumidor fallo", extra={"evento_id": evento.id, "tipo_error": type(error).__name__})
         return Reintentar()
 
 

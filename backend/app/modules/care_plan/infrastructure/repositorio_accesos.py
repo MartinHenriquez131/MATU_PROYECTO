@@ -23,8 +23,7 @@ from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, E
 from app.shared.puertos import RegistroAuditoria
 
 _NOMBRE_PILA_PERSONA = text(
-    "SELECT nombre_pila FROM persona_cuidada"
-    " WHERE id = :persona_id AND grupo_id = :grupo_id AND eliminado_en IS NULL"
+    "SELECT nombre_pila FROM persona_cuidada WHERE id = :persona_id AND grupo_id = :grupo_id AND eliminado_en IS NULL"
 )
 
 _NOMBRE_USUARIO = text("SELECT nombre FROM usuario WHERE id = :usuario_id AND eliminado_en IS NULL")

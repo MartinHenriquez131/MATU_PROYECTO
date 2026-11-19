@@ -45,8 +45,7 @@ class NotasDelPedidoSQL:
             nota = descifrar_nota(dek, f.id, "descripcion", bytes(f.descripcion))
             resolucion = None
             if f.resolucion is not None:
-                dek_resolucion = abrir_clave(self._custodia, _bytes(f.resolucion_dek_cifrada),
-                                             f.resolucion_kek_version)
+                dek_resolucion = abrir_clave(self._custodia, _bytes(f.resolucion_dek_cifrada), f.resolucion_kek_version)
                 resolucion = descifrar_nota(dek_resolucion, f.id, "resolucion", bytes(f.resolucion))
             # Como «Datos de» (copia_pagos.py): si una de las dos no se lee, ninguna sale
             disponible = nota is not None and (f.resolucion is None or resolucion is not None)

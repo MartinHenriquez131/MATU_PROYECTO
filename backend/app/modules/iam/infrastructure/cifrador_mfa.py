@@ -50,8 +50,9 @@ class CifradorMfaKek:
             raise SecretoMfaInvalido("el secreto de MFA no corresponde a la KEK configurada")
         secreto: bytes | None
         try:
-            secreto = AESGCM(self._kek).decrypt(cifrado[1:1 + LARGO_NONCE], cifrado[1 + LARGO_NONCE:],
-                                                aad_secreto(usuario_id))
+            secreto = AESGCM(self._kek).decrypt(
+                cifrado[1 : 1 + LARGO_NONCE], cifrado[1 + LARGO_NONCE :], aad_secreto(usuario_id)
+            )
         except InvalidTag:
             secreto = None
         if secreto is None:

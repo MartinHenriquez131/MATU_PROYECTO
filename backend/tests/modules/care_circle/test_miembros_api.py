@@ -34,19 +34,22 @@ class EntornoMiembros(Entorno):
     def por_rol(self, usuario: UsuarioCreado, grupo: uuid.UUID) -> dict[str, dict[str, Any]]:
         respuesta = self.miembros(usuario, grupo)
         assert respuesta.status_code == 200, respuesta.text
-        return {m["rol"] if m["rol"] != "admin" or m["eres_tu"] else "otro_admin": m
-                for m in respuesta.json()["miembros"]}
+        return {
+            m["rol"] if m["rol"] != "admin" or m["eres_tu"] else "otro_admin": m for m in respuesta.json()["miembros"]
+        }
 
-    def cambiar(self, usuario: UsuarioCreado, grupo: uuid.UUID, membresia: Any, cuerpo: Any,
-                if_match: str | None = None) -> Any:
+    def cambiar(
+        self, usuario: UsuarioCreado, grupo: uuid.UUID, membresia: Any, cuerpo: Any, if_match: str | None = None
+    ) -> Any:
         cabeceras = self.cabeceras(usuario, grupo)
         if if_match is not None:
             cabeceras["If-Match"] = if_match
         return self.iam.cliente.patch(f"/v1/grupos/{grupo}/miembros/{membresia}", json=cuerpo, headers=cabeceras)
 
     def sacar(self, usuario: UsuarioCreado, grupo: uuid.UUID, membresia: Any) -> Any:
-        return self.iam.cliente.delete(f"/v1/grupos/{grupo}/miembros/{membresia}",
-                                       headers=self.cabeceras(usuario, grupo))
+        return self.iam.cliente.delete(
+            f"/v1/grupos/{grupo}/miembros/{membresia}", headers=self.cabeceras(usuario, grupo)
+        )
 
     def salir(self, usuario: UsuarioCreado, grupo: uuid.UUID) -> Any:
         return self.iam.cliente.post(f"/v1/grupos/{grupo}/salida", headers=self.cabeceras(usuario, grupo))
@@ -66,10 +69,13 @@ class EntornoMiembros(Entorno):
                 " token_hash, pin_hash,"
                 " creado_en, expira_en, relevo_informado_en) VALUES (%s, %s, %s, %s, 'Relevo', '+56 9 5555 0137',"
                 " 'Persona', 'Quien', ARRAY['rutina'], 'turno_de_noche', sha256(%s), 'p', %s, %s, %s)",
-                (acceso_id, familia.grupo.id, familia.ficha.plan_id, otorgado_por, token, ahora, expira, ahora))
+                (acceso_id, familia.grupo.id, familia.ficha.plan_id, otorgado_por, token, ahora, expira, ahora),
+            )
             cx.execute(
                 "INSERT INTO indice_token (token_hash, tipo, grupo_id, referencia_id, expira_en, creado_en)"
-                " VALUES (sha256(%s), 'relevo', %s, %s, %s, %s)", (token, familia.grupo.id, acceso_id, expira, ahora))
+                " VALUES (sha256(%s), 'relevo', %s, %s, %s, %s)",
+                (token, familia.grupo.id, acceso_id, expira, ahora),
+            )
         return acceso_id
 
 
@@ -90,8 +96,13 @@ def _todas(sql: str, *parametros: Any) -> list[tuple[Any, ...]]:
 
 
 def _auditoria(membresia: Any) -> list[tuple[str, Any]]:
-    return [(f[0], f[1]) for f in _todas("SELECT accion, detalle FROM auditoria WHERE entidad = 'membresia'"
-                                         " AND entidad_id = %s ORDER BY id", uuid.UUID(str(membresia)))]
+    return [
+        (f[0], f[1])
+        for f in _todas(
+            "SELECT accion, detalle FROM auditoria WHERE entidad = 'membresia' AND entidad_id = %s ORDER BY id",
+            uuid.UUID(str(membresia)),
+        )
+    ]
 
 
 # --- La lista ------------------------------------------------------------------------------------------
@@ -131,8 +142,12 @@ def test_enlaces_vigentes_para_quien_administra_y_en_la_propia_fila(entorno: Ent
 
 def test_otro_grupo_es_404(entorno: EntornoMiembros) -> None:
     a, b = entorno.familia(), entorno.familia()
-    assert entorno.iam.cliente.get(f"/v1/grupos/{b.grupo.id}/miembros",
-                                   headers=entorno.cabeceras(a.admin, a.grupo.id)).status_code == 404
+    assert (
+        entorno.iam.cliente.get(
+            f"/v1/grupos/{b.grupo.id}/miembros", headers=entorno.cabeceras(a.admin, a.grupo.id)
+        ).status_code
+        == 404
+    )
     assert entorno.miembros(a.admin, b.grupo.id).status_code == 404
     otro = entorno.por_rol(b.admin, b.grupo.id)["cuidador"]
     assert entorno.cambiar(a.admin, a.grupo.id, otro["id"], {"rol": "observador"}, otro["etag"]).status_code == 404
@@ -146,8 +161,9 @@ def test_otro_grupo_es_404(entorno: EntornoMiembros) -> None:
 def test_dar_al_pagador_el_permiso_de_ver_la_ficha(entorno: EntornoMiembros) -> None:
     familia = entorno.familia()
     pagador = entorno.por_rol(familia.admin, familia.grupo.id)["pagador"]
-    respuesta = entorno.cambiar(familia.admin, familia.grupo.id, pagador["id"], {"puede_ver_plan": True},
-                                pagador["etag"])
+    respuesta = entorno.cambiar(
+        familia.admin, familia.grupo.id, pagador["id"], {"puede_ver_plan": True}, pagador["etag"]
+    )
     assert respuesta.status_code == 200, respuesta.text
     assert respuesta.json()["miembro"]["puede_ver_plan"] is True and respuesta.json()["enlaces_cortados"] == 0
     assert respuesta.json()["miembro"]["etag"] == '"v2"' == respuesta.headers["ETag"]
@@ -183,8 +199,9 @@ def test_solo_admin_cambia_y_saca(entorno: EntornoMiembros, etiqueta: str) -> No
     familia = entorno.familia()
     miembro = familia.miembros[etiqueta].usuario
     otro = entorno.por_rol(familia.admin, familia.grupo.id)["admin"]
-    assert entorno.cambiar(miembro, familia.grupo.id, otro["id"], {"rol": "observador"}, otro["etag"]).status_code \
-        == 404
+    assert (
+        entorno.cambiar(miembro, familia.grupo.id, otro["id"], {"rol": "observador"}, otro["etag"]).status_code == 404
+    )
     assert entorno.sacar(miembro, familia.grupo.id, otro["id"]).status_code == 404
 
 
@@ -207,10 +224,16 @@ def test_pasar_de_cuidador_a_observador_corta_sus_enlaces(entorno: EntornoMiembr
     assert respuesta.status_code == 200, respuesta.text
     assert respuesta.json()["enlaces_cortados"] == 2
     assert respuesta.json()["miembro"]["rol"] == "observador" and respuesta.json()["miembro"]["enlaces_vigentes"] == 0
-    cortados = _todas("SELECT a.id, a.revocado_en IS NOT NULL, t.revocado_en IS NOT NULL FROM acceso_relevo a"
-                      " JOIN indice_token t ON t.referencia_id = a.id WHERE a.grupo_id = %s", grupo)
-    assert {(a, x, y) for a, x, y in cortados} == {(accesos[0], True, True), (accesos[1], True, True),
-                                                  (del_admin, False, False)}
+    cortados = _todas(
+        "SELECT a.id, a.revocado_en IS NOT NULL, t.revocado_en IS NOT NULL FROM acceso_relevo a"
+        " JOIN indice_token t ON t.referencia_id = a.id WHERE a.grupo_id = %s",
+        grupo,
+    )
+    assert {(a, x, y) for a, x, y in cortados} == {
+        (accesos[0], True, True),
+        (accesos[1], True, True),
+        (del_admin, False, False),
+    }
     revocar = _todas("SELECT entidad_id FROM auditoria WHERE accion = 'relevo.revocar' AND grupo_id = %s", grupo)
     assert {r[0] for r in revocar} == set(accesos)
     assert _auditoria(fila["id"]) == [("membresia.cambiar_rol", {"rol": "observador"})]
@@ -238,8 +261,12 @@ def test_quien_deja_de_administrar_pierde_sus_invitaciones(entorno: EntornoMiemb
     fila = entorno.por_rol(familia.admin, grupo)["otro_admin"]
     assert entorno.cambiar(familia.admin, grupo, fila["id"], {"rol": "cuidador"}, fila["etag"]).status_code == 200
     assert entorno.presentar(token).json()["type"] == "/errores/invitacion-no-disponible"
-    assert [f[0] for f in _todas("SELECT accion FROM auditoria WHERE entidad_id = %s ORDER BY id",
-                                 uuid.UUID(creada.json()["id"]))] == ["invitacion.crear", "invitacion.anular"]
+    assert [
+        f[0]
+        for f in _todas(
+            "SELECT accion FROM auditoria WHERE entidad_id = %s ORDER BY id", uuid.UUID(creada.json()["id"])
+        )
+    ] == ["invitacion.crear", "invitacion.anular"]
 
 
 # --- Sacar y salir -------------------------------------------------------------------------------------
@@ -265,7 +292,9 @@ def _quedo_anulada(entorno: EntornoMiembros, token: str, invitacion_id: uuid.UUI
     assert presentacion.status_code == 410
     assert presentacion.json()["type"] == "/errores/invitacion-no-disponible"
     assert [f[0] for f in _todas("SELECT accion FROM auditoria WHERE entidad_id = %s ORDER BY id", invitacion_id)] == [
-        "invitacion.crear", "invitacion.anular"]
+        "invitacion.crear",
+        "invitacion.anular",
+    ]
 
 
 @pytest.mark.rf("RF-38")
@@ -295,7 +324,8 @@ def test_sacar_a_alguien_corta_sus_enlaces_y_deja_de_ver_el_grupo(entorno: Entor
     assert respuesta.status_code == 200 and respuesta.json() == {"enlaces_cortados": 1}
     assert _todas("SELECT revocado_en IS NOT NULL FROM acceso_relevo WHERE id = %s", acceso) == [(True,)]
     assert _todas("SELECT estado, retirado_en IS NOT NULL FROM membresia WHERE id = %s", uuid.UUID(fila["id"])) == [
-        ("retirada", True)]
+        ("retirada", True)
+    ]
     assert _auditoria(fila["id"]) == [("membresia.sacar", {"rol": "cuidador"})]
     # No es idempotente, y quien salió ya no ve el grupo ni aparece en la lista
     assert entorno.sacar(familia.admin, grupo, fila["id"]).status_code == 404
@@ -337,8 +367,9 @@ def test_un_admin_sale_si_queda_otro_y_se_le_puede_volver_a_invitar(entorno: Ent
     otro_admin = familia.miembros["cuidador"].usuario
     token, codigo, _ = entorno.invitar_como(otro_admin, grupo)  # type: ignore[attr-defined]
     assert entorno.aceptar(familia.admin, token, codigo).status_code == 201
-    assert _todas("SELECT estado FROM membresia WHERE grupo_id = %s AND usuario_id = %s ORDER BY estado",
-                  grupo, familia.admin.id) == [("activa",), ("retirada",)]
+    assert _todas(
+        "SELECT estado FROM membresia WHERE grupo_id = %s AND usuario_id = %s ORDER BY estado", grupo, familia.admin.id
+    ) == [("activa",), ("retirada",)]
 
 
 def _invitar_como(self: EntornoMiembros, usuario: UsuarioCreado, grupo: uuid.UUID) -> tuple[str, str, dict[str, Any]]:
@@ -362,17 +393,21 @@ def test_el_autor_y_quien_autorizo_cuando_ya_no_estan(entorno: EntornoMiembros) 
     fila = entorno.por_rol(familia.admin, grupo)["cuidador"]
     assert entorno.cambiar(familia.admin, grupo, fila["id"], {"rol": "admin"}, fila["etag"]).status_code == 200
     otro = familia.miembros["cuidador"].usuario
-    estado = entorno.iam.cliente.get(f"/v1/personas-cuidadas/{familia.persona.id}/consentimientos",
-                                     headers=entorno.cabeceras(otro, grupo))
+    estado = entorno.iam.cliente.get(
+        f"/v1/personas-cuidadas/{familia.persona.id}/consentimientos", headers=entorno.cabeceras(otro, grupo)
+    )
     assert estado.status_code == 200
     assert [a["autorizo_alguien_que_ya_no_esta"] for a in estado.json()["autorizaciones"]] == [False, False]
     assert entorno.salir(familia.admin, grupo).status_code == 200
-    estado = entorno.iam.cliente.get(f"/v1/personas-cuidadas/{familia.persona.id}/consentimientos",
-                                     headers=entorno.cabeceras(otro, grupo))
+    estado = entorno.iam.cliente.get(
+        f"/v1/personas-cuidadas/{familia.persona.id}/consentimientos", headers=entorno.cabeceras(otro, grupo)
+    )
     plan = next(a for a in estado.json()["autorizaciones"] if a["finalidad"] == "plan_cuidado")
     assert plan["estado"] == "vigente" and plan["autorizo_alguien_que_ya_no_esta"] is True
     assert str(familia.admin.id) not in estado.text
     # Quien observa no ve el campo (AutorizacionVistaResumen)
-    resumen = entorno.iam.cliente.get(f"/v1/personas-cuidadas/{familia.persona.id}/consentimientos",
-                                      headers=entorno.cabeceras(familia.miembros["observador"].usuario, grupo))
+    resumen = entorno.iam.cliente.get(
+        f"/v1/personas-cuidadas/{familia.persona.id}/consentimientos",
+        headers=entorno.cabeceras(familia.miembros["observador"].usuario, grupo),
+    )
     assert all("autorizo_alguien_que_ya_no_esta" not in a for a in resumen.json()["autorizaciones"])

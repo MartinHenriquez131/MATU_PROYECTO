@@ -48,8 +48,9 @@ class AlmacenMfaRedis:
         llave = PREFIJO_DESAFIO + huella
         try:
             tuberia = self._redis.pipeline(transaction=True)
-            tuberia.hset(llave, mapping={"usuario": str(desafio.usuario_id),
-                                         "expira": repr(desafio.expira_en.timestamp())})
+            tuberia.hset(
+                llave, mapping={"usuario": str(desafio.usuario_id), "expira": repr(desafio.expira_en.timestamp())}
+            )
             tuberia.expireat(llave, int(desafio.expira_en.timestamp()) + 1)
             tuberia.execute()
         except redis.RedisError:

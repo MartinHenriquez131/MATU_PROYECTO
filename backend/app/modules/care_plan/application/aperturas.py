@@ -60,7 +60,10 @@ def listar_aperturas(
         if tipo is not None:  # el repositorio filtra por acción; esto es defensa en profundidad
             items.append(
                 Apertura(
-                    fila.ocurrido_en, tipo, fila.acceso_id, fila.nombre_relevo,
+                    fila.ocurrido_en,
+                    tipo,
+                    fila.acceso_id,
+                    fila.nombre_relevo,
                     secciones_de_apertura(tipo, fila.secciones),
                 )
             )

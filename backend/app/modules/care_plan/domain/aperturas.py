@@ -41,9 +41,7 @@ def tipo_de_accion(accion: str) -> TipoApertura | None:
         return None
 
 
-def secciones_de_apertura(
-    tipo: TipoApertura, guardadas: Iterable[str]
-) -> tuple[SeccionComplementaria, ...] | None:
+def secciones_de_apertura(tipo: TipoApertura, guardadas: Iterable[str]) -> tuple[SeccionComplementaria, ...] | None:
     """Las secciones que se mostraron en una apertura, en el orden de ADR-028, o None si el ítem no es una
     apertura (los demás tipos no traen ``secciones``). Una apertura anterior a MATU-50 no guardó ninguna:
     viene vacía. Un valor desconocido en el detalle se ignora (el CHECK de la base no lo deja entrar)."""

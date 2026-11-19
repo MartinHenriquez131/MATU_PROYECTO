@@ -145,9 +145,7 @@ _Respuestas = dict[int | str, dict[str, Any]]
 _NO_STORE = {"Cache-Control": {"description": "no-store", "schema": {"type": "string"}}}
 _RETRY_AFTER = {"Retry-After": {"description": "Segundos de espera", "schema": {"type": "integer"}}}
 _429: _Respuestas = {429: {"description": "demasiadas-peticiones", "headers": _RETRY_AFTER, **PROBLEMA}}
-_503: _Respuestas = {
-    503: {"description": "Falta un pepper o el envío, o Redis no responde: falla cerrada", **PROBLEMA}
-}
+_503: _Respuestas = {503: {"description": "Falta un pepper o el envío, o Redis no responde: falla cerrada", **PROBLEMA}}
 _401: _Respuestas = {401: {"description": "no-autenticado o token-invalido", **PROBLEMA}}
 
 
@@ -171,7 +169,7 @@ def _solicitar_en_segundo_plano(**argumentos: Any) -> None:
         "Pide un código para recuperar el acceso (MATU-57). Recibe solo el email. Responde siempre 202 sin"
         " cuerpo, exista o no la cuenta y aunque se haya alcanzado el límite (decisión 84): el envío corre"
         " después de responder. El código va al celular verificado o, si no hay, al correo; con"
-        " `canal: \"correo\"`, al correo. Pedir otro invalida el anterior. Orden: 422, 503 y 202."
+        ' `canal: "correo"`, al correo. Pedir otro invalida el anterior. Orden: 422, 503 y 202.'
     ),
     responses={202: {"headers": _NO_STORE}, 422: {"description": "Cuerpo inválido", **PROBLEMA}, **_503},
 )

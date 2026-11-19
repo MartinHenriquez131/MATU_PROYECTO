@@ -364,7 +364,11 @@ TAREA_CODIGO_RETIRO = "app.modules.backoffice.infrastructure.tarea_codigo_retiro
 
 
 def codigo_retiro(
-    parte: str, *, stream: TextIO | None = None, consola: TextIO | None = None, reloj: Reloj | None = None,
+    parte: str,
+    *,
+    stream: TextIO | None = None,
+    consola: TextIO | None = None,
+    reloj: Reloj | None = None,
     config: Configuracion | None = None,
 ) -> int:
     """Genera el código de una parte lista y lo escribe una vez en ``consola`` (la salida estándar), nunca en el log.
@@ -406,8 +410,12 @@ OPERACION_ALTA = "operacion-alta"
 
 
 def operacion_alta(
-    *, stream: TextIO | None = None, consola: TextIO | None = None, preguntar: Callable[[str], str] | None = None,
-    reloj: Reloj | None = None, config: Configuracion | None = None,
+    *,
+    stream: TextIO | None = None,
+    consola: TextIO | None = None,
+    preguntar: Callable[[str], str] | None = None,
+    reloj: Reloj | None = None,
+    config: Configuracion | None = None,
 ) -> int:
     """La URI otpauth va una sola vez a ``consola`` (la salida estándar), nunca al log. La línea del log lleva el
     resultado y, si falla, el motivo, la variable que falta o el tipo del error."""

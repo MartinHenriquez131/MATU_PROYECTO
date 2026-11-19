@@ -149,8 +149,14 @@ def _vista(repo: RepositorioComercioSQL, parte_id: uuid.UUID, ahora: datetime, r
     return ParteVista(**_resumen(parte, ahora), lineas=lineas)  # type: ignore[arg-type]
 
 
-def _auditar(contexto: SesionDeComercio, reloj: Reloj, accion: AccionAuditoria, entidad_id: uuid.UUID,
-             entidad: EntidadAuditoria = EntidadAuditoria.PEDIDO_COMERCIO, request: Request | None = None) -> None:
+def _auditar(
+    contexto: SesionDeComercio,
+    reloj: Reloj,
+    accion: AccionAuditoria,
+    entidad_id: uuid.UUID,
+    entidad: EntidadAuditoria = EntidadAuditoria.PEDIDO_COMERCIO,
+    request: Request | None = None,
+) -> None:
     RegistroAuditoriaSql(contexto.sesion, reloj).registrar(
         EntradaAuditoria(
             grupo_id=None,
@@ -178,8 +184,13 @@ def _resultado(resultado: str) -> None:
         raise ErrorMATU(422, tipo="lineas-pendientes", detalle="Marca cada producto: si lo tienes o no")
 
 
-def _llevar(fabrica: sessionmaker[Session], reloj: Reloj, pasarela: PasarelaWebpay | None,
-            parte_id: uuid.UUID, comercio_id: uuid.UUID) -> None:
+def _llevar(
+    fabrica: sessionmaker[Session],
+    reloj: Reloj,
+    pasarela: PasarelaWebpay | None,
+    parte_id: uuid.UUID,
+    comercio_id: uuid.UUID,
+) -> None:
     """La transacción del sistema después de la del comercio (D-63-8). Si falla, la tarea despacho la repite."""
     try:
         ids = resolver_parte(fabrica, parte_id)
@@ -192,8 +203,12 @@ def _llevar(fabrica: sessionmaker[Session], reloj: Reloj, pasarela: PasarelaWebp
         log.warning("despacho pendiente", extra={"tipo_error": type(error).__name__})
 
 
-@router.get("", response_model=ComercioDeLaCuenta, responses=_RESPUESTAS,
-            description="El comercio de la cuenta: nombre de fantasía, si es de prueba y el contacto de MATU (O2).")
+@router.get(
+    "",
+    response_model=ComercioDeLaCuenta,
+    responses=_RESPUESTAS,
+    description="El comercio de la cuenta: nombre de fantasía, si es de prueba y el contacto de MATU (O2).",
+)
 def ver_comercio(contexto: SesionDeComercio) -> ComercioDeLaCuenta:
     comercio = RepositorioComercioSQL(contexto.sesion).comercio()
     if comercio is None:
@@ -222,17 +237,32 @@ def listar_partes(contexto: SesionDeComercio, reloj: RelojDep) -> ListaPartes:
     return ListaPartes(partes=[ParteResumen(**_resumen(p, ahora)) for p in partes])  # type: ignore[arg-type]
 
 
-@router.get("/partes/{parte_id}", response_model=ParteVista, responses=_RESPUESTAS,
-            description="Una parte con sus productos y lo marcado. El ETag es la versión de la parte.")
+@router.get(
+    "/partes/{parte_id}",
+    response_model=ParteVista,
+    responses=_RESPUESTAS,
+    description="Una parte con sus productos y lo marcado. El ETag es la versión de la parte.",
+)
 def ver_parte(parte_id: _ID, contexto: SesionDeComercio, reloj: RelojDep, respuesta: Response) -> ParteVista:
     return _vista(RepositorioComercioSQL(contexto.sesion), _uuid(parte_id), reloj.ahora(), respuesta)
 
 
-@router.post("/partes/{parte_id}/preparar", response_model=ParteVista, responses=_RESPUESTAS_ACCION,
-             description="«Empezar a preparar»: de enviada a preparando. Desde aquí la familia ya no cancela (R15).")
+@router.post(
+    "/partes/{parte_id}/preparar",
+    response_model=ParteVista,
+    responses=_RESPUESTAS_ACCION,
+    description="«Empezar a preparar»: de enviada a preparando. Desde aquí la familia ya no cancela (R15).",
+)
 def preparar(
-    parte_id: _ID, request: Request, contexto: SesionDeComercio, reloj: RelojDep, respuesta: Response,
-    fabrica: Fabrica, pasarela: PasarelaDep, tareas: BackgroundTasks, if_match: IfMatch = None,
+    parte_id: _ID,
+    request: Request,
+    contexto: SesionDeComercio,
+    reloj: RelojDep,
+    respuesta: Response,
+    fabrica: Fabrica,
+    pasarela: PasarelaDep,
+    tareas: BackgroundTasks,
+    if_match: IfMatch = None,
 ) -> ParteVista:
     identificador, repo = _uuid(parte_id), RepositorioComercioSQL(contexto.sesion)
     _resultado(repo.preparar(identificador, _version(if_match), reloj.ahora()))
@@ -253,8 +283,14 @@ def preparar(
     ),
 )
 def marcar_linea(
-    parte_id: _ID, linea_id: _ID, solicitud: SolicitudMarca, request: Request, contexto: SesionDeComercio,
-    reloj: RelojDep, respuesta: Response, if_match: IfMatch = None,
+    parte_id: _ID,
+    linea_id: _ID,
+    solicitud: SolicitudMarca,
+    request: Request,
+    contexto: SesionDeComercio,
+    reloj: RelojDep,
+    respuesta: Response,
+    if_match: IfMatch = None,
 ) -> ParteVista:
     parte, linea = _uuid(parte_id), _uuid(linea_id)
     repo = RepositorioComercioSQL(contexto.sesion)
@@ -283,8 +319,15 @@ def marcar_linea(
     ),
 )
 def listo(
-    parte_id: _ID, request: Request, contexto: SesionDeComercio, reloj: RelojDep, respuesta: Response,
-    fabrica: Fabrica, pasarela: PasarelaDep, tareas: BackgroundTasks, if_match: IfMatch = None,
+    parte_id: _ID,
+    request: Request,
+    contexto: SesionDeComercio,
+    reloj: RelojDep,
+    respuesta: Response,
+    fabrica: Fabrica,
+    pasarela: PasarelaDep,
+    tareas: BackgroundTasks,
+    if_match: IfMatch = None,
 ) -> ParteVista:
     identificador, repo = _uuid(parte_id), RepositorioComercioSQL(contexto.sesion)
     resultado = repo.listo(identificador, _version(if_match), reloj.ahora())
@@ -312,9 +355,18 @@ def listo(
     ),
 )
 def validar_codigo(
-    parte_id: _ID, solicitud: SolicitudCodigo, request: Request, contexto: SesionDeComercio, reloj: RelojDep,
-    respuesta: Response, fabrica: Fabrica, pasarela: PasarelaDep, secreto: SecretoCodigo, pepper: PepperLimites,
-    contador: Contador, tareas: BackgroundTasks,
+    parte_id: _ID,
+    solicitud: SolicitudCodigo,
+    request: Request,
+    contexto: SesionDeComercio,
+    reloj: RelojDep,
+    respuesta: Response,
+    fabrica: Fabrica,
+    pasarela: PasarelaDep,
+    secreto: SecretoCodigo,
+    pepper: PepperLimites,
+    contador: Contador,
+    tareas: BackgroundTasks,
 ) -> ResultadoCodigoVista:
     identificador, repo = _uuid(parte_id), RepositorioComercioSQL(contexto.sesion)
     contar_intento_de_codigo(contexto.usuario_id, pepper, contador)
@@ -354,8 +406,12 @@ def _producto(p: ProductoComercio) -> ProductoDelComercio:
     )
 
 
-@router.get("/productos", response_model=ListaProductos, responses=_RESPUESTAS,
-            description="Los productos del comercio: precio (solo lectura), stock, apartado y disponibles (O5).")
+@router.get(
+    "/productos",
+    response_model=ListaProductos,
+    responses=_RESPUESTAS,
+    description="Los productos del comercio: precio (solo lectura), stock, apartado y disponibles (O5).",
+)
 def listar_productos(contexto: SesionDeComercio, reloj: RelojDep) -> ListaProductos:
     productos = RepositorioComercioSQL(contexto.sesion).productos(reloj.ahora())
     return ListaProductos(productos=[_producto(p) for p in productos])
@@ -368,8 +424,13 @@ def listar_productos(contexto: SesionDeComercio, reloj: RelojDep) -> ListaProduc
     description="Cambia cuántos tiene (0 a 9.999) y si lo ofrece en MATU. Nunca el precio (D-63-2).",
 )
 def cambiar_producto(
-    oferta_id: _ID, solicitud: SolicitudProducto, request: Request, contexto: SesionDeComercio, reloj: RelojDep,
-    respuesta: Response, if_match: IfMatch = None,
+    oferta_id: _ID,
+    solicitud: SolicitudProducto,
+    request: Request,
+    contexto: SesionDeComercio,
+    reloj: RelojDep,
+    respuesta: Response,
+    if_match: IfMatch = None,
 ) -> ProductoDelComercio:
     identificador, repo = _uuid(oferta_id), RepositorioComercioSQL(contexto.sesion)
     actual = next((p for p in repo.productos(reloj.ahora()) if p.oferta_id == identificador), None)

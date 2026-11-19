@@ -20,7 +20,7 @@ from tests.modules.iam.conftest import (
 )
 from tests.politica import POLITICA_PRUEBAS
 
-PROBLEMA ="application/problem+json"
+PROBLEMA = "application/problem+json"
 
 
 # --- Camino feliz --------------------------------------------------------------------------

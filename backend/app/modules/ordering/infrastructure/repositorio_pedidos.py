@@ -46,6 +46,7 @@ LARGO_REFERENCIA = 6
 def nueva_referencia_parte() -> str:
     return "".join(secrets.choice(ALFABETO_REFERENCIA) for _ in range(LARGO_REFERENCIA))
 
+
 _PEDIDO = (
     "SELECT p.id, p.grupo_id, p.persona_cuidada_id, p.estado, p.version, p.costo_envio, p.total_confirmado_en,"
     " p.total_vence_en, p.creado_en, p.actualizado_en, p.pagado_en"
@@ -233,9 +234,7 @@ def _linea(f: Row[Any]) -> Linea:
 
 
 class RepositorioPedidosSQL:
-    def __init__(
-        self, sesion: Session, grupo_id: uuid.UUID, vida_venta: timedelta = VIDA_VENTA_POR_OMISION
-    ) -> None:
+    def __init__(self, sesion: Session, grupo_id: uuid.UUID, vida_venta: timedelta = VIDA_VENTA_POR_OMISION) -> None:
         self._sesion = sesion
         self._grupo_id = grupo_id
         self._vida_venta = vida_venta

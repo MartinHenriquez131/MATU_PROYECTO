@@ -139,10 +139,14 @@ def test_ficha_tres_campos(entorno_ficha: EntornoFicha) -> None:
     assert _planes(persona.id) == 1
     assert _claves(persona.id) == 1
     # Tres secciones, cifradas: ningún texto queda en claro en la base
-    assert _contar(
-        "SELECT count(*) FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id WHERE p.persona_cuidada_id = %s",
-        persona.id,
-    ) == 3
+    assert (
+        _contar(
+            "SELECT count(*) FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id WHERE p.persona_cuidada_id ="
+            " %s",
+            persona.id,
+        )
+        == 3
+    )
     for texto in textos.values():
         assert _texto_en_claro_en_la_base(persona.id, texto) == 0
 
@@ -157,7 +161,10 @@ def test_ficha_tres_campos(entorno_ficha: EntornoFicha) -> None:
             assert cuerpo["campos"][campo]["texto"] == textos[campo]
             assert cuerpo["campos"][campo]["etag"] == '"v1"'
             assert cuerpo["campos"][campo]["actualizado_por"] == {
-                "id": str(admin.id), "nombre": admin.nombre, "autor_activo": True}
+                "id": str(admin.id),
+                "nombre": admin.nombre,
+                "autor_activo": True,
+            }
         assert admin.email not in ficha.text
 
 
@@ -304,8 +311,9 @@ def test_cuidador_escribe_y_lee(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
     cuidador = familia.miembros["cuidador"].usuario
 
-    escritura = entorno_ficha.escribir(cuidador, familia.grupo.id, familia.persona.id, "manejo_situaciones",
-                                       {"texto": _texto("manejo_situaciones")})
+    escritura = entorno_ficha.escribir(
+        cuidador, familia.grupo.id, familia.persona.id, "manejo_situaciones", {"texto": _texto("manejo_situaciones")}
+    )
 
     assert escritura.status_code == 201
     assert entorno_ficha.leer(cuidador, familia.grupo.id, familia.persona.id).json()["completitud"] == 33
@@ -327,11 +335,14 @@ def test_persona_de_otro_grupo_404(entorno_ficha: EntornoFicha) -> None:
     for respuesta in (con_su_grupo, con_grupo_ajeno, escritura):
         assert respuesta.status_code == 404
         assert texto not in respuesta.text
-    assert _contar(
-        "SELECT version FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id"
-        " WHERE p.persona_cuidada_id = %s AND s.tipo = 'rutina'",
-        b.persona.id,
-    ) == 1
+    assert (
+        _contar(
+            "SELECT version FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id"
+            " WHERE p.persona_cuidada_id = %s AND s.tipo = 'rutina'",
+            b.persona.id,
+        )
+        == 1
+    )
 
 
 @pytest.mark.rf("RF-02")
@@ -455,12 +466,14 @@ def _familia_cuidador_de_hecho(entorno: EntornoFicha, otorgado_en: datetime) -> 
 def test_revision_vencida_403(entorno_ficha: EntornoFicha) -> None:
     # Dado un consentimiento de cuidador de hecho cuya revisión anual venció un día antes del reloj
     vencida = _familia_cuidador_de_hecho(entorno_ficha, AHORA - timedelta(days=366))
-    assert _una("SELECT revision_vence_en < %s FROM consentimiento WHERE id = %s", AHORA,
-                vencida.persona.consentimiento_id) == (True,)
+    assert _una(
+        "SELECT revision_vence_en < %s FROM consentimiento WHERE id = %s", AHORA, vencida.persona.consentimiento_id
+    ) == (True,)
 
     lectura = entorno_ficha.leer(vencida.admin, vencida.grupo.id, vencida.persona.id)
-    escritura = entorno_ficha.escribir(vencida.admin, vencida.grupo.id, vencida.persona.id, "rutina",
-                                       {"texto": _texto("rutina")})
+    escritura = entorno_ficha.escribir(
+        vencida.admin, vencida.grupo.id, vencida.persona.id, "rutina", {"texto": _texto("rutina")}
+    )
 
     # Entonces 403 con su propio type, distinto de sin-consentimiento, y nada creado
     for respuesta in (lectura, escritura):
@@ -475,8 +488,12 @@ def test_revision_vencida_403(entorno_ficha: EntornoFicha) -> None:
     # Y con la revisión todavía vigente (vence en una hora) se lee y se escribe
     vigente = _familia_cuidador_de_hecho(entorno_ficha, AHORA - timedelta(days=365) + timedelta(hours=1))
     assert entorno_ficha.leer(vigente.admin, vigente.grupo.id, vigente.persona.id).status_code == 200
-    assert entorno_ficha.escribir(vigente.admin, vigente.grupo.id, vigente.persona.id, "rutina",
-                                  {"texto": "Hola"}).status_code == 201
+    assert (
+        entorno_ficha.escribir(
+            vigente.admin, vigente.grupo.id, vigente.persona.id, "rutina", {"texto": "Hola"}
+        ).status_code
+        == 201
+    )
 
 
 @pytest.mark.rf("RF-02")
@@ -523,8 +540,9 @@ def test_sin_custodia_503_y_falla_cerrada(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
 
     lectura = entorno_ficha.leer(familia.admin, familia.grupo.id, familia.persona.id)
-    escritura = entorno_ficha.escribir(familia.admin, familia.grupo.id, familia.persona.id, "rutina",
-                                       {"texto": _texto("rutina")})
+    escritura = entorno_ficha.escribir(
+        familia.admin, familia.grupo.id, familia.persona.id, "rutina", {"texto": _texto("rutina")}
+    )
 
     for respuesta in (lectura, escritura):
         assert respuesta.status_code == 503
@@ -591,7 +609,11 @@ def test_lectura_y_escritura_llaman_a_la_auditoria(entorno_ficha: EntornoFicha) 
     [edicion] = entorno_ficha.auditoria.ediciones
     [lectura] = entorno_ficha.auditoria.lecturas
     assert (edicion.grupo_id, edicion.usuario_id, edicion.persona_cuidada_id, edicion.plan_id, edicion.campo) == (
-        grupo, cuidador.id, persona, plan[0], "red_apoyo"
+        grupo,
+        cuidador.id,
+        persona,
+        plan[0],
+        "red_apoyo",
     )
     assert edicion.request_id == escrita.headers["x-request-id"]
     assert edicion.ocurrido_en == AHORA

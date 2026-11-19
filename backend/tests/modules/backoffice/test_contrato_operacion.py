@@ -14,11 +14,40 @@ pytestmark = [pytest.mark.rf("RF-40"), pytest.mark.rf("Ley-21.719")]
 
 # C5, C6 y C18: lo que una respuesta de operación nunca trae
 NUNCA_A_OPERACION = {
-    "persona_cuidada_id", "persona_id", "persona", "nombre_pila", "nivel_apoyo", "grupo_id", "grupo",
-    "nombre_grupo", "direccion", "calle", "numero", "comuna", "telefono", "telefono_contacto", "usuario_id",
-    "creado_por", "solicitado_por", "resuelto_por", "pagado_por", "email", "correo", "correo_solicitante",
-    "actor_ref", "token", "session_id", "payload_respuesta", "ultimos4", "tipo_tarjeta", "cuotas",
-    "codigo_autorizacion", "codigo_hash", "asignada_a", "creada_por", "mfa_secreto_cifrado",
+    "persona_cuidada_id",
+    "persona_id",
+    "persona",
+    "nombre_pila",
+    "nivel_apoyo",
+    "grupo_id",
+    "grupo",
+    "nombre_grupo",
+    "direccion",
+    "calle",
+    "numero",
+    "comuna",
+    "telefono",
+    "telefono_contacto",
+    "usuario_id",
+    "creado_por",
+    "solicitado_por",
+    "resuelto_por",
+    "pagado_por",
+    "email",
+    "correo",
+    "correo_solicitante",
+    "actor_ref",
+    "token",
+    "session_id",
+    "payload_respuesta",
+    "ultimos4",
+    "tipo_tarjeta",
+    "cuotas",
+    "codigo_autorizacion",
+    "codigo_hash",
+    "asignada_a",
+    "creada_por",
+    "mfa_secreto_cifrado",
 }
 
 
@@ -76,8 +105,11 @@ def test_ninguna_respuesta_de_operacion_trae_datos_de_la_familia_ni_de_la_tarjet
 def test_las_vistas_de_la_consola_no_admiten_campos_de_mas() -> None:
     from app.modules.backoffice.api import esquemas_consola
 
-    modelos = [m for m in vars(esquemas_consola).values()
-               if isinstance(m, type) and issubclass(m, esquemas_consola._Vista) and m is not esquemas_consola._Vista]
+    modelos = [
+        m
+        for m in vars(esquemas_consola).values()
+        if isinstance(m, type) and issubclass(m, esquemas_consola._Vista) and m is not esquemas_consola._Vista
+    ]
     assert len(modelos) >= 20
     assert all(m.model_config.get("extra") == "forbid" for m in modelos)
 
@@ -93,8 +125,12 @@ def test_la_referencia_y_el_buy_order_nunca_van_en_la_url(esquema: dict[str, Any
 def test_el_detalle_trae_las_acciones_con_el_monto_que_calcula_el_servidor(esquema: dict[str, Any]) -> None:
     accion = esquema["components"]["schemas"]["AccionDisponible"]
     assert set(accion["properties"]) == {"accion", "monto_a_devolver"}
-    assert set(accion["properties"]["accion"]["enum"]) == {"en_camino", "entregado", "no_entregado",
-                                                            "cancelar_con_devolucion"}
+    assert set(accion["properties"]["accion"]["enum"]) == {
+        "en_camino",
+        "entregado",
+        "no_entregado",
+        "cancelar_con_devolucion",
+    }
 
 
 @pytest.mark.rf("RF-37")

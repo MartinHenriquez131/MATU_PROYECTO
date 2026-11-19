@@ -105,12 +105,12 @@ def test_pagar_volver_y_el_comprobante(
     assert comprobante["condiciones"]["enlace"] == "/v1/condiciones-pedido?version=0.3"
     assert 4 <= len(comprobante["referencia"]) <= 6 and comprobante["referencia"].isdigit()
     # El pedido quedó pagado, con sus condiciones fijas y quién las aceptó
-    assert _consultar(
-        "SELECT estado, condiciones_aceptadas_por FROM pedido WHERE id = %s", pedido["id"]
-    ) == [("pagado", familia.admin.id)]
-    assert _consultar(
-        "SELECT estado, monto_cobrado FROM cargo WHERE pedido_id = %s", pedido["id"]
-    ) == [("pagado", TOTAL)]
+    assert _consultar("SELECT estado, condiciones_aceptadas_por FROM pedido WHERE id = %s", pedido["id"]) == [
+        ("pagado", familia.admin.id)
+    ]
+    assert _consultar("SELECT estado, monto_cobrado FROM cargo WHERE pedido_id = %s", pedido["id"]) == [
+        ("pagado", TOTAL)
+    ]
     assert _consultar(
         "SELECT payload_respuesta FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id WHERE c.pedido_id = %s",
         pedido["id"],

@@ -168,15 +168,24 @@ def test_huella_hmac_por_prefijo_sin_el_valor_en_claro() -> None:
 @pytest.mark.parametrize(
     ("agente", "nombre"),
     [
-        ("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36",
-         "Chrome en Android"),
-        ("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148"
-         " Safari/604.1", "Safari en iPhone"),
+        (
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36",
+            "Chrome en Android",
+        ),
+        (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148"
+            " Safari/604.1",
+            "Safari en iPhone",
+        ),
         ("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0", "Firefox en Windows"),
-        ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36 Edg/130.0",
-         "Edge en Windows"),
-        ("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15",
-         "Safari en Mac"),
+        (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36 Edg/130.0",
+            "Edge en Windows",
+        ),
+        (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15",
+            "Safari en Mac",
+        ),
         ("curl/8.0", NOMBRE_GENERICO),
         ("", NOMBRE_GENERICO),
         (None, NOMBRE_GENERICO),
@@ -276,8 +285,9 @@ def test_did_que_no_es_uuid_invalida_el_token() -> None:
 
     clave = b"c" * 32
     for did in ("no-uuid", 7):
-        token = jwt.encode({"sub": "00000000-0000-0000-0000-000000000001", "iat": 1, "exp": 2, "did": did}, clave,
-                           algorithm="HS256")
+        token = jwt.encode(
+            {"sub": "00000000-0000-0000-0000-000000000001", "iat": 1, "exp": 2, "did": did}, clave, algorithm="HS256"
+        )
         with pytest.raises(TokenInvalido):
             EmisorJWT(clave).leer(token)
 

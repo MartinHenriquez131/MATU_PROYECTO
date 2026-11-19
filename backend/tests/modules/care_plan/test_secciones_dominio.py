@@ -51,7 +51,12 @@ AHORA = datetime(2026, 11, 10, 14, 0, tzinfo=UTC)
 
 def test_las_seis_secciones_en_el_orden_de_adr_028() -> None:
     assert [s.value for s in SECCIONES_COMPLEMENTARIAS] == [
-        "quien_es", "preferencias", "alimentacion", "movilidad", "comunicacion", "remedios"
+        "quien_es",
+        "preferencias",
+        "alimentacion",
+        "movilidad",
+        "comunicacion",
+        "remedios",
     ]
 
 
@@ -265,12 +270,16 @@ def test_editar_y_quitar_llevan_el_tipo() -> None:
 
 def test_abrir_lleva_los_tipos_mostrados() -> None:
     abrir = _entrada(
-        actor_tipo=ActorTipo.RELEVO, accion=AccionAuditoria.RELEVO_ABRIR, entidad=EntidadAuditoria.PLAN_CUIDADO,
+        actor_tipo=ActorTipo.RELEVO,
+        accion=AccionAuditoria.RELEVO_ABRIR,
+        entidad=EntidadAuditoria.PLAN_CUIDADO,
         secciones=("comunicacion", "remedios"),
     )
     assert abrir.detalle() == {"secciones": ["comunicacion", "remedios"]}
     vacia = _entrada(
-        actor_tipo=ActorTipo.RELEVO, accion=AccionAuditoria.RELEVO_ABRIR, entidad=EntidadAuditoria.PLAN_CUIDADO,
+        actor_tipo=ActorTipo.RELEVO,
+        accion=AccionAuditoria.RELEVO_ABRIR,
+        entidad=EntidadAuditoria.PLAN_CUIDADO,
         secciones=(),
     )
     assert vacia.detalle() == {"secciones": []}
@@ -284,8 +293,11 @@ def test_abrir_lleva_los_tipos_mostrados() -> None:
         pytest.param({"seccion": "remedios", "accion": AccionAuditoria.PLAN_LEER}, id="seccion-en-lectura"),
         pytest.param({"secciones": ("remedios",)}, id="secciones-en-editar"),
         pytest.param(
-            {"secciones": ("remedios", "remedios"), "accion": AccionAuditoria.RELEVO_ABRIR,
-             "actor_tipo": ActorTipo.RELEVO},
+            {
+                "secciones": ("remedios", "remedios"),
+                "accion": AccionAuditoria.RELEVO_ABRIR,
+                "actor_tipo": ActorTipo.RELEVO,
+            },
             id="secciones-repetidas",
         ),
         pytest.param(

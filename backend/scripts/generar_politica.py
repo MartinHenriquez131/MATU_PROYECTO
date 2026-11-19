@@ -64,8 +64,16 @@ _CORREO = re.compile(r"\[PENDIENTE: correo de contacto\]")
 _PENDIENTE = re.compile(r"\[PENDIENTE[^\]]*\]")
 _CORCHETES_MAYUSCULAS = re.compile(r"\[[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ :]*\]")
 _PROHIBIDOS = (
-    "MATU-", "ADR-", "[PENDIENTE", "POLITICA_VERSION", "aprobado por Jorge", "aprobó Jorge", "`", "declaracion_",
-    "<!--", "-->",
+    "MATU-",
+    "ADR-",
+    "[PENDIENTE",
+    "POLITICA_VERSION",
+    "aprobado por Jorge",
+    "aprobó Jorge",
+    "`",
+    "declaracion_",
+    "<!--",
+    "-->",
 )
 _HUELLA_64 = re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])")
 # Fin de frase: punto o dos puntos, espacios y una mayúscula (o una marca) que empieza la siguiente

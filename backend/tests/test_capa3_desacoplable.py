@@ -508,14 +508,34 @@ def test_paquetes_bloqueados_siguen_las_flechas() -> None:
 # settlement
 TABLAS_CAPA_3 = frozenset(
     {
-        "categoria_cuidado", "producto", "comercio", "usuario_comercio", "convenio", "oferta",
-        "pedido", "pedido_entrega", "pedido_linea", "regla_sustitucion", "pedido_transicion", "pedido_comercio",
-        "plan_reposicion", "plan_reposicion_linea", "ocurrencia",
-        "cargo", "participacion", "transaccion_pasarela", "medio_pago_inscrito",
-        "repartidor", "oferta_asignacion", "asignacion", "evidencia",
-        "liquidacion", "consumo_comercio",
+        "categoria_cuidado",
+        "producto",
+        "comercio",
+        "usuario_comercio",
+        "convenio",
+        "oferta",
+        "pedido",
+        "pedido_entrega",
+        "pedido_linea",
+        "regla_sustitucion",
+        "pedido_transicion",
+        "pedido_comercio",
+        "plan_reposicion",
+        "plan_reposicion_linea",
+        "ocurrencia",
+        "cargo",
+        "participacion",
+        "transaccion_pasarela",
+        "medio_pago_inscrito",
+        "repartidor",
+        "oferta_asignacion",
+        "asignacion",
+        "evidencia",
+        "liquidacion",
+        "consumo_comercio",
         # MATU-63 (D-63-10)
-        "retracto", "retracto_linea",
+        "retracto",
+        "retracto_linea",
     }
 )
 

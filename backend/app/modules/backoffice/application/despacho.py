@@ -118,7 +118,12 @@ def llevar(
             break
         try:
             devoluciones.devolver_de_linea(
-                u.pagos, pasarela, pedido_id, linea.id, linea.monto_faltante, MotivoAnulacion.PRODUCTO_NO_ENTREGADO,
+                u.pagos,
+                pasarela,
+                pedido_id,
+                linea.id,
+                linea.monto_faltante,
+                MotivoAnulacion.PRODUCTO_NO_ENTREGADO,
                 ahora,
             )
         except (DevolucionInvalida, devoluciones.SinPagoQueDevolver):

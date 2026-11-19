@@ -90,8 +90,8 @@ DETALLE_0013 = (
     " (ARRAY['quien_es'::text, 'preferencias'::text, 'alimentacion'::text, 'movilidad'::text, 'comunicacion'::text,"
     " 'remedios'::text])))) AND ((NOT (detalle ? 'secciones'::text)) OR ((jsonb_typeof((detalle ->"
     " 'secciones'::text)) = 'array'::text) AND (jsonb_array_length((detalle -> 'secciones'::text)) <= 6) AND"
-    " ((detalle -> 'secciones'::text) <@ '[\"quien_es\", \"preferencias\", \"alimentacion\", \"movilidad\","
-    " \"comunicacion\", \"remedios\"]'::jsonb))))"
+    ' ((detalle -> \'secciones\'::text) <@ \'["quien_es", "preferencias", "alimentacion", "movilidad",'
+    ' "comunicacion", "remedios"]\'::jsonb))))'
 )
 DETALLE_0026 = (
     "detalle IS NULL OR ("
@@ -104,8 +104,8 @@ DETALLE_0026 = (
     "      'remedios')))"
     " AND (NOT detalle ? 'secciones' OR (jsonb_typeof(detalle -> 'secciones') = 'array'"
     "      AND jsonb_array_length(detalle -> 'secciones') <= 6"
-    "      AND (detalle -> 'secciones') <@ '[\"quien_es\", \"preferencias\", \"alimentacion\", \"movilidad\","
-    " \"comunicacion\", \"remedios\"]'::jsonb))"
+    '      AND (detalle -> \'secciones\') <@ \'["quien_es", "preferencias", "alimentacion", "movilidad",'
+    ' "comunicacion", "remedios"]\'::jsonb))'
     f" AND (NOT detalle ? 'rol' OR (jsonb_typeof(detalle -> 'rol') = 'string' AND (detalle ->> 'rol') IN {ROLES})))"
 )
 

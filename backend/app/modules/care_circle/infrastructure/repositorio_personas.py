@@ -63,8 +63,7 @@ _LISTAR_COMPLETAS = text(
     + _DESDE_PERSONAS
     + _DIRECCION
     + " LEFT JOIN consentimiento c ON c.persona_cuidada_id = p.id"
-    " AND c.finalidad = 'plan_cuidado' AND c.revocado_en IS NULL"
-    + _FILTRO
+    " AND c.finalidad = 'plan_cuidado' AND c.revocado_en IS NULL" + _FILTRO
 )
 
 _LISTAR_NOMBRE_Y_DIRECCION = text(

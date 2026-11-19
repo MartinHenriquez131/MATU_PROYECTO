@@ -120,8 +120,13 @@ def _peticion(usuario: uuid.UUID = CARMEN) -> PeticionConsumo:
 
 def _datos(**cambios: object) -> DatosPerfil:
     base = DatosPerfil(
-        producto_id=None, nombre_libre="Pañal adulto M", unidad=None, tasa_unidades=4, tasa_dias=1,
-        stock_unidades=24, dias_aviso=7,
+        producto_id=None,
+        nombre_libre="Pañal adulto M",
+        unidad=None,
+        tasa_unidades=4,
+        tasa_dias=1,
+        stock_unidades=24,
+        dias_aviso=7,
     )
     return dataclasses.replace(base, **cambios)  # type: ignore[arg-type]
 
@@ -227,7 +232,9 @@ def test_desactivar_y_activar_son_idempotentes_y_se_auditan_una_vez(repo, reloj,
     assert activo.perfil.activo and activo.perfil.version == 3
     assert activo.perfil.fecha_quiebre_estimada == creado.perfil.fecha_quiebre_estimada
     assert [e.accion for e in auditoria.entradas] == [
-        AccionAuditoria.CONSUMO_CREAR, AccionAuditoria.CONSUMO_DESACTIVAR, AccionAuditoria.CONSUMO_ACTIVAR,
+        AccionAuditoria.CONSUMO_CREAR,
+        AccionAuditoria.CONSUMO_DESACTIVAR,
+        AccionAuditoria.CONSUMO_ACTIVAR,
     ]
 
 

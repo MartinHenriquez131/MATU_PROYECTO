@@ -115,7 +115,8 @@ def test_autorizacion_retirada_entre_la_creacion_y_el_envio_no_envia(entorno_avi
     ejecutar(
         "UPDATE consentimiento SET revocado_en = %s, revocacion_motivo = 'retiro'"
         " WHERE persona_cuidada_id = %s AND finalidad = 'consumo'",
-        e.reloj.ahora(), familia.persona.id,
+        e.reloj.ahora(),
+        familia.persona.id,
     )
 
     assert isinstance(e.consumir(avisado), Hecho)
@@ -307,8 +308,9 @@ def test_no_se_envia_antes_de_las_0900_de_chile(entorno_avisos: EntornoAvisos) -
     resultado = publicar_pendientes(almacen, consumidores, e.reloj, grupo_id=familia.grupo.id)
 
     assert resultado.pospuestos == 1 and e.correo.enviados == [] and e.avisos(familia) == {}
-    [(disponible, intentos)] = filas("SELECT disponible_en, intentos FROM evento_outbox WHERE id = %s",
-                                     avisado.evento.id)
+    [(disponible, intentos)] = filas(
+        "SELECT disponible_en, intentos FROM evento_outbox WHERE id = %s", avisado.evento.id
+    )
     assert (disponible, intentos) == (e.reloj.ahora().replace(hour=12), 0)
 
     e.reloj.avanzar(timedelta(hours=4, minutes=59))  # 08:59
@@ -379,7 +381,9 @@ def test_retiro_por_el_caso_de_uso_omite_el_aviso_pendiente(entorno_avisos: Ento
             SolicitudRetiro(
                 usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id, finalidad="consumo"
             ),
-            e.reloj, RepositorioRetirosSQL(sesion, grupo, registro), efectos_de(sesion, grupo, registro),
+            e.reloj,
+            RepositorioRetirosSQL(sesion, grupo, registro),
+            efectos_de(sesion, grupo, registro),
         )
 
     assert isinstance(e.consumir(avisado), Hecho)
@@ -474,8 +478,11 @@ def test_dos_corridas_que_se_cruzan_no_envian_dos_veces(entorno_avisos: EntornoA
     envios = [x.notificacion_id for x in [*lento.enviados, *rapido.enviados]]
     envios += [x.notificacion_id for x in [*push_lento.enviados, *push_rapido.enviados]]
     assert len(envios) == len(set(envios)) == 3  # correo del admin y del cuidador, y el push del admin
-    enviadas = filas("SELECT usuario_id, canal, count(*) FROM notificacion WHERE grupo_id = %s AND estado = 'enviada'"
-                     " GROUP BY usuario_id, canal", familia.grupo.id)
+    enviadas = filas(
+        "SELECT usuario_id, canal, count(*) FROM notificacion WHERE grupo_id = %s AND estado = 'enviada'"
+        " GROUP BY usuario_id, canal",
+        familia.grupo.id,
+    )
     cuidador = familia.miembros["cuidador"].usuario
     assert sorted((u, c, n) for u, c, n in enviadas) == sorted(
         [(familia.admin.id, "correo", 1), (familia.admin.id, "push", 1), (cuidador.id, "correo", 1)]

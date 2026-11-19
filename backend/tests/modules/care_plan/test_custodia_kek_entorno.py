@@ -98,8 +98,9 @@ def test_cifrador_aes_gcm_funciona_con_la_custodia_de_entorno() -> None:
     persona, plan = uuid.uuid4(), uuid.uuid4()
     texto = "Rodrigo, su hijo: +56 9 5555 0102"
 
-    seccion = cifrador.cifrar(grupo_id=uuid.uuid4(), persona_cuidada_id=persona, plan_id=plan, tipo="red_apoyo",
-                              texto=texto)
+    seccion = cifrador.cifrar(
+        grupo_id=uuid.uuid4(), persona_cuidada_id=persona, plan_id=plan, tipo="red_apoyo", texto=texto
+    )
 
     assert cifrador.descifrar(persona_cuidada_id=persona, plan_id=plan, tipo="red_apoyo", seccion=seccion) == texto
 
@@ -197,8 +198,10 @@ def test_la_kek_no_sale_en_repr_ni_en_errores_ni_en_logs(caplog: pytest.LogCaptu
 
     custodia = CustodiaKekEntorno(SecretStr(kek), kek_version=1, entorno="pruebas")
     errores: list[BaseException] = []
-    for intento in (lambda: custodia.desenvolver(secrets.token_bytes(40), 1),
-                    lambda: custodia.desenvolver(secrets.token_bytes(40), 7)):
+    for intento in (
+        lambda: custodia.desenvolver(secrets.token_bytes(40), 1),
+        lambda: custodia.desenvolver(secrets.token_bytes(40), 7),
+    ):
         try:
             intento()
         except Exception as error:
@@ -235,8 +238,11 @@ def test_custodia_encendida_carga_en_local_pruebas_y_staging(entorno_limpio: pyt
 
 @pytest.mark.parametrize(
     "variables",
-    [{"CUSTODIA_KEK": "entorno_sintetico", "KEK_ENTORNO": "kek"}, {"CUSTODIA_KEK": "entorno_sintetico"},
-     {"KEK_ENTORNO": "kek"}],
+    [
+        {"CUSTODIA_KEK": "entorno_sintetico", "KEK_ENTORNO": "kek"},
+        {"CUSTODIA_KEK": "entorno_sintetico"},
+        {"KEK_ENTORNO": "kek"},
+    ],
     ids=["encendida-con-kek", "encendida-sin-kek", "kek-sin-encender"],
 )
 def test_en_produccion_no_carga(entorno_limpio: pytest.MonkeyPatch, variables: dict[str, str]) -> None:
@@ -299,9 +305,7 @@ def test_kek_distinta_de_los_demas_secretos(entorno_limpio: pytest.MonkeyPatch, 
     assert kek not in str(error.value)
 
 
-def test_la_api_no_arranca_con_la_kek_en_produccion(
-    entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None
-) -> None:
+def test_la_api_no_arranca_con_la_kek_en_produccion(entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None) -> None:
     kek = _kek()
     entorno_limpio.setattr(config, "Configuracion", ConfiguracionSinArchivo)
     entorno_limpio.setenv("ENTORNO", "produccion")
@@ -420,9 +424,7 @@ def test_la_api_arranca_con_la_kek_en_staging_registra_el_entorno_y_avisa(
     [base64.b64encode(secrets.token_bytes(31)).decode(), "kek-sintetica-que-no-es-base64-" + secrets.token_hex(8)],
     ids=["31-bytes", "no-base64"],
 )
-def test_en_staging_una_kek_invalida_no_carga_ni_muestra_el_valor(
-    entorno_limpio: pytest.MonkeyPatch, kek: str
-) -> None:
+def test_en_staging_una_kek_invalida_no_carga_ni_muestra_el_valor(entorno_limpio: pytest.MonkeyPatch, kek: str) -> None:
     entorno_limpio.setenv("ENTORNO", "staging")
     entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
     entorno_limpio.setenv("KEK_ENTORNO", kek)

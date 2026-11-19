@@ -68,9 +68,7 @@ def test_aceptando_queda_la_fila_con_la_version_y_la_huella(
 def test_con_la_huella_vigente_se_crea(
     entorno_iam: EntornoIam, email_sintetico: str, contrasena_sintetica: str
 ) -> None:
-    respuesta = _registrar(
-        entorno_iam, email_sintetico, contrasena_sintetica, huella_politica=POLITICA_PRUEBAS.huella
-    )
+    respuesta = _registrar(entorno_iam, email_sintetico, contrasena_sintetica, huella_politica=POLITICA_PRUEBAS.huella)
     assert respuesta.status_code == 201
     assert len(_aceptaciones(uuid.UUID(respuesta.json()["id"]))) == 1
 

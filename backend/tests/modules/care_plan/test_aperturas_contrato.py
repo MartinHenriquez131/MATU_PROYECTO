@@ -38,7 +38,11 @@ def test_contrato_de_aperturas(esquema: dict[str, Any]) -> None:
     assert get["responses"]["200"]["headers"]["Cache-Control"]["schema"]["const"] == "no-store"
     parametros = {p["name"]: p for p in get["parameters"]}
     assert parametros["limite"]["schema"] == {
-        "type": "integer", "maximum": 100, "minimum": 1, "default": 20, "title": "Limite"
+        "type": "integer",
+        "maximum": 100,
+        "minimum": 1,
+        "default": 20,
+        "title": "Limite",
     }
     tipo = esquema["components"]["schemas"]["TipoApertura"]
     assert tipo["enum"] == ["presentacion", "apertura", "pin_incorrecto", "bloqueo"]

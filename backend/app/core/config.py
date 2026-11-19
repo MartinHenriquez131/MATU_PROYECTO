@@ -287,10 +287,24 @@ class Configuracion(BaseSettings):
     push_cuentas_permitidas: Annotated[frozenset[uuid.UUID], NoDecode] = Field(default_factory=frozenset, repr=False)
 
     @field_validator(
-        "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
-        "pepper_recuperacion", "enviador_codigos", "registro_envios", "enviador_avisos", "registro_avisos",
-        "politica_actualizada_en", "correo_privacidad", "pasarela_pago", "webpay_codigo_comercio", "webpay_llave",
-        "vapid_clave_privada", "codigo_retiro_secreto",
+        "pepper_email",
+        "jwt_clave",
+        "kek_entorno",
+        "custodia_kek",
+        "pepper_pin",
+        "pepper_limites",
+        "pepper_recuperacion",
+        "enviador_codigos",
+        "registro_envios",
+        "enviador_avisos",
+        "registro_avisos",
+        "politica_actualizada_en",
+        "correo_privacidad",
+        "pasarela_pago",
+        "webpay_codigo_comercio",
+        "webpay_llave",
+        "vapid_clave_privada",
+        "codigo_retiro_secreto",
         mode="before",
     )
     @classmethod
@@ -396,7 +410,9 @@ class Configuracion(BaseSettings):
             return self
         pin = self.pepper_pin.get_secret_value()
         for nombre, secreto in (
-            ("PEPPER_EMAIL", self.pepper_email), ("JWT_CLAVE", self.jwt_clave), ("KEK_ENTORNO", self.kek_entorno)
+            ("PEPPER_EMAIL", self.pepper_email),
+            ("JWT_CLAVE", self.jwt_clave),
+            ("KEK_ENTORNO", self.kek_entorno),
         ):
             if secreto is not None and secreto.get_secret_value() == pin:
                 raise ValueError(f"PEPPER_PIN y {nombre} deben ser claves distintas")

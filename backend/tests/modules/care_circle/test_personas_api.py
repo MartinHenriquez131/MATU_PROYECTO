@@ -346,8 +346,12 @@ def test_referencia_de_200_caracteres_se_acepta(sin_base: EntornoSinBase) -> Non
         ({"direccion": {"calle": "Calle Ficticia"}}, "direccion.numero"),
     ],
     ids=[
-        "nombre-vacio", "nombre-largo", "nombre-pila-vacio",
-        "nivel-invalido", "calidad-invalida", "direccion-incompleta",
+        "nombre-vacio",
+        "nombre-largo",
+        "nombre-pila-vacio",
+        "nivel-invalido",
+        "calidad-invalida",
+        "direccion-incompleta",
     ],
 )
 def test_campos_invalidos_422(sin_base: EntornoSinBase, cambios: dict[str, Any], campo: str) -> None:
@@ -378,9 +382,7 @@ def test_pagador_u_observador_reciben_404_aunque_el_cuerpo_sea_invalido(sin_base
 @pytest.mark.parametrize("grupo_path", [uuid.uuid4(), "no-es-un-uuid"], ids=["otro-grupo", "no-uuid"])
 def test_grupo_del_path_distinto_del_contexto_404(sin_base: EntornoSinBase, grupo_path: Any) -> None:
     crear = sin_base.crear(cuerpo_alta(), grupo_path=grupo_path)
-    listar = sin_base.iam.cliente.get(
-        RUTA_PERSONAS.format(grupo_path), headers={"X-Grupo-Id": str(sin_base.grupo_id)}
-    )
+    listar = sin_base.iam.cliente.get(RUTA_PERSONAS.format(grupo_path), headers={"X-Grupo-Id": str(sin_base.grupo_id)})
 
     for respuesta in (crear, listar):
         assert respuesta.status_code == 404

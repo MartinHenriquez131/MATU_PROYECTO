@@ -230,12 +230,19 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # MATU-57: también la recuperación del acceso y la cuenta. MATU-41: la preferencia de avisos (/v1/yo/)
     # MATU-61 (C17): el pedido, también sus errores. La dirección ya va bajo /v1/personas-cuidadas/
     for prefijo in (
-        "/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta", "/v1/yo/",
-        "/v1/pedidos", "/v1/pagos",
+        "/v1/sesiones",
+        "/v1/dispositivos",
+        "/v1/personas-cuidadas/",
+        "/v1/recuperacion",
+        "/v1/cuenta",
+        "/v1/yo/",
+        "/v1/pedidos",
+        "/v1/pagos",
         # MATU-42 (decisión 315): el grupo, sus miembros y sus invitaciones, también los errores
         "/v1/grupos",
         # MATU-63: la vista del comercio y las rutas de operación
-        "/v1/comercio", "/v1/operacion",
+        "/v1/comercio",
+        "/v1/operacion",
     ):
         app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=prefijo, cabeceras={"Cache-Control": "no-store"})
     app.add_middleware(MiddlewareRequestId)

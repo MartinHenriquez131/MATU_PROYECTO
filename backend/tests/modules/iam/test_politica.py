@@ -82,9 +82,7 @@ def test_la_011_es_la_vigente_de_las_publicadas() -> None:
     assert "0.11" in PUBLICADAS
 
 
-def test_un_texto_que_cambia_sin_cambiar_su_huella_no_se_sirve(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_un_texto_que_cambia_sin_cambiar_su_huella_no_se_sirve(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     original = archivo_de("0.11").read_text(encoding="utf-8")
     (tmp_path / "politica-0.11.md").write_text(original.replace("piloto académico", "piloto"), encoding="utf-8")
     monkeypatch.setattr(textos_politica, "CARPETA", tmp_path)
@@ -157,7 +155,9 @@ def test_la_huella_no_depende_de_la_configuracion() -> None:
 
 def test_armar_sirve_el_texto_tal_cual_con_su_huella() -> None:
     politica = armar_politica(
-        version="9.9", actualizada_en=date(2026, 1, 2), texto="Hola\r\nescribe a a@example.org.\n",
+        version="9.9",
+        actualizada_en=date(2026, 1, 2),
+        texto="Hola\r\nescribe a a@example.org.\n",
         correo="a@example.org",
     )
     assert politica.texto == "Hola\nescribe a a@example.org.\n"
@@ -271,11 +271,14 @@ def test_el_generador_no_deja_un_espacio_antes_de_la_puntuacion_al_quitar_un_com
     """MATU-128: la fuente de la 0.26 trae «devolución <!-- … -->, y». Sin esto quedaba «devolución , y». Un comentario
     entre dos palabras deja un solo espacio, como antes."""
     generador = _generador()
-    fuente = ("## En un minuto\n\nSe guarda 2 años desde que se cancela <!-- nota\ninterna -->, y su pago 6 años"
-              " <!-- otra -->. Lo ves <!-- c --> en «Tus datos» (sección 10 <!-- d -->).\n")
+    fuente = (
+        "## En un minuto\n\nSe guarda 2 años desde que se cancela <!-- nota\ninterna -->, y su pago 6 años"
+        " <!-- otra -->. Lo ves <!-- c --> en «Tus datos» (sección 10 <!-- d -->).\n"
+    )
     assert generador.convertir(fuente) == (
         "## En un minuto\n\nSe guarda 2 años desde que se cancela, y su pago 6 años. Lo ves en «Tus datos»"
-        " (sección 10).\n")
+        " (sección 10).\n"
+    )
 
 
 def test_el_generador_falla_si_queda_algo_interno() -> None:
@@ -545,7 +548,6 @@ def test_la_0_15_sigue_publicada_para_quien_la_acepto() -> None:
     assert "**El registro de tu cuenta.**" in texto and "MATU no ve el número de tu tarjeta" in texto
 
 
-
 @pytest.mark.rf("RF-05")
 def test_la_0_16_sigue_publicada_para_quien_la_acepto() -> None:
     """MATU-46: la 0.16 dice que el teléfono del relevo se borra a los 30 días de que el acceso vence o se corta, y al
@@ -785,8 +787,21 @@ def test_la_0_24_sigue_publicada() -> None:
     """MATU-114: la 0.24 dice en §6 que tu email y tu celular los ves solo tú, también frente al equipo que opera MATU.
     El equipo ve menos que antes: nadie vuelve a aceptar. De la 0.11 a la 0.23 siguen publicadas. Desde MATU-116 la
     vigente es la 0.25."""
-    anteriores = {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21", "0.22",
-                  "0.23"}
+    anteriores = {
+        "0.11",
+        "0.12",
+        "0.13",
+        "0.14",
+        "0.15",
+        "0.16",
+        "0.17",
+        "0.18",
+        "0.19",
+        "0.20",
+        "0.21",
+        "0.22",
+        "0.23",
+    }
     assert anteriores | {"0.24"} <= set(PUBLICADAS)
     huella = "7d7af6d9ae62a7e3811db09feaff6a4acddedc45658f3a58c12dc34e18a7d219"  # pragma: allowlist secret
     assert PUBLICADAS["0.24"] == huella
@@ -825,8 +840,22 @@ def test_la_0_25_sigue_publicada() -> None:
     """MATU-116: la 0.25 dice en §6 que quien pagó y pasó a «Se informa» sigue viendo ese pedido como quien pagó, y en
     §10 que «Tus datos» trae sus pagos aunque haya cambiado de rol o salido del grupo. Solo ve más de sus propios
     datos: nadie vuelve a aceptar. De la 0.11 a la 0.24 siguen publicadas. Desde MATU-128 la vigente es la 0.26."""
-    anteriores = {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21", "0.22",
-                  "0.23", "0.24"}
+    anteriores = {
+        "0.11",
+        "0.12",
+        "0.13",
+        "0.14",
+        "0.15",
+        "0.16",
+        "0.17",
+        "0.18",
+        "0.19",
+        "0.20",
+        "0.21",
+        "0.22",
+        "0.23",
+        "0.24",
+    }
     assert anteriores | {"0.25"} <= set(PUBLICADAS)
     huella = "aa1167e62cdc0c3467972d4789f55020da11ef2f7f98cba1a45a1a499ebc64c8"  # pragma: allowlist secret
     assert PUBLICADAS["0.25"] == huella
@@ -863,8 +892,23 @@ def test_la_0_26_esta_publicada_y_es_la_de_env_example() -> None:
     """MATU-128: la 0.26 dice en §6, §9 y §10 que quien pagó un pedido ve, en ese pedido, lo que anotó el equipo de
     MATU si hubo un problema, mientras siga en el grupo, y que nunca dice quién del equipo lo anotó. Es información de
     una compra que esa persona pagó: nadie vuelve a aceptar (§12). De la 0.11 a la 0.25 siguen publicadas."""
-    anteriores = {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21", "0.22",
-                  "0.23", "0.24", "0.25"}
+    anteriores = {
+        "0.11",
+        "0.12",
+        "0.13",
+        "0.14",
+        "0.15",
+        "0.16",
+        "0.17",
+        "0.18",
+        "0.19",
+        "0.20",
+        "0.21",
+        "0.22",
+        "0.23",
+        "0.24",
+        "0.25",
+    }
     assert anteriores | {"0.26"} <= set(PUBLICADAS)
     huella = "e23feafa0cfe125ea94e004c0103abf5738c55bbab469aef09e0178ba266e232"  # pragma: allowlist secret
     assert PUBLICADAS["0.26"] == huella

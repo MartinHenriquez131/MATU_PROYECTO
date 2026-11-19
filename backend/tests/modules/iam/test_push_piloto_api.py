@@ -47,7 +47,8 @@ def _bearer(token: str) -> dict[str, str]:
 
 def _did(entorno: EntornoIam, token: str) -> uuid.UUID:
     claims = jwt.decode(
-        token, entorno.clave_jwt, algorithms=["HS256"], options={"verify_exp": False, "verify_iat": False})
+        token, entorno.clave_jwt, algorithms=["HS256"], options={"verify_exp": False, "verify_iat": False}
+    )
     return uuid.UUID(claims["did"])
 
 
@@ -87,7 +88,11 @@ def fijar_politica(entorno_iam: EntornoIam) -> Iterator[Fijar]:
 
 @pytest.mark.parametrize("entorno", ["staging", "produccion"])
 def test_con_la_lista_vacia_no_se_guarda_y_el_get_no_entrega_la_clave(
-    entorno_iam: EntornoIam, email_sintetico: str, contrasena_sintetica: str, clave_vapid: str, fijar_politica: Fijar,
+    entorno_iam: EntornoIam,
+    email_sintetico: str,
+    contrasena_sintetica: str,
+    clave_vapid: str,
+    fijar_politica: Fijar,
     entorno: str,
 ) -> None:
     fijar_politica(PoliticaPush(entorno=entorno))
@@ -137,7 +142,11 @@ def test_una_cuenta_de_la_lista_guarda_y_audita_como_hoy(
     fijar_politica(PoliticaPush(entorno="produccion", permitidas=frozenset({cuenta, uuid.uuid4()})))
 
     assert entorno_iam.cliente.get(RUTA_PUSH, headers=_bearer(token)).json() == {
-        "clave_publica": clave_vapid, "permitido": True, "registrado": False, "envio_simulado": True}
+        "clave_publica": clave_vapid,
+        "permitido": True,
+        "registrado": False,
+        "envio_simulado": True,
+    }
     assert entorno_iam.cliente.put(RUTA_PUSH, json={"push_token": PUSH}, headers=_bearer(token)).status_code == 204
 
     assert _push_guardado(_did(entorno_iam, token)) == PUSH
@@ -176,7 +185,11 @@ def test_con_entorno_pruebas_no_cambia_nada(
     # Sin reemplazar la política: la de la configuración de las pruebas
     cuenta, token = _cuenta_y_token(entorno_iam, email_sintetico, contrasena_sintetica)
     assert entorno_iam.cliente.get(RUTA_PUSH, headers=_bearer(token)).json() == {
-        "clave_publica": clave_vapid, "permitido": True, "registrado": False, "envio_simulado": True}
+        "clave_publica": clave_vapid,
+        "permitido": True,
+        "registrado": False,
+        "envio_simulado": True,
+    }
     assert entorno_iam.cliente.put(RUTA_PUSH, json={"push_token": PUSH}, headers=_bearer(token)).status_code == 204
     assert _acciones(cuenta) == ["sesion.iniciar", "dispositivo.push_registrar"]
 

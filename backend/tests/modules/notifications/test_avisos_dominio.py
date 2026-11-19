@@ -63,8 +63,13 @@ def test_admin_con_los_dos_canales_apagados_no_es_destinatario() -> None:
 
 # --- Revisión antes de cada envío ---------------------------------------------------------------------------
 
-TODO_BIEN = {"autorizado": True, "alerta_abierta": True, "miembro_activo": True, "canal_activo": True,
-             "con_destino": True}
+TODO_BIEN = {
+    "autorizado": True,
+    "alerta_abierta": True,
+    "miembro_activo": True,
+    "canal_activo": True,
+    "con_destino": True,
+}
 
 
 @pytest.mark.parametrize(
@@ -125,8 +130,13 @@ def test_que_filas_se_intentan(estado: EstadoNotificacion, codigo: CodigoAviso |
 
 def test_los_codigos_son_los_de_la_lista_cerrada() -> None:
     assert {c.value for c in CodigoAviso} == {
-        "sin_autorizacion", "alerta_cerrada", "miembro_inactivo", "sin_destino", "push_expirado",
-        "proveedor_rechazo", "proveedor_no_disponible",
+        "sin_autorizacion",
+        "alerta_cerrada",
+        "miembro_inactivo",
+        "sin_destino",
+        "push_expirado",
+        "proveedor_rechazo",
+        "proveedor_no_disponible",
     }
 
 
@@ -179,9 +189,13 @@ def test_textos_del_correo_aprobados() -> None:
     assert correo.asunto == ASUNTO == "MATU: un insumo se está acabando"
     assert correo.cuerpo == CUERPO == "Un insumo se está acabando. Abre la app para ver cuál."
     assert correo.texto_enlace == "Abrir MATU"
-    assert correo.pie == PIE == (
-        "Te llega este correo porque eres parte de un grupo de cuidado en MATU. Para dejar de recibir estos"
-        " avisos por correo, entra a MATU y desactívalos en Tu cuenta."
+    assert (
+        correo.pie
+        == PIE
+        == (
+            "Te llega este correo porque eres parte de un grupo de cuidado en MATU. Para dejar de recibir estos"
+            " avisos por correo, entra a MATU y desactívalos en Tu cuenta."
+        )
     )
 
 

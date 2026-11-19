@@ -25,23 +25,52 @@ RUTAS = (
 )
 # Las respuestas de la familia sobre un pedido pagado
 VISTAS_DE_LA_FAMILIA = (
-    "ListaPedidosPagados", "ListaPedidosPagadosObservador", "SeguimientoPedido", "RetractosDelPedido",
-    "RetractoVistaFamilia", "EstadoPedidoVista", "PagoVista", "PagoVistaObservador",
+    "ListaPedidosPagados",
+    "ListaPedidosPagadosObservador",
+    "SeguimientoPedido",
+    "RetractosDelPedido",
+    "RetractoVistaFamilia",
+    "EstadoPedidoVista",
+    "PagoVista",
+    "PagoVistaObservador",
     # MATU-116 (C5): el detalle del observador que pagó el pedido
     "SeguimientoPedidoPagaste",
     # MATU-128 (C5): «Lo que pasó con tu pedido», para quien lo pagó
     "LoQuePasoDelPedido",
 )
 NUNCA_A_LA_FAMILIA = {
-    "codigo", "codigo_hash", "codigo_generado_en", "codigo_expira_en", "codigo_usado_en", "codigo_intentos",
-    "codigo_bloqueado_en", "estado_codigo", "referencia_parte", "pedido_comercio_id", "parte_id", "usuario_comercio",
-    "encargado", "encargado_id", "comercio_id", "solicitado_por", "resuelto_por", "grupo_id", "buy_order",
+    "codigo",
+    "codigo_hash",
+    "codigo_generado_en",
+    "codigo_expira_en",
+    "codigo_usado_en",
+    "codigo_intentos",
+    "codigo_bloqueado_en",
+    "estado_codigo",
+    "referencia_parte",
+    "pedido_comercio_id",
+    "parte_id",
+    "usuario_comercio",
+    "encargado",
+    "encargado_id",
+    "comercio_id",
+    "solicitado_por",
+    "resuelto_por",
+    "grupo_id",
+    "buy_order",
 }
 MONTOS = {"total", "devuelto", "devuelto_todo", "monto", "costo_envio", "precio_pagado", "precio_unitario", "subtotal"}
 NO_PARA_EL_OBSERVADOR = MONTOS | {
     # MATU-113 (decisión 472): entregado_en ya es del observador
-    "referencia", "cancelado_en", "partes", "puede_cancelar", "puede_arrepentirse", "cancelar_motivo",
-    "arrepentirse_motivo", "plazo_hasta", "plazo_correo_hasta",
+    "referencia",
+    "cancelado_en",
+    "partes",
+    "puede_cancelar",
+    "puede_arrepentirse",
+    "cancelar_motivo",
+    "arrepentirse_motivo",
+    "plazo_hasta",
+    "plazo_correo_hasta",
 }
 
 
@@ -101,8 +130,15 @@ def test_c3_c5_la_vista_del_observador_no_trae_montos_ni_acciones(esquema: dict[
     assert not propiedades & NO_PARA_EL_OBSERVADOR, propiedades & NO_PARA_EL_OBSERVADOR
     fila = esquema["components"]["schemas"]["PedidoPagadoFilaObservador"]
     assert set(fila["properties"]) == {
-        "vista", "pedido_id", "pagado_en", "estado", "entregado_en", "productos", "resumen_productos",
-        "productos_borrados"}
+        "vista",
+        "pedido_id",
+        "pagado_en",
+        "estado",
+        "entregado_en",
+        "productos",
+        "resumen_productos",
+        "productos_borrados",
+    }
     # MATU-113 (decisión 472): el estado real de familia, con los mismos valores que la fila completa
     completa = esquema["components"]["schemas"]["PedidoPagadoFila"]
     assert "const" not in fila["properties"]["estado"]
@@ -119,8 +155,10 @@ def test_c5_quien_paga_y_se_informa_tiene_su_fila_y_su_detalle_sin_cancelar(esqu
     items = schemas["ListaPedidosPagadosObservador"]["properties"]["items"]["items"]
     assert items["discriminator"]["propertyName"] == "vista"
     assert set(items["discriminator"]["mapping"]) == {"pagaste", "se_informa"}
-    for pagaste, paga in (("PedidoPagadoFilaPagaste", "PedidoPagadoFila"),
-                          ("SeguimientoPedidoPagaste", "SeguimientoPedido")):
+    for pagaste, paga in (
+        ("PedidoPagadoFilaPagaste", "PedidoPagadoFila"),
+        ("SeguimientoPedidoPagaste", "SeguimientoPedido"),
+    ):
         propias = set(schemas[pagaste]["properties"]) - {"vista"}
         assert propias == set(schemas[paga]["properties"]), pagaste
         cancelar = schemas[pagaste]["properties"]["puede_cancelar"]
@@ -135,8 +173,16 @@ def test_c5_quien_paga_y_se_informa_tiene_su_fila_y_su_detalle_sin_cancelar(esqu
 
 
 def test_las_vistas_son_estrictas_y_dicen_sus_codigos(esquema: dict[str, Any]) -> None:
-    for nombre in ("PedidoPagadoFila", "PedidoPagadoFilaObservador", "SeguimientoPedido", "RetractosDelPedido",
-                   "RetractoVistaFamilia", "ParteDelPedido", "PedidoPagadoFilaPagaste", "SeguimientoPedidoPagaste"):
+    for nombre in (
+        "PedidoPagadoFila",
+        "PedidoPagadoFilaObservador",
+        "SeguimientoPedido",
+        "RetractosDelPedido",
+        "RetractoVistaFamilia",
+        "ParteDelPedido",
+        "PedidoPagadoFilaPagaste",
+        "SeguimientoPedidoPagaste",
+    ):
         assert esquema["components"]["schemas"][nombre].get("additionalProperties") is False, nombre
     lista = esquema["paths"]["/v1/personas-cuidadas/{persona_id}/pedidos"]["get"]["responses"]
     assert {"200", "401", "404", "422"} <= set(lista)
@@ -173,11 +219,22 @@ def test_128_lo_que_paso_tiene_siete_campos_estrictos_y_sus_codigos(esquema: dic
         assert schemas[nombre].get("additionalProperties") is False, nombre
     assert set(schemas["LoQuePasoDelPedido"]["properties"]) == {"lo_que_paso"}
     cosa = set(schemas["CosaAnotadaVista"]["properties"])
-    assert cosa == set(schemas["LoQuePasoCopia"]["properties"]) == {
-        "tipo", "estado", "anotado_en", "resuelto_en", "nota", "resolucion", "nota_disponible"}
+    assert (
+        cosa
+        == set(schemas["LoQuePasoCopia"]["properties"])
+        == {"tipo", "estado", "anotado_en", "resuelto_en", "nota", "resolucion", "nota_disponible"}
+    )
     assert set(schemas["CosaAnotadaVista"]["required"]) == cosa
     assert not _propiedades(esquema, "LoQuePasoDelPedido") & {
-        "id", "incidencia_id", "creada_por", "asignada_a", "asignada", "version", "clave_notas_id", "pedido_id"}
+        "id",
+        "incidencia_id",
+        "creada_por",
+        "asignada_a",
+        "asignada",
+        "version",
+        "clave_notas_id",
+        "pedido_id",
+    }
     assert schemas["CosaAnotadaVista"]["properties"]["tipo"] == schemas["LoQuePasoCopia"]["properties"]["tipo"]
     ruta = esquema["paths"]["/v1/pedidos/{pedido_id}/lo-que-paso"]
     assert set(ruta) == {"get"}

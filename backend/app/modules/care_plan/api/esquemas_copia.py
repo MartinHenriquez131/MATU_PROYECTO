@@ -158,9 +158,23 @@ class InsumosCopia(_Cerrado):
 
 
 EstadoPedido = Literal[
-    "borrador", "total_confirmado", "vencido", "pagado", "enviado_a_comercio", "preparando", "listo_retiro",
-    "asignado", "sin_repartidor", "retirado", "en_ruta", "entregado", "no_entregado", "reprogramado", "cerrado",
-    "cancelado", "cancelado_con_devolucion",
+    "borrador",
+    "total_confirmado",
+    "vencido",
+    "pagado",
+    "enviado_a_comercio",
+    "preparando",
+    "listo_retiro",
+    "asignado",
+    "sin_repartidor",
+    "retirado",
+    "en_ruta",
+    "entregado",
+    "no_entregado",
+    "reprogramado",
+    "cerrado",
+    "cancelado",
+    "cancelado_con_devolucion",
 ]
 
 
@@ -239,18 +253,25 @@ class LoQuePasoCopia(_Cerrado):
     """MATU-81 (D-81-4, C15): «Lo que pasó con tu pedido». Lo que el equipo de MATU anotó y cómo se resolvió. Nunca
     dice «incidente» ni «incidencia», ni quién del equipo lo anotó."""
 
-    tipo: Literal["faltante", "entrega_fallida", "reclamo_familia", "cobro_sin_respuesta", "devolucion_pendiente",
-                  "otro"]
+    tipo: Literal[
+        "faltante", "entrega_fallida", "reclamo_familia", "cobro_sin_respuesta", "devolucion_pendiente", "otro"
+    ]
     estado: Literal["abierta", "en_gestion", "resuelta"]
     anotado_en: Instante
     resuelto_en: Instante | None
     # Decisión 471: null si la clave de las notas se destruyó con los datos de la persona
     nota: str | None
     resolucion: str | None
-    nota_disponible: Annotated[bool, Field(description=(
-        "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la"
-    " resolución vienen null y ya no se pueden leer"
-    ))]
+    nota_disponible: Annotated[
+        bool,
+        Field(
+            description=(
+                "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la"
+                " nota y la"
+                " resolución vienen null y ya no se pueden leer"
+            )
+        ),
+    ]
 
 
 class PedidoCopia(_Cerrado):
@@ -274,15 +295,40 @@ class PedidoCopia(_Cerrado):
 
 
 TipoHecho = Literal[
-    "abrio_la_ficha", "edito_la_ficha", "quito_una_seccion", "ficha_borrada", "dio_una_autorizacion",
-    "retiro_una_autorizacion", "compartio_la_ficha", "corto_un_enlace", "agrego_un_insumo", "edito_un_insumo",
-    "dejo_de_seguir_un_insumo", "volvio_a_seguir_un_insumo", "quito_un_insumo", "anoto_una_compra", "aviso_de_insumo",
-    "descarto_un_aviso", "resolvio_un_aviso", "cambio_la_direccion", "creo_un_pedido", "confirmo_un_pedido",
-    "cancelo_un_pedido", "cambio_que_hacer_si_falta", "inicio_un_pago", "pago_aprobado", "pago_anulado",
+    "abrio_la_ficha",
+    "edito_la_ficha",
+    "quito_una_seccion",
+    "ficha_borrada",
+    "dio_una_autorizacion",
+    "retiro_una_autorizacion",
+    "compartio_la_ficha",
+    "corto_un_enlace",
+    "agrego_un_insumo",
+    "edito_un_insumo",
+    "dejo_de_seguir_un_insumo",
+    "volvio_a_seguir_un_insumo",
+    "quito_un_insumo",
+    "anoto_una_compra",
+    "aviso_de_insumo",
+    "descarto_un_aviso",
+    "resolvio_un_aviso",
+    "cambio_la_direccion",
+    "creo_un_pedido",
+    "confirmo_un_pedido",
+    "cancelo_un_pedido",
+    "cambio_que_hacer_si_falta",
+    "inicio_un_pago",
+    "pago_aprobado",
+    "pago_anulado",
     "pidio_una_copia",
     # MATU-63
-    "devolucion_a_la_tarjeta", "pidio_un_retracto", "codigo_de_retiro_generado", "pedido_en_camino", "pedido_entregado",
-    "pedido_no_entregado", "retracto_resuelto",
+    "devolucion_a_la_tarjeta",
+    "pidio_un_retracto",
+    "codigo_de_retiro_generado",
+    "pedido_en_camino",
+    "pedido_entregado",
+    "pedido_no_entregado",
+    "retracto_resuelto",
     # MATU-81 (D-81-5): «El equipo de MATU revisó el pedido {referencia}»
     "matu_reviso_el_pedido",
     # MATU-114 (J2): un retracto que el equipo intentó registrar con un correo que no es de quien administra el grupo

@@ -64,8 +64,9 @@ def _con_cookie(refresh: str | None, extra: dict[str, str] | None = None) -> dic
     return cabeceras
 
 
-def _entrar(entorno: EntornoIam, email: str, contrasena: str, *, refresh: str | None = None,
-            agente: str = ANDROID) -> Any:
+def _entrar(
+    entorno: EntornoIam, email: str, contrasena: str, *, refresh: str | None = None, agente: str = ANDROID
+) -> Any:
     entorno.cliente.cookies.clear()
     return entorno.cliente.post(
         "/v1/sesiones",
@@ -76,8 +77,9 @@ def _entrar(entorno: EntornoIam, email: str, contrasena: str, *, refresh: str | 
 
 def _renovar(entorno: EntornoIam, refresh: str | None, cabeceras: dict[str, str] | None = None) -> Any:
     entorno.cliente.cookies.clear()
-    return entorno.cliente.post("/v1/sesiones/renovar", headers=_con_cookie(refresh, WEB if cabeceras is None
-                                                                             else cabeceras))
+    return entorno.cliente.post(
+        "/v1/sesiones/renovar", headers=_con_cookie(refresh, WEB if cabeceras is None else cabeceras)
+    )
 
 
 def _cerrar(entorno: EntornoIam, refresh: str | None) -> Any:
@@ -107,8 +109,7 @@ def _sesion_expirada(respuesta: Any) -> None:
 
 
 def _auditoria(usuario_id: uuid.UUID) -> list[str]:
-    return [fila[0] for fila in _filas(
-        "SELECT accion FROM auditoria WHERE actor_ref = %s ORDER BY id", usuario_id)]
+    return [fila[0] for fila in _filas("SELECT accion FROM auditoria WHERE actor_ref = %s ORDER BY id", usuario_id)]
 
 
 @pytest.fixture
@@ -136,7 +137,9 @@ def test_ciclo_completo_entrar_renovar_renovar_cerrar(
     assert refresh_1 not in entrada.text
     [(familia, nombre)] = _filas(
         "SELECT s.familia_id, d.nombre FROM sesion_refresh s JOIN dispositivo d ON d.id = s.dispositivo_id"
-        " WHERE s.usuario_id = %s", cuenta)
+        " WHERE s.usuario_id = %s",
+        cuenta,
+    )
     assert nombre == "Chrome en Android"
     assert _filas("SELECT count(*) FROM sesion_refresh WHERE token_hash = %s", refresh_1.encode()) == [(0,)]
 
@@ -157,7 +160,9 @@ def test_ciclo_completo_entrar_renovar_renovar_cerrar(
     # Tres tokens de la misma familia: dos usados y uno vigente; ultimo_uso_en es la última renovación
     tokens = _filas(
         "SELECT usado_en IS NOT NULL, revocado_en IS NULL, expira_en - emitido_en FROM sesion_refresh"
-        " WHERE familia_id = %s ORDER BY emitido_en", familia)
+        " WHERE familia_id = %s ORDER BY emitido_en",
+        familia,
+    )
     assert tokens == [(True, True, timedelta(days=30))] * 2 + [(False, True, timedelta(days=30))]
     [(ultimo_uso,)] = _filas("SELECT ultimo_uso_en FROM dispositivo WHERE id = %s", dispositivo)
     assert ultimo_uso == entorno_iam.reloj.ahora()
@@ -167,10 +172,12 @@ def test_ciclo_completo_entrar_renovar_renovar_cerrar(
     assert cierre.content == b""
     assert cierre.headers["set-cookie"] == f"{NOMBRE_COOKIE}=; Max-Age=0; {ATRIBUTOS}"
     assert cierre.headers["cache-control"] == "no-store"
-    assert _filas(
-        "SELECT DISTINCT motivo_revocacion FROM sesion_refresh WHERE familia_id = %s", familia) == [("logout",)]
+    assert _filas("SELECT DISTINCT motivo_revocacion FROM sesion_refresh WHERE familia_id = %s", familia) == [
+        ("logout",)
+    ]
     assert _filas("SELECT revocado_en IS NOT NULL, push_token FROM dispositivo WHERE id = %s", dispositivo) == [
-        (True, None)]
+        (True, None)
+    ]
 
     # Después de cerrar, el refresh no renueva y cerrar otra vez sigue siendo 204
     _sesion_expirada(_renovar(entorno_iam, refresh_3))
@@ -181,8 +188,8 @@ def test_ciclo_completo_entrar_renovar_renovar_cerrar(
     # Auditoría: entrar y cerrar, sin cada renovación
     assert _auditoria(cuenta) == ["sesion.iniciar", "sesion.cerrar"]
     assert _filas(
-        "SELECT DISTINCT grupo_id, to_jsonb(a) ? 'ip', detalle FROM auditoria a WHERE actor_ref = %s", cuenta) == [
-        (None, False, None)]
+        "SELECT DISTINCT grupo_id, to_jsonb(a) ? 'ip', detalle FROM auditoria a WHERE actor_ref = %s", cuenta
+    ) == [(None, False, None)]
 
 
 def test_ventana_deslizante_sin_tope_y_vencimiento_sin_uso(
@@ -213,9 +220,10 @@ def test_refresh_reutilizado_revoca_la_familia_y_responde_401(
     _sesion_expirada(_renovar(entorno_iam, refresh_1))
 
     # Toda la familia queda revocada con 'reutilizacion', también el token vigente
-    assert _filas(
-        "SELECT revocado_en IS NOT NULL, motivo_revocacion FROM sesion_refresh WHERE usuario_id = %s", cuenta
-    ) == [(True, "reutilizacion")] * 2
+    assert (
+        _filas("SELECT revocado_en IS NOT NULL, motivo_revocacion FROM sesion_refresh WHERE usuario_id = %s", cuenta)
+        == [(True, "reutilizacion")] * 2
+    )
     _sesion_expirada(_renovar(entorno_iam, refresh_2))
     assert _auditoria(cuenta) == ["sesion.iniciar", "sesion.reutilizacion_detectada"]
 
@@ -230,7 +238,10 @@ def test_refresh_reutilizado_revoca_la_familia_y_responde_401(
     [pytest.param({}, id="sin-cabecera"), pytest.param({"X-MATU-Cliente": "otro"}, id="otro-valor")],
 )
 def test_sin_cabecera_de_cliente_422_sin_tocar_la_sesion(
-    entorno_iam: EntornoIam, cuenta: uuid.UUID, email_sintetico: str, contrasena_sintetica: str,
+    entorno_iam: EntornoIam,
+    cuenta: uuid.UUID,
+    email_sintetico: str,
+    contrasena_sintetica: str,
     cabeceras: dict[str, str],
 ) -> None:
     refresh, _ = _cookie(_entrar(entorno_iam, email_sintetico, contrasena_sintetica))
@@ -251,8 +262,11 @@ def test_sin_cabecera_de_cliente_422_sin_tocar_la_sesion(
 
 @pytest.mark.parametrize(
     "refresh",
-    [pytest.param(None, id="sin-cookie"), pytest.param("corta", id="sin-forma"),
-     pytest.param("A" * 43, id="desconocida")],
+    [
+        pytest.param(None, id="sin-cookie"),
+        pytest.param("corta", id="sin-forma"),
+        pytest.param("A" * 43, id="desconocida"),
+    ],
 )
 def test_cookie_que_no_sirve_es_el_mismo_401(entorno_iam: EntornoIam, refresh: str | None) -> None:
     _sesion_expirada(_renovar(entorno_iam, refresh))
@@ -284,7 +298,8 @@ def test_entrar_con_la_cookie_propia_reutiliza_el_dispositivo(
     # Una sola sesión viva por dispositivo: la anterior se cerró con 'logout'
     _sesion_expirada(_renovar(entorno_iam, refresh_1))
     assert _filas(
-        "SELECT count(*) FROM sesion_refresh WHERE usuario_id = %s AND motivo_revocacion = 'logout'", cuenta) == [(1,)]
+        "SELECT count(*) FROM sesion_refresh WHERE usuario_id = %s AND motivo_revocacion = 'logout'", cuenta
+    ) == [(1,)]
 
 
 def test_entrar_con_la_cookie_de_otro_usuario_crea_otro_dispositivo(
@@ -335,7 +350,9 @@ def test_intentos_seguidos_responden_429_con_retry_after(
     # Cada fallo deja sesion.inicio_fallido sin actor y sin la huella del email (decisión 64)
     fallidos = _filas(
         "SELECT actor_tipo, actor_ref, grupo_id, detalle FROM auditoria WHERE accion = 'sesion.inicio_fallido'"
-        " AND request_id = ANY(%s)", [r.headers["x-request-id"] for r in (sexto,)])
+        " AND request_id = ANY(%s)",
+        [r.headers["x-request-id"] for r in (sexto,)],
+    )
     assert len(fallidos) == 1
     actor_tipo, actor_ref, grupo_id, detalle = fallidos[0]
     assert (actor_tipo, actor_ref, grupo_id) == ("sistema", None, None)
@@ -372,8 +389,12 @@ def test_dispositivos_lista_el_actual_primero_sin_push_token(
     telefono = _entrar(entorno_iam, email_sintetico, contrasena_sintetica).json()["access_token"]
     entorno_iam.reloj.avanzar(timedelta(minutes=1))
     computador = _entrar(entorno_iam, email_sintetico, contrasena_sintetica, agente=WINDOWS).json()["access_token"]
-    assert entorno_iam.cliente.put(
-        "/v1/dispositivos/actual/push", json={"push_token": PUSH}, headers=_bearer(telefono)).status_code == 204
+    assert (
+        entorno_iam.cliente.put(
+            "/v1/dispositivos/actual/push", json={"push_token": PUSH}, headers=_bearer(telefono)
+        ).status_code
+        == 204
+    )
 
     respuesta = entorno_iam.cliente.get("/v1/dispositivos", headers=_bearer(telefono))
     assert respuesta.status_code == 200
@@ -382,7 +403,15 @@ def test_dispositivos_lista_el_actual_primero_sin_push_token(
     assert [(d["nombre"], d["actual"]) for d in items] == [("Chrome en Android", True), ("Firefox en Windows", False)]
     # MATU-55: clase (C7) y push_activo (C5), nunca el endpoint
     assert set(items[0]) == {
-        "id", "plataforma", "nombre", "clase", "creado_en", "ultimo_uso_en", "actual", "push_activo"}
+        "id",
+        "plataforma",
+        "nombre",
+        "clase",
+        "creado_en",
+        "ultimo_uso_en",
+        "actual",
+        "push_activo",
+    }
     assert [(d["clase"], d["push_activo"]) for d in items] == [("telefono", True), ("computador", False)]
     assert PUSH not in respuesta.text and "push_token" not in respuesta.text and "fcm" not in respuesta.text
     assert _did(entorno_iam, computador) == uuid.UUID(items[1]["id"])
@@ -403,12 +432,15 @@ def test_sacar_un_dispositivo_revoca_sus_sesiones_y_su_push(
     assert respuesta.status_code == 204
     assert "set-cookie" not in respuesta.headers
     assert _filas("SELECT revocado_en IS NOT NULL, push_token FROM dispositivo WHERE id = %s", id_telefono) == [
-        (True, None)]
+        (True, None)
+    ]
     assert _filas("SELECT motivo_revocacion FROM sesion_refresh WHERE dispositivo_id = %s", id_telefono) == [
-        ("dispositivo",)]
+        ("dispositivo",)
+    ]
     _sesion_expirada(_renovar(entorno_iam, refresh_telefono))
     [(detalle,)] = _filas(
-        "SELECT detalle FROM auditoria WHERE accion = 'dispositivo.sacar' AND entidad_id = %s", id_telefono)
+        "SELECT detalle FROM auditoria WHERE accion = 'dispositivo.sacar' AND entidad_id = %s", id_telefono
+    )
     assert detalle == {"sesiones_revocadas": 1}
 
     # Idempotente, y el teléfono ya no aparece
@@ -453,15 +485,21 @@ def test_push_solo_se_escribe_y_respeta_la_lista_cerrada(
     rechazo = entorno_iam.cliente.put("/v1/dispositivos/actual/push", json={"push_token": malo}, headers=_bearer(token))
     assert rechazo.status_code == 422
     assert rechazo.json()["errores"] == [
-        {"campo": "push_token", "mensaje": "el servicio de avisos de este navegador no está admitido",
-         "tipo": "push_no_admitido"}]
+        {
+            "campo": "push_token",
+            "mensaje": "el servicio de avisos de este navegador no está admitido",
+            "tipo": "push_no_admitido",
+        }
+    ]
     assert malo not in rechazo.text
     extra = entorno_iam.cliente.put(
-        "/v1/dispositivos/actual/push", json={"push_token": PUSH, "p256dh": "x"}, headers=_bearer(token))
+        "/v1/dispositivos/actual/push", json={"push_token": PUSH, "p256dh": "x"}, headers=_bearer(token)
+    )
     assert extra.status_code == 422
 
     guardado = entorno_iam.cliente.put(
-        "/v1/dispositivos/actual/push", json={"push_token": PUSH}, headers=_bearer(token))
+        "/v1/dispositivos/actual/push", json={"push_token": PUSH}, headers=_bearer(token)
+    )
     assert guardado.status_code == 204 and guardado.content == b""
     assert _filas("SELECT push_token FROM dispositivo WHERE id = %s", did) == [(PUSH,)]
     borrado = entorno_iam.cliente.delete("/v1/dispositivos/actual/push", headers=_bearer(token))
@@ -529,8 +567,11 @@ def _por_borrar(limites: LimitesConservacion) -> tuple[int, int]:
 def _dispositivo_ajeno(entorno: EntornoIam, ultimo_uso_en: datetime) -> uuid.UUID:
     """MATU-73: otra cuenta sintética con un dispositivo sin sesiones, sembrado como superusuario. El
     fixture lo borra con la cuenta."""
-    respuesta = entorno.registrar(nombre="Familiar Ajeno", email=f"ajeno.{uuid.uuid4().hex[:12]}@example.com",
-                                  contrasena=f"clave-{uuid.uuid4().hex[:16]}")
+    respuesta = entorno.registrar(
+        nombre="Familiar Ajeno",
+        email=f"ajeno.{uuid.uuid4().hex[:12]}@example.com",
+        contrasena=f"clave-{uuid.uuid4().hex[:16]}",
+    )
     assert respuesta.status_code == 201
     dispositivo_id = uuid.uuid4()
     with psycopg.connect(DSN, autocommit=True) as cx:
@@ -625,15 +666,27 @@ def test_logs_de_un_ciclo_completo_no_tienen_secretos(
     texto = entorno_iam.texto_log()
     assert texto
     prohibidos = {
-        "refresh": refresh_1, "refresh 2": refresh_2, "access": acceso_1, "access 2": acceso_2,
-        "cookie": NOMBRE_COOKIE, "contraseña": contrasena_sintetica, "contraseña incorrecta": "incorrecta-1",
-        "push": PUSH, "email": email_sintetico, "ip": "testclient",
+        "refresh": refresh_1,
+        "refresh 2": refresh_2,
+        "access": acceso_1,
+        "access 2": acceso_2,
+        "cookie": NOMBRE_COOKIE,
+        "contraseña": contrasena_sintetica,
+        "contraseña incorrecta": "incorrecta-1",
+        "push": PUSH,
+        "email": email_sintetico,
+        "ip": "testclient",
     }
     for nombre, valor in prohibidos.items():
         assert valor not in texto, f"el log contiene {nombre}"
     # Tampoco en la auditoría
-    auditoria = json.dumps(_filas("SELECT row_to_json(a)::text FROM auditoria a WHERE actor_ref = %s OR "
-                                  "accion = 'sesion.inicio_fallido'", cuenta), default=str)
+    auditoria = json.dumps(
+        _filas(
+            "SELECT row_to_json(a)::text FROM auditoria a WHERE actor_ref = %s OR accion = 'sesion.inicio_fallido'",
+            cuenta,
+        ),
+        default=str,
+    )
     for nombre, valor in prohibidos.items():
         assert valor not in auditoria, f"la auditoría contiene {nombre}"
 

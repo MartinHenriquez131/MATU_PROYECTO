@@ -129,21 +129,41 @@ def _marca(*funciones: str) -> str:
 # letra por letra; en la subida se conservan detrás del marcador (C1), salvo app.conservacion, que sale (D4).
 POLITICAS: list[tuple[str, str, tuple[str, ...], str, str | None]] = [
     # pedido_conservar (0023, 0024 y 0033)
-    ("cargo", "cargo_conservacion_borrar", ("pedido_conservar",),
-     "(app_rol() = 'operacion'::text) AND (estado = ANY (ARRAY['pendiente'::text, 'rechazado'::text]))"
-     " AND (monto_cobrado = 0)", None),
-    ("participacion", "participacion_conservacion_borrar", ("pedido_conservar",),
-     "(app_rol() = 'operacion'::text) AND (estado = ANY (ARRAY['pendiente'::text, 'rechazada'::text]))"
-     " AND (monto_cobrado = 0)", None),
+    (
+        "cargo",
+        "cargo_conservacion_borrar",
+        ("pedido_conservar",),
+        "(app_rol() = 'operacion'::text) AND (estado = ANY (ARRAY['pendiente'::text, 'rechazado'::text]))"
+        " AND (monto_cobrado = 0)",
+        None,
+    ),
+    (
+        "participacion",
+        "participacion_conservacion_borrar",
+        ("pedido_conservar",),
+        "(app_rol() = 'operacion'::text) AND (estado = ANY (ARRAY['pendiente'::text, 'rechazada'::text]))"
+        " AND (monto_cobrado = 0)",
+        None,
+    ),
     ("participacion", "participacion_conservacion_leer", ("pedido_conservar",), CONSERVACION_0033, None),
-    ("transaccion_pasarela", "transaccion_conservacion_borrar", ("pedido_conservar",),
-     "(app_rol() = 'operacion'::text) AND (estado <> ALL (ARRAY['aprobada'::text, 'autorizando'::text]))", None),
+    (
+        "transaccion_pasarela",
+        "transaccion_conservacion_borrar",
+        ("pedido_conservar",),
+        "(app_rol() = 'operacion'::text) AND (estado <> ALL (ARRAY['aprobada'::text, 'autorizando'::text]))",
+        None,
+    ),
     ("pedido_linea", "linea_conservacion_borrar", ("pedido_conservar",), OPERACION, None),
     ("regla_sustitucion", "regla_conservacion_borrar", ("pedido_conservar",), OPERACION, None),
     ("pedido_comercio", "pedido_comercio_conservacion_borrar", ("pedido_conservar",), OPERACION, None),
     ("pedido_transicion", "transicion_conservacion_borrar", ("pedido_conservar",), OPERACION, None),
-    ("pedido", "pedido_conservacion_borrar", ("pedido_conservar",),
-     "(app_rol() = 'operacion'::text) AND (pagado_en IS NULL)", None),
+    (
+        "pedido",
+        "pedido_conservacion_borrar",
+        ("pedido_conservar",),
+        "(app_rol() = 'operacion'::text) AND (pagado_en IS NULL)",
+        None,
+    ),
     ("idempotencia", "idempotencia_conservacion", ("pedido_conservar",), OPERACION, None),
     ("idempotencia", "idempotencia_conservacion_borrar", ("pedido_conservar",), OPERACION, None),
     ("pedido_entrega", "entrega_conservacion_leer", ("pedido_conservar",), CONSERVACION_0033, None),
@@ -167,15 +187,30 @@ POLITICAS: list[tuple[str, str, tuple[str, ...], str, str | None]] = [
     ("reposicion", "reposicion_conservacion_borrar", ("quiebre_conservar",), OPERACION, None),
     # relevo_conservar (0027)
     ("acceso_relevo", "acceso_conservacion_leer", ("relevo_conservar",), OPERACION, None),
-    ("acceso_relevo", "acceso_conservacion", ("relevo_conservar",), OPERACION,
-     "(app_rol() = 'operacion'::text) AND (otorgado_a_telefono IS NULL)"),
+    (
+        "acceso_relevo",
+        "acceso_conservacion",
+        ("relevo_conservar",),
+        OPERACION,
+        "(app_rol() = 'operacion'::text) AND (otorgado_a_telefono IS NULL)",
+    ),
     # plan_destruir_claves (0016)
     ("clave_datos", "clave_destruccion_leer", ("plan_destruir_claves",), OPERACION, None),
-    ("clave_datos", "clave_destruccion", ("plan_destruir_claves",), OPERACION,
-     "(app_rol() = 'operacion'::text) AND (dek_cifrada_con_kek IS NULL)"),
+    (
+        "clave_datos",
+        "clave_destruccion",
+        ("plan_destruir_claves",),
+        OPERACION,
+        "(app_rol() = 'operacion'::text) AND (dek_cifrada_con_kek IS NULL)",
+    ),
     ("plan_cuidado", "plan_destruccion_leer", ("plan_destruir_claves",), OPERACION, None),
-    ("plan_cuidado", "plan_destruccion", ("plan_destruir_claves",), OPERACION,
-     "(app_rol() = 'operacion'::text) AND (completitud_pct = 0)"),
+    (
+        "plan_cuidado",
+        "plan_destruccion",
+        ("plan_destruir_claves",),
+        OPERACION,
+        "(app_rol() = 'operacion'::text) AND (completitud_pct = 0)",
+    ),
     ("plan_seccion", "seccion_destruccion_leer", ("plan_destruir_claves",), OPERACION, None),
     ("plan_seccion", "seccion_destruccion", ("plan_destruir_claves",), OPERACION, None),
     # pago_resolver_venta (0024), con el sistema y sin grupo
@@ -750,12 +785,17 @@ END $$;
 """
 LEER_PEDIDO = "    SELECT p.grupo_id INTO v_grupo FROM public.pedido p WHERE p.id = p_pedido;\n"
 SOLICITANTE_0034 = SOLICITANTE.replace(
-    "{PEDIDO}", LEER_PEDIDO + "    IF v_grupo IS NULL THEN\n        RETURN NULL;\n    END IF;\n").replace(
-    "{PAGADOR}", _marcar("solicitante_retracto"))
+    "{PEDIDO}", LEER_PEDIDO + "    IF v_grupo IS NULL THEN\n        RETURN NULL;\n    END IF;\n"
+).replace("{PAGADOR}", _marcar("solicitante_retracto"))
 SOLICITANTE_0035 = SOLICITANTE.replace(
-    "{PEDIDO}", _marcar("solicitante_retracto") + LEER_PEDIDO
-    + "    IF v_grupo IS NULL THEN\n" + DEVOLVER.replace("    ", "        ", 1) + "        RETURN NULL;\n"
-    "    END IF;\n").replace("{PAGADOR}", "")
+    "{PEDIDO}",
+    _marcar("solicitante_retracto")
+    + LEER_PEDIDO
+    + "    IF v_grupo IS NULL THEN\n"
+    + DEVOLVER.replace("    ", "        ", 1)
+    + "        RETURN NULL;\n"
+    "    END IF;\n",
+).replace("{PAGADOR}", "")
 
 # (e) C5 (H5): app_pago_el_pedido. La de la 0032 leía la membresía con el marcador de quien la llamaba
 PAGO_PROPIO = f"""
@@ -785,23 +825,33 @@ BEGIN
 END $$;
 """
 PAGO_PROPIO_0034 = (
-    PAGO_PROPIO.replace("{VOLATILIDAD}", "STABLE").replace("{MARCAR}", "").replace("{DEVOLVER}", "")
+    PAGO_PROPIO.replace("{VOLATILIDAD}", "STABLE")
+    .replace("{MARCAR}", "")
+    .replace("{DEVOLVER}", "")
     .replace("{MARCAR_0034}", _marcar("pago_propio"))
 )
 PAGO_PROPIO_0035 = (
-    PAGO_PROPIO.replace("{VOLATILIDAD}", "VOLATILE").replace("{MARCAR}", _marcar("pago_propio"))
-    .replace("{DEVOLVER}", DEVOLVER.replace("    ", "        ", 1)).replace("{MARCAR_0034}", "")
+    PAGO_PROPIO.replace("{VOLATILIDAD}", "VOLATILE")
+    .replace("{MARCAR}", _marcar("pago_propio"))
+    .replace("{DEVOLVER}", DEVOLVER.replace("    ", "        ", 1))
+    .replace("{MARCAR_0034}", "")
 )
 
 # (b) Las de la conservación: el cuerpo de la 0034 con el marcador de cada una
-CONSERVACION = ((CONSUMO, "consumo_conservar"), (IAM, "iam_conservar"), (QUIEBRE, "quiebre_conservar"),
-                (RELEVO, "relevo_conservar"), (PLAN, "plan_destruir_claves"))
+CONSERVACION = (
+    (CONSUMO, "consumo_conservar"),
+    (IAM, "iam_conservar"),
+    (QUIEBRE, "quiebre_conservar"),
+    (RELEVO, "relevo_conservar"),
+    (PLAN, "plan_destruir_claves"),
+)
 
 
 def _funciones(subir: bool) -> str:
     sql = "".join(_cuerpo(plantilla, funcion if subir else None) for plantilla, funcion in CONSERVACION)
     sql += _cuerpo(RESOLVER, "pago_resolver_venta" if subir else None).replace(
-        "{VOLATILIDAD}", "VOLATILE" if subir else "STABLE")
+        "{VOLATILIDAD}", "VOLATILE" if subir else "STABLE"
+    )
     sql += PEDIDOS_0035 if subir else PEDIDOS_0034
     sql += SOLICITANTE_0035 if subir else SOLICITANTE_0034
     sql += PAGO_PROPIO_0035 if subir else PAGO_PROPIO_0034
@@ -811,26 +861,41 @@ def _funciones(subir: bool) -> str:
 
 
 FIRMAS = (
-    "consumo_conservar(timestamptz, timestamptz)", "iam_conservar(timestamptz, timestamptz, timestamptz)",
-    "quiebre_conservar(timestamptz, timestamptz, timestamptz)", "relevo_conservar(timestamptz, timestamptz)",
-    "plan_destruir_claves(timestamptz, timestamptz)", "pago_resolver_venta(text, text, text)",
-    "pedido_conservar(timestamptz, timestamptz)", "operacion_solicitante_retracto(uuid, bytea, uuid)",
+    "consumo_conservar(timestamptz, timestamptz)",
+    "iam_conservar(timestamptz, timestamptz, timestamptz)",
+    "quiebre_conservar(timestamptz, timestamptz, timestamptz)",
+    "relevo_conservar(timestamptz, timestamptz)",
+    "plan_destruir_claves(timestamptz, timestamptz)",
+    "pago_resolver_venta(text, text, text)",
+    "pedido_conservar(timestamptz, timestamptz)",
+    "operacion_solicitante_retracto(uuid, bytea, uuid)",
     "app_pago_el_pedido(uuid)",
 )
 
 # (g) C7 (H8): las que cambian app.funcion y eran STABLE (app_pago_el_pedido y pago_resolver_venta, arriba)
-STABLE_0034 = ("operacion_cuenta_activa(uuid)", "cuenta_es_operacion(uuid)", "operacion_buscar_cuenta(bytea)",
-               "cuenta_pagos()", "cuenta_retractos()", "cuenta_condiciones()")
+STABLE_0034 = (
+    "operacion_cuenta_activa(uuid)",
+    "cuenta_es_operacion(uuid)",
+    "operacion_buscar_cuenta(bytea)",
+    "cuenta_pagos()",
+    "cuenta_retractos()",
+    "cuenta_condiciones()",
+)
 
 
 def _volatilidad(subir: bool) -> str:
     return "".join(f"ALTER FUNCTION {f} {'VOLATILE' if subir else 'STABLE'};\n" for f in STABLE_0034)
 
 
-UPGRADE = (_funciones(True) + _triggers(MARCA_TRIGGER_0035) + _politicas(True) + AVISOS + DIRECCION
-           + _volatilidad(True))
-DOWNGRADE = (_volatilidad(False) + DIRECCION_BAJADA + AVISOS_BAJADA + _politicas(False)
-             + _triggers(MARCA_TRIGGER_0034) + _funciones(False))
+UPGRADE = _funciones(True) + _triggers(MARCA_TRIGGER_0035) + _politicas(True) + AVISOS + DIRECCION + _volatilidad(True)
+DOWNGRADE = (
+    _volatilidad(False)
+    + DIRECCION_BAJADA
+    + AVISOS_BAJADA
+    + _politicas(False)
+    + _triggers(MARCA_TRIGGER_0034)
+    + _funciones(False)
+)
 
 
 def upgrade() -> None:

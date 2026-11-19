@@ -83,12 +83,22 @@ def test_lo_que_entra_con_su_precio_disponible_y_orden(
                     "unidades_por_envase": 30,
                     "retracto_pierde_al_abrir": False,
                     "comercios": [
-                        {"oferta_id": str(c.ofertas[("bolsa", "uno")]), "comercio_id": str(c.comercios["uno"]),
-                         "nombre_fantasia": f"Almacén El Ejemplo {s}", "precio": 15990, "disponible": False,
-                         "ficticio": True},
-                        {"oferta_id": str(c.ofertas[("bolsa", "dos")]), "comercio_id": str(c.comercios["dos"]),
-                         "nombre_fantasia": f"Bodega La Muestra {s}", "precio": 16490, "disponible": False,
-                         "ficticio": True},
+                        {
+                            "oferta_id": str(c.ofertas[("bolsa", "uno")]),
+                            "comercio_id": str(c.comercios["uno"]),
+                            "nombre_fantasia": f"Almacén El Ejemplo {s}",
+                            "precio": 15990,
+                            "disponible": False,
+                            "ficticio": True,
+                        },
+                        {
+                            "oferta_id": str(c.ofertas[("bolsa", "dos")]),
+                            "comercio_id": str(c.comercios["dos"]),
+                            "nombre_fantasia": f"Bodega La Muestra {s}",
+                            "precio": 16490,
+                            "disponible": False,
+                            "ficticio": True,
+                        },
                     ],
                 },
                 {
@@ -100,12 +110,22 @@ def test_lo_que_entra_con_su_precio_disponible_y_orden(
                     "retracto_pierde_al_abrir": True,
                     # Por nombre de fantasía: la Bodega es más barata y va segunda
                     "comercios": [
-                        {"oferta_id": str(c.ofertas[("panal", "uno")]), "comercio_id": str(c.comercios["uno"]),
-                         "nombre_fantasia": f"Almacén El Ejemplo {s}", "precio": 12990, "disponible": True,
-                         "ficticio": True},
-                        {"oferta_id": str(c.ofertas[("panal", "dos")]), "comercio_id": str(c.comercios["dos"]),
-                         "nombre_fantasia": f"Bodega La Muestra {s}", "precio": 9990, "disponible": False,
-                         "ficticio": True},
+                        {
+                            "oferta_id": str(c.ofertas[("panal", "uno")]),
+                            "comercio_id": str(c.comercios["uno"]),
+                            "nombre_fantasia": f"Almacén El Ejemplo {s}",
+                            "precio": 12990,
+                            "disponible": True,
+                            "ficticio": True,
+                        },
+                        {
+                            "oferta_id": str(c.ofertas[("panal", "dos")]),
+                            "comercio_id": str(c.comercios["dos"]),
+                            "nombre_fantasia": f"Bodega La Muestra {s}",
+                            "precio": 9990,
+                            "disponible": False,
+                            "ficticio": True,
+                        },
                     ],
                 },
             ],
@@ -123,9 +143,14 @@ def test_lo_que_entra_con_su_precio_disponible_y_orden(
                     "unidades_por_envase": 30,
                     "retracto_pierde_al_abrir": True,
                     "comercios": [
-                        {"oferta_id": str(c.ofertas[("crema", "dos")]), "comercio_id": str(c.comercios["dos"]),
-                         "nombre_fantasia": f"Bodega La Muestra {s}", "precio": 7290, "disponible": True,
-                         "ficticio": True},
+                        {
+                            "oferta_id": str(c.ofertas[("crema", "dos")]),
+                            "comercio_id": str(c.comercios["dos"]),
+                            "nombre_fantasia": f"Bodega La Muestra {s}",
+                            "precio": 7290,
+                            "disponible": True,
+                            "ficticio": True,
+                        },
                     ],
                 },
             ],
@@ -218,9 +243,7 @@ def test_el_relevo_no_entra(entorno_catalogo: EntornoCatalogo) -> None:
 
 
 @pytest.mark.parametrize(("habilitada", "codigo"), [("true", 401), ("false", 404)])
-def test_solo_existe_con_la_capa_3_habilitada(
-    monkeypatch: pytest.MonkeyPatch, habilitada: str, codigo: int
-) -> None:
+def test_solo_existe_con_la_capa_3_habilitada(monkeypatch: pytest.MonkeyPatch, habilitada: str, codigo: int) -> None:
     from app.core import config
     from app.main import crear_app
 

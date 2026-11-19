@@ -42,9 +42,7 @@ def test_vigencia_maxima_30_dias_en_el_dominio() -> None:
         assert error.value.tipo == "vigencia_pasada"
 
 
-@pytest.mark.parametrize(
-    "valor", ["+56 9 5555 0137", "+56955550137", "56 9 5555 0137", "9 5555 0137", "955550137"]
-)
+@pytest.mark.parametrize("valor", ["+56 9 5555 0137", "+56955550137", "56 9 5555 0137", "9 5555 0137", "955550137"])
 def test_celular_chileno_se_normaliza(valor: str) -> None:
     assert normalizar_celular(valor) == "+56955550137"
 
@@ -96,8 +94,14 @@ def test_huellas_token_sha256_y_pin_hmac_ligado_al_acceso() -> None:
 
 def test_token_y_pin_nunca_en_el_repr() -> None:
     entregado = AccesoEntregado(
-        id=uuid.uuid4(), token="TokenSinteticoDePrueba", pin="4821", campos=(CampoFicha.RUTINA,), secciones=(),
-        expira_en=AHORA, nombre_relevo="Rosa", nombre_pila_persona="María",
+        id=uuid.uuid4(),
+        token="TokenSinteticoDePrueba",
+        pin="4821",
+        campos=(CampoFicha.RUTINA,),
+        secciones=(),
+        expira_en=AHORA,
+        nombre_relevo="Rosa",
+        nombre_pila_persona="María",
     )
     assert "TokenSinteticoDePrueba" not in repr(entregado)
     assert not aparece_como_dato("4821", repr(entregado))  # el id es un uuid4: podía traer 4821 por azar

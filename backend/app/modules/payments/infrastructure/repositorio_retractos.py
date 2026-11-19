@@ -61,8 +61,17 @@ _BLOQUEAR = text("SELECT pg_advisory_xact_lock(hashtextextended('retracto:' || C
 
 def _retracto(f: Any) -> Retracto:
     return Retracto(
-        f.id, f.grupo_id, f.pedido_id, f.solicitado_en, f.plazo_hasta, f.incluye_envio, f.estado, f.origen,
-        f.solicitado_por, f.resuelto_en, f.motivo_rechazo,
+        f.id,
+        f.grupo_id,
+        f.pedido_id,
+        f.solicitado_en,
+        f.plazo_hasta,
+        f.incluye_envio,
+        f.estado,
+        f.origen,
+        f.solicitado_por,
+        f.resuelto_en,
+        f.motivo_rechazo,
     )
 
 

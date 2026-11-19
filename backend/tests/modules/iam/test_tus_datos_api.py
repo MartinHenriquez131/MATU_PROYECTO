@@ -24,9 +24,29 @@ pytestmark = [requiere_base, pytest.mark.rf("RF-37"), pytest.mark.rf("Ley-21.719
 RUTA = "/v1/yo/datos"
 # Lo que nunca sale en «Tus datos» (sección 3 de la revisión previa, C4)
 PROHIBIDOS = {
-    "id", "usuario_id", "grupo_id", "persona_id", "request_id", "ip", "actor_ref", "entidad_id", "detalle",
-    "password_hash", "contrasena", "mfa_secreto_cifrado", "email_hash", "token_hash", "push_token", "plataforma",
-    "plantilla", "error", "evento_id", "token", "buy_order", "session_id", "actual",
+    "id",
+    "usuario_id",
+    "grupo_id",
+    "persona_id",
+    "request_id",
+    "ip",
+    "actor_ref",
+    "entidad_id",
+    "detalle",
+    "password_hash",
+    "contrasena",
+    "mfa_secreto_cifrado",
+    "email_hash",
+    "token_hash",
+    "push_token",
+    "plataforma",
+    "plantilla",
+    "error",
+    "evento_id",
+    "token",
+    "buy_order",
+    "session_id",
+    "actual",
 }
 
 
@@ -106,7 +126,9 @@ def test_la_copia_de_la_cuenta_se_registra_sin_grupo_ni_detalle(entorno_iam: Ent
     with psycopg.connect(DSN) as cx:
         filas = cx.execute(
             "SELECT grupo_id, actor_tipo, entidad, entidad_id, persona_cuidada_id, detalle FROM auditoria"
-            " WHERE accion = 'cuenta.datos_descargar' AND actor_ref = %s", (usuario.id,)).fetchall()
+            " WHERE accion = 'cuenta.datos_descargar' AND actor_ref = %s",
+            (usuario.id,),
+        ).fetchall()
     assert filas == [(None, "usuario", "usuario", usuario.id, None, None)]
 
 
@@ -142,8 +164,8 @@ def test_si_el_registro_falla_no_se_entrega_nada(
     assert copiada == []
     with psycopg.connect(DSN) as cx:
         filas = cx.execute(
-            "SELECT count(*) FROM auditoria WHERE accion = 'cuenta.datos_descargar' AND actor_ref = %s",
-            (usuario.id,)).fetchall()
+            "SELECT count(*) FROM auditoria WHERE accion = 'cuenta.datos_descargar' AND actor_ref = %s", (usuario.id,)
+        ).fetchall()
     assert filas == [(0,)]
 
 
@@ -154,14 +176,17 @@ def test_los_avisos_simulados_no_salen_como_enviados(entorno_iam: EntornoIam, fa
             "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, estado, enviada_en)"
             " VALUES (%s, %s, 990054, 'correo', 'quiebre_proximo', 'enviada', now()),"
             " (%s, %s, 990055, 'push', 'quiebre_proximo', 'omitida', NULL)",
-            (familia.admin.id, familia.grupo.id, familia.admin.id, familia.grupo.id))
+            (familia.admin.id, familia.grupo.id, familia.admin.id, familia.grupo.id),
+        )
 
     respuesta = _pedir(entorno_iam, _token(entorno_iam, familia.admin))
 
     assert respuesta.status_code == 200, respuesta.text
     avisos = respuesta.json()["avisos_enviados"]
     assert sorted((a["canal"], a["resultado"]) for a in avisos) == [
-        ("correo", "en_el_piloto_no_salio"), ("push", "no_salio")]
+        ("correo", "en_el_piloto_no_salio"),
+        ("push", "no_salio"),
+    ]
     # Ni la plantilla ni el destino
     assert "quiebre_proximo" not in respuesta.text
 
@@ -178,10 +203,13 @@ def test_los_avisos_del_pedido_salen_con_su_tipo_y_su_preferencia(
             "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, estado, creada_en)"
             " VALUES (%s, %s, 990076, 'correo', 'pedido_novedad', 'omitida', now() - interval '1 minute'),"
             " (%s, %s, 990077, 'push', 'quiebre_proximo', 'omitida', now() - interval '2 minutes')",
-            (familia.admin.id, familia.grupo.id, familia.admin.id, familia.grupo.id))
+            (familia.admin.id, familia.grupo.id, familia.admin.id, familia.grupo.id),
+        )
         cx.execute(
             "INSERT INTO preferencia_notificacion (usuario_id, tipo_evento, canal, activo)"
-            " VALUES (%s, 'pedido', 'correo', false)", (familia.admin.id,))
+            " VALUES (%s, 'pedido', 'correo', false)",
+            (familia.admin.id,),
+        )
 
     respuesta = _pedir(entorno_iam, _token(entorno_iam, familia.admin))
 
@@ -253,7 +281,8 @@ def test_donde_entraste_muestra_la_copia_de_la_cuenta_y_no_la_de_la_persona(
         cx.execute(
             "INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, persona_cuidada_id)"
             " VALUES (%s, 'usuario', %s, 'persona.datos_descargar', 'persona_cuidada', %s, %s)",
-            (familia.grupo.id, familia.admin.id, familia.persona.id, familia.persona.id))
+            (familia.grupo.id, familia.admin.id, familia.persona.id, familia.persona.id),
+        )
 
     respuesta = entorno_iam.cliente.get("/v1/yo/ingresos", headers={"Authorization": f"Bearer {token}"})
 

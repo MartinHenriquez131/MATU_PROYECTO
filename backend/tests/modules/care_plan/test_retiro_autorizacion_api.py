@@ -53,8 +53,13 @@ def _cab(entorno: EntornoAbrir, usuario: UsuarioCreado | None, familia: FamiliaC
     return entorno.ficha._cabeceras(usuario, familia.grupo.id)
 
 
-def _retirar(entorno: EntornoAbrir, familia: FamiliaCreada, usuario: UsuarioCreado | None = None,
-             finalidad: str = "plan_cuidado", persona: Any = None) -> Any:
+def _retirar(
+    entorno: EntornoAbrir,
+    familia: FamiliaCreada,
+    usuario: UsuarioCreado | None = None,
+    finalidad: str = "plan_cuidado",
+    persona: Any = None,
+) -> Any:
     return entorno.ficha.iam.cliente.post(
         RETIRO.format(persona or familia.persona.id, finalidad),
         headers=_cab(entorno, usuario or familia.admin, familia),
@@ -62,13 +67,15 @@ def _retirar(entorno: EntornoAbrir, familia: FamiliaCreada, usuario: UsuarioCrea
 
 
 def _estado(entorno: EntornoAbrir, familia: FamiliaCreada, usuario: UsuarioCreado | None = None) -> Any:
-    return entorno.ficha.iam.cliente.get(RUTA.format(familia.persona.id),
-                                         headers=_cab(entorno, usuario or familia.admin, familia))
+    return entorno.ficha.iam.cliente.get(
+        RUTA.format(familia.persona.id), headers=_cab(entorno, usuario or familia.admin, familia)
+    )
 
 
 def _autorizar(entorno: EntornoAbrir, familia: FamiliaCreada, finalidad: str = "plan_cuidado") -> Any:
     return entorno.ficha.iam.cliente.post(
-        RUTA.format(familia.persona.id), json={"finalidad": finalidad, "calidad_otorgante": "titular"},
+        RUTA.format(familia.persona.id),
+        json={"finalidad": finalidad, "calidad_otorgante": "titular"},
         headers=_cab(entorno, familia.admin, familia),
     )
 
@@ -78,21 +85,31 @@ def _cuidador(familia: FamiliaCreada) -> UsuarioCreado:
 
 
 def _acceso(acceso_id: uuid.UUID) -> tuple[Any, Any, Any]:
-    fila = _una("SELECT a.revocado_en, i.revocado_en, a.pin_intentos_fallidos FROM acceso_relevo a"
-                " JOIN indice_token i ON i.referencia_id = a.id WHERE a.id = %s", acceso_id)
+    fila = _una(
+        "SELECT a.revocado_en, i.revocado_en, a.pin_intentos_fallidos FROM acceso_relevo a"
+        " JOIN indice_token i ON i.referencia_id = a.id WHERE a.id = %s",
+        acceso_id,
+    )
     assert fila is not None
     return fila[0], fila[1], fila[2]
 
 
 def _consentimientos(familia: FamiliaCreada, finalidad: str = "plan_cuidado") -> list[tuple[Any, ...]]:
-    return _todas("SELECT id, revocado_en, revocacion_motivo FROM consentimiento"
-                  " WHERE persona_cuidada_id = %s AND finalidad = %s ORDER BY otorgado_en",
-                  familia.persona.id, finalidad)
+    return _todas(
+        "SELECT id, revocado_en, revocacion_motivo FROM consentimiento"
+        " WHERE persona_cuidada_id = %s AND finalidad = %s ORDER BY otorgado_en",
+        familia.persona.id,
+        finalidad,
+    )
 
 
 def _acciones(grupo: uuid.UUID, accion: str) -> list[tuple[Any, ...]]:
-    return _todas("SELECT actor_tipo, actor_ref, entidad_id, request_id, detalle FROM auditoria"
-                  " WHERE grupo_id = %s AND accion = %s ORDER BY id", grupo, accion)
+    return _todas(
+        "SELECT actor_tipo, actor_ref, entidad_id, request_id, detalle FROM auditoria"
+        " WHERE grupo_id = %s AND accion = %s ORDER BY id",
+        grupo,
+        accion,
+    )
 
 
 # --- El retiro y el corte -------------------------------------------------------------------------------
@@ -105,10 +122,17 @@ def test_retiro_corta_vigentes_bloqueados_y_en_pausa_y_no_toca_vencidos_ni_corta
     vencido, _, _ = entorno.compartir(familia)
     cortado, _, _ = entorno.compartir(familia)
     _ejecutar("UPDATE acceso_relevo SET pin_intentos_fallidos = 5 WHERE id = %s", bloqueado)
-    _ejecutar("UPDATE acceso_relevo SET creado_en = now() - interval '3 days', expira_en = now() - interval '1 day'"
-              " WHERE id = %s", vencido)
-    assert entorno.ficha.iam.cliente.delete(f"/v1/accesos-relevo/{cortado}",
-                                            headers=_cab(entorno, familia.admin, familia)).status_code == 204
+    _ejecutar(
+        "UPDATE acceso_relevo SET creado_en = now() - interval '3 days', expira_en = now() - interval '1 day'"
+        " WHERE id = %s",
+        vencido,
+    )
+    assert (
+        entorno.ficha.iam.cliente.delete(
+            f"/v1/accesos-relevo/{cortado}", headers=_cab(entorno, familia.admin, familia)
+        ).status_code
+        == 204
+    )
     primer_corte = _acceso(cortado)[0]
     entorno.reloj.avanzar(timedelta(minutes=1))
     ahora = entorno.reloj.ahora()
@@ -167,13 +191,24 @@ def test_la_ficha_tras_el_retiro_403_y_la_lista_y_las_aperturas_200(entorno: Ent
     respuestas = [
         cliente.get(RUTA_FICHA.format(persona), headers=cab),
         cliente.put(RUTA_FICHA.format(persona) + "/rutina", json={"texto": "x"}, headers={**cab, "If-Match": '"v1"'}),
-        cliente.put(f"/v1/personas-cuidadas/{persona}/plan/secciones/preferencias", json={"texto": "x"},
-                    headers={**cab, "If-None-Match": "*"}),
-        cliente.delete(f"/v1/personas-cuidadas/{persona}/plan/secciones/preferencias",
-                       headers={**cab, "If-Match": '"v1"'}),
-        cliente.post(RUTA_ACCESOS.format(persona), json={
-            "nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "otro", "relevo_informado": True,
-        }, headers=cab),
+        cliente.put(
+            f"/v1/personas-cuidadas/{persona}/plan/secciones/preferencias",
+            json={"texto": "x"},
+            headers={**cab, "If-None-Match": "*"},
+        ),
+        cliente.delete(
+            f"/v1/personas-cuidadas/{persona}/plan/secciones/preferencias", headers={**cab, "If-Match": '"v1"'}
+        ),
+        cliente.post(
+            RUTA_ACCESOS.format(persona),
+            json={
+                "nombre_relevo": "Rosa",
+                "telefono_relevo": "+56 9 5555 0137",
+                "motivo": "otro",
+                "relevo_informado": True,
+            },
+            headers=cab,
+        ),
     ]
     for respuesta in respuestas:
         assert respuesta.status_code == 403, respuesta.text
@@ -216,8 +251,10 @@ def test_se_retira_con_la_revision_anual_vencida(entorno: EntornoAbrir) -> None:
     # El consentimiento es inalterable: solo para la prueba, el superusuario apaga el trigger (rol de réplica)
     with psycopg.connect(DSN) as cx, cx.transaction():
         cx.execute("SET LOCAL session_replication_role = replica")
-        cx.execute("UPDATE consentimiento SET revision_vence_en = now() - interval '1 day' WHERE id = %s",
-                   (familia.persona.consentimiento_id,))
+        cx.execute(
+            "UPDATE consentimiento SET revision_vence_en = now() - interval '1 day' WHERE id = %s",
+            (familia.persona.consentimiento_id,),
+        )
     _problema(entorno.presentar(token), 410, "relevo-pausado")
 
     respuesta = _retirar(entorno, familia)
@@ -240,7 +277,8 @@ def test_pagador_y_observador_no_retiran_ni_autorizan_404_y_nada_cambia(
     acceso_id, _, _ = entorno.compartir(familia)
     usuario = familia.miembros[etiqueta].usuario
     autorizar = entorno.ficha.iam.cliente.post(
-        RUTA.format(familia.persona.id), json={"finalidad": finalidad, "calidad_otorgante": "titular"},
+        RUTA.format(familia.persona.id),
+        json={"finalidad": finalidad, "calidad_otorgante": "titular"},
         headers=_cab(entorno, usuario, familia),
     )
     for respuesta in (_retirar(entorno, familia, usuario, finalidad=finalidad), autorizar):
@@ -252,13 +290,29 @@ def test_pagador_y_observador_no_retiran_ni_autorizan_404_y_nada_cambia(
     assert _consentimientos(familia, "consumo")[0][1] is None
 
 
-CAMPOS_RESUMEN = {"finalidad", "estado", "id", "otorgado_en", "revision_vence_en", "revocado_en", "borrado_en",
-                  "borrada", "se_puede_otorgar"}  # se_puede_otorgar: MATU-94 (decisión 251)
+CAMPOS_RESUMEN = {
+    "finalidad",
+    "estado",
+    "id",
+    "otorgado_en",
+    "revision_vence_en",
+    "revocado_en",
+    "borrado_en",
+    "borrada",
+    "se_puede_otorgar",
+}  # se_puede_otorgar: MATU-94 (decisión 251)
 
 
-@pytest.mark.parametrize(("etiqueta", "con_calidad"), [
-    ("admin", True), ("cuidador", True), ("pagador", False), ("pagador_con_plan", False), ("observador", False),
-])
+@pytest.mark.parametrize(
+    ("etiqueta", "con_calidad"),
+    [
+        ("admin", True),
+        ("cuidador", True),
+        ("pagador", False),
+        ("pagador_con_plan", False),
+        ("observador", False),
+    ],
+)
 def test_el_estado_lo_ven_los_cuatro_roles_y_la_calidad_solo_admin_y_cuidador(
     entorno: EntornoAbrir, etiqueta: str, con_calidad: bool
 ) -> None:
@@ -369,17 +423,37 @@ def test_estado_de_las_dos_autorizaciones(entorno: EntornoAbrir) -> None:
     plan, consumo = antes.json()["autorizaciones"]
     assert (plan["finalidad"], plan["estado"], plan["calidad_otorgante"]) == ("plan_cuidado", "vigente", "titular")
     assert (plan["revocado_en"], plan["borrado_en"], plan["borrada"]) == (None, None, False)
-    assert consumo == {"finalidad": "consumo", "estado": "sin_autorizar", "id": None, "calidad_otorgante": None,
-                       "otorgado_en": None, "revision_vence_en": None, "revocado_en": None, "borrado_en": None,
-                       "borrada": False, "autorizo_alguien_que_ya_no_esta": False, "se_puede_otorgar": True}
+    assert consumo == {
+        "finalidad": "consumo",
+        "estado": "sin_autorizar",
+        "id": None,
+        "calidad_otorgante": None,
+        "otorgado_en": None,
+        "revision_vence_en": None,
+        "revocado_en": None,
+        "borrado_en": None,
+        "borrada": False,
+        "autorizo_alguien_que_ya_no_esta": False,
+        "se_puede_otorgar": True,
+    }
 
     retiro = _retirar(entorno, familia).json()["autorizacion"]
     despues = _estado(entorno, familia).json()["autorizaciones"][0]
     assert despues == retiro and despues["estado"] == "retirada"
     # Sin la referencia, la evidencia, la versión de la política ni quién la dio (MATU-42: solo si ya no está)
-    assert set(despues) == {"finalidad", "estado", "id", "calidad_otorgante", "otorgado_en", "revision_vence_en",
-                            "revocado_en", "borrado_en", "borrada", "autorizo_alguien_que_ya_no_esta",
-                            "se_puede_otorgar"}
+    assert set(despues) == {
+        "finalidad",
+        "estado",
+        "id",
+        "calidad_otorgante",
+        "otorgado_en",
+        "revision_vence_en",
+        "revocado_en",
+        "borrado_en",
+        "borrada",
+        "autorizo_alguien_que_ya_no_esta",
+        "se_puede_otorgar",
+    }
 
 
 # --- La carrera con compartir (condición 7) ------------------------------------------------------------------
@@ -403,7 +477,9 @@ def test_retiro_primero_compartir_espera_y_ve_la_autorizacion_retirada(entorno: 
         registro = RegistroAuditoriaSql(sesion, entorno.reloj)
         retirar_autorizacion(
             SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=persona, finalidad="plan_cuidado"),
-            entorno.reloj, RepositorioRetirosSQL(sesion, grupo, registro), efectos_de(sesion, grupo, registro),
+            entorno.reloj,
+            RepositorioRetirosSQL(sesion, grupo, registro),
+            efectos_de(sesion, grupo, registro),
         )
         pid = pid_de(sesion)
         hilo = threading.Thread(target=compartir)
@@ -426,7 +502,9 @@ def test_compartir_primero_el_retiro_espera_y_corta_el_acceso_nuevo(entorno: Ent
             registro = RegistroAuditoriaSql(sesion, entorno.reloj)
             resultado = retirar_autorizacion(
                 SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=persona, finalidad="plan_cuidado"),
-                entorno.reloj, RepositorioRetirosSQL(sesion, grupo, registro), efectos_de(sesion, grupo, registro),
+                entorno.reloj,
+                RepositorioRetirosSQL(sesion, grupo, registro),
+                efectos_de(sesion, grupo, registro),
             )
             cortados.append(resultado.enlaces_cortados)
 
@@ -435,17 +513,31 @@ def test_compartir_primero_el_retiro_espera_y_corta_el_acceso_nuevo(entorno: Ent
         assert leida is not None and leida.autorizacion is not None
         ahora = entorno.reloj.ahora()
         huella = secrets.token_bytes(32)
-        sesion.execute(text(
-            "INSERT INTO acceso_relevo (id, grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,"
-            " nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash, pin_hash,"
-            " creado_en, expira_en, relevo_informado_en) VALUES (:id, :g, :plan, :u, 'Rosa', '+56955550137', 'P',"
-            " 'C', ARRAY['rutina'], 'otro', :h, 'p', :ahora, :expira, :ahora)"),
-            {"id": acceso_id, "g": grupo, "plan": plan[0], "u": _cuidador(familia).id, "h": huella, "ahora": ahora,
-             "expira": ahora + timedelta(hours=24)})
-        sesion.execute(text(
-            "INSERT INTO indice_token (token_hash, tipo, grupo_id, referencia_id, expira_en, creado_en)"
-            " VALUES (:h, 'relevo', :g, :id, :expira, :ahora)"),
-            {"h": huella, "g": grupo, "id": acceso_id, "expira": ahora + timedelta(hours=24), "ahora": ahora})
+        sesion.execute(
+            text(
+                "INSERT INTO acceso_relevo (id, grupo_id, plan_id, otorgado_por, otorgado_a_nombre,"
+                " otorgado_a_telefono,"
+                " nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash, pin_hash,"
+                " creado_en, expira_en, relevo_informado_en) VALUES (:id, :g, :plan, :u, 'Rosa', '+56955550137', 'P',"
+                " 'C', ARRAY['rutina'], 'otro', :h, 'p', :ahora, :expira, :ahora)"
+            ),
+            {
+                "id": acceso_id,
+                "g": grupo,
+                "plan": plan[0],
+                "u": _cuidador(familia).id,
+                "h": huella,
+                "ahora": ahora,
+                "expira": ahora + timedelta(hours=24),
+            },
+        )
+        sesion.execute(
+            text(
+                "INSERT INTO indice_token (token_hash, tipo, grupo_id, referencia_id, expira_en, creado_en)"
+                " VALUES (:h, 'relevo', :g, :id, :expira, :ahora)"
+            ),
+            {"h": huella, "g": grupo, "id": acceso_id, "expira": ahora + timedelta(hours=24), "ahora": ahora},
+        )
         pid = pid_de(sesion)
         hilo = threading.Thread(target=retirar)
         hilo.start()
@@ -456,16 +548,20 @@ def test_compartir_primero_el_retiro_espera_y_corta_el_acceso_nuevo(entorno: Ent
     assert revocado is not None and revocado == indice
 
 
-
 # La misma carrera por la ruta POST …/accesos-relevo, de punta a punta (P3 de la revisión de Martín)
 
-CUERPO_ACCESO = {"nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "turno_de_noche",
-                 "relevo_informado": True}
+CUERPO_ACCESO = {
+    "nombre_relevo": "Rosa",
+    "telefono_relevo": "+56 9 5555 0137",
+    "motivo": "turno_de_noche",
+    "relevo_informado": True,
+}
 
 
 def _crear_acceso(entorno: EntornoAbrir, familia: FamiliaCreada) -> Any:
-    return entorno.ficha.iam.cliente.post(RUTA_ACCESOS.format(familia.persona.id), json=CUERPO_ACCESO,
-                                          headers=_cab(entorno, _cuidador(familia), familia))
+    return entorno.ficha.iam.cliente.post(
+        RUTA_ACCESOS.format(familia.persona.id), json=CUERPO_ACCESO, headers=_cab(entorno, _cuidador(familia), familia)
+    )
 
 
 def _accesos_del_grupo(grupo: uuid.UUID) -> list[tuple[Any, ...]]:
@@ -485,7 +581,9 @@ def test_crear_un_acceso_simultaneo_a_un_retiro_espera_y_termina_en_403(entorno:
         registro = RegistroAuditoriaSql(sesion, entorno.reloj)
         retirar_autorizacion(
             SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=persona, finalidad="plan_cuidado"),
-            entorno.reloj, RepositorioRetirosSQL(sesion, grupo, registro), efectos_de(sesion, grupo, registro),
+            entorno.reloj,
+            RepositorioRetirosSQL(sesion, grupo, registro),
+            efectos_de(sesion, grupo, registro),
         )
         pid = pid_de(sesion)
         hilo = threading.Thread(target=crear)
@@ -544,6 +642,7 @@ def test_crear_un_acceso_primero_el_retiro_espera_y_lo_corta(
     [corte] = _acciones(grupo, "relevo.revocar")
     assert corte[2] == acceso_id
 
+
 # --- Logs ----------------------------------------------------------------------------------------------------
 
 
@@ -570,8 +669,10 @@ def test_retirar_la_ficha_no_toca_los_insumos(entorno: EntornoAbrir) -> None:
     entorno.ficha.fabrica.autorizacion_consumo(familia.persona, otorgante=familia.admin)
     perfil = entorno.ficha.fabrica.perfil_consumo(familia.persona)
     with psycopg.connect(DSN, autocommit=True) as cx:
-        fila = cx.execute("INSERT INTO alerta_quiebre (perfil_id, fecha_prevista) VALUES (%s, current_date + 6)"
-                          " RETURNING id", (perfil,)).fetchone()
+        fila = cx.execute(
+            "INSERT INTO alerta_quiebre (perfil_id, fecha_prevista) VALUES (%s, current_date + 6) RETURNING id",
+            (perfil,),
+        ).fetchone()
     assert fila is not None
     alerta = fila[0]
     antes = _una("SELECT version, stock_unidades, activo FROM perfil_consumo WHERE id = %s", perfil)
@@ -582,8 +683,9 @@ def test_retirar_la_ficha_no_toca_los_insumos(entorno: EntornoAbrir) -> None:
     assert _una("SELECT estado, cerrada_en FROM alerta_quiebre WHERE id = %s", alerta) == ("pendiente", None)
     assert _consentimientos(familia, "consumo")[0][1:] == (None, None)
     assert _acciones(familia.grupo.id, "alerta.descartar") == []
-    lectura = entorno.ficha.iam.cliente.get(f"/v1/personas-cuidadas/{familia.persona.id}/consumo",
-                                            headers=_cab(entorno, familia.admin, familia))
+    lectura = entorno.ficha.iam.cliente.get(
+        f"/v1/personas-cuidadas/{familia.persona.id}/consumo", headers=_cab(entorno, familia.admin, familia)
+    )
     assert lectura.status_code == 200 and [p["id"] for p in lectura.json()["items"]] == [str(perfil)]
 
 
@@ -623,9 +725,15 @@ def test_el_retiro_usa_un_solo_instante_en_todo(entorno: EntornoAbrir) -> None:
     instantes = {revocado}
     for acceso in (primero, segundo):
         instantes |= set(_acceso(acceso)[:2])
-    instantes |= {f[0] for f in _todas(
-        "SELECT ocurrido_en FROM auditoria WHERE grupo_id = %s"
-        " AND accion IN ('consentimiento.revocar', 'relevo.revocar')"
-        " AND ocurrido_en >= %s", familia.grupo.id, revocado - timedelta(seconds=1))}
+    instantes |= {
+        f[0]
+        for f in _todas(
+            "SELECT ocurrido_en FROM auditoria WHERE grupo_id = %s"
+            " AND accion IN ('consentimiento.revocar', 'relevo.revocar')"
+            " AND ocurrido_en >= %s",
+            familia.grupo.id,
+            revocado - timedelta(seconds=1),
+        )
+    }
     assert instantes == {revocado}
     assert len(_acciones(familia.grupo.id, "relevo.revocar")) == 2

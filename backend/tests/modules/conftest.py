@@ -214,9 +214,7 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
         # Las filas se borran como superusuario: matu_app no ve las cuentas de otros (RLS)
         with psycopg.connect(DSN, autocommit=True) as cx:
             # MATU-38: las sesiones y los dispositivos cuelgan del usuario (indice_token no tiene llave)
-            cx.execute(
-                "DELETE FROM indice_token WHERE tipo = 'refresh' AND usuario_id = ANY(%s)", (entorno.creados,)
-            )
+            cx.execute("DELETE FROM indice_token WHERE tipo = 'refresh' AND usuario_id = ANY(%s)", (entorno.creados,))
             cx.execute("DELETE FROM sesion_refresh WHERE usuario_id = ANY(%s)", (entorno.creados,))
             cx.execute("DELETE FROM dispositivo WHERE usuario_id = ANY(%s)", (entorno.creados,))
             # MATU-41: la preferencia de avisos que la prueba guardó por la API

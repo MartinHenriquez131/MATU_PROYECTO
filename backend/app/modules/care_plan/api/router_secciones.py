@@ -252,9 +252,7 @@ def _error_precondicion(error: PrecondicionInvalida) -> ErrorMATU:
 
 
 def _falta_version() -> ErrorMATU:
-    return ErrorMATU(
-        428, detalle="Vuelve a abrir la sección y guarda de nuevo", headers={"Cache-Control": NO_STORE}
-    )
+    return ErrorMATU(428, detalle="Vuelve a abrir la sección y guarda de nuevo", headers={"Cache-Control": NO_STORE})
 
 
 def _version_desactualizada(request: Request, conflicto: SeccionEnConflicto) -> JSONResponse:
@@ -332,7 +330,13 @@ def guardar(
         raise _falta_version() from None
     try:
         guardada = guardar_seccion(
-            _peticion(request, autorizada), autorizada.seccion, texto, precondicion, repositorio, cifrador, auditoria,
+            _peticion(request, autorizada),
+            autorizada.seccion,
+            texto,
+            precondicion,
+            repositorio,
+            cifrador,
+            auditoria,
             reloj,
         )
     except ErrorCifrado as error:

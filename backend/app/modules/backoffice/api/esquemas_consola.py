@@ -16,8 +16,20 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.modules.backoffice.api.esquemas import EstadoCodigoApi, EstadoParteApi
 
 EstadoPedidoPagado = Literal[
-    "pagado", "enviado_a_comercio", "preparando", "listo_retiro", "asignado", "sin_repartidor", "retirado", "en_ruta",
-    "entregado", "no_entregado", "reprogramado", "cerrado", "cancelado", "cancelado_con_devolucion",
+    "pagado",
+    "enviado_a_comercio",
+    "preparando",
+    "listo_retiro",
+    "asignado",
+    "sin_repartidor",
+    "retirado",
+    "en_ruta",
+    "entregado",
+    "no_entregado",
+    "reprogramado",
+    "cerrado",
+    "cancelado",
+    "cancelado_con_devolucion",
 ]
 TipoIncidencia = Literal[
     "faltante", "entrega_fallida", "reclamo_familia", "cobro_sin_respuesta", "devolucion_pendiente", "otro"

@@ -95,8 +95,19 @@ _PARTES_DEL_PEDIDO = text(
     " WHERE p.id = :id ORDER BY pc.creado_en, pc.id"
 )
 # Los estados en curso: la lista sin filtro, como desde MATU-63
-EN_CURSO = ("pagado", "enviado_a_comercio", "preparando", "listo_retiro", "asignado", "sin_repartidor", "retirado",
-            "en_ruta", "entregado", "no_entregado", "reprogramado")
+EN_CURSO = (
+    "pagado",
+    "enviado_a_comercio",
+    "preparando",
+    "listo_retiro",
+    "asignado",
+    "sin_repartidor",
+    "retirado",
+    "en_ruta",
+    "entregado",
+    "no_entregado",
+    "reprogramado",
+)
 GRUPOS_LISTA = "^(por_atender|en_camino|con_problema|cerrados|cancelados|todos)$"
 ESTADOS_LISTA = (
     "^(pagado|enviado_a_comercio|preparando|listo_retiro|asignado|sin_repartidor|retirado|en_ruta|entregado|"
@@ -135,8 +146,16 @@ def _consultar_grupo(fabrica: sessionmaker[Session], consulta: Any, identificado
     return fila
 
 
-def _auditar(u: UnidadDespacho, operador: uuid.UUID, accion: AccionAuditoria, entidad: EntidadAuditoria,
-             entidad_id: uuid.UUID, grupo_id: uuid.UUID, persona_id: uuid.UUID, request: Request) -> None:
+def _auditar(
+    u: UnidadDespacho,
+    operador: uuid.UUID,
+    accion: AccionAuditoria,
+    entidad: EntidadAuditoria,
+    entidad_id: uuid.UUID,
+    grupo_id: uuid.UUID,
+    persona_id: uuid.UUID,
+    request: Request,
+) -> None:
     u.pagos.registro.registrar(
         EntradaAuditoria(
             grupo_id=grupo_id,
@@ -162,17 +181,28 @@ def pedidos_de_filas(sesion: Session, filas: list[Any], ahora: Any, hay_mas: boo
                 referencia=x.referencia_parte,
                 estado=x.estado_parte,
                 estado_codigo=estado_codigo(
-                    generado_en=x.codigo_generado_en, con_hash=x.con_hash, expira_en=x.codigo_expira_en,
-                    usado_en=x.codigo_usado_en, bloqueado_en=x.codigo_bloqueado_en, ahora=ahora,
+                    generado_en=x.codigo_generado_en,
+                    con_hash=x.con_hash,
+                    expira_en=x.codigo_expira_en,
+                    usado_en=x.codigo_usado_en,
+                    bloqueado_en=x.codigo_bloqueado_en,
+                    ahora=ahora,
                 ).value,  # type: ignore[arg-type]
             )
             for x in sesion.execute(_PARTES_DEL_PEDIDO, {"id": f.id})
         ]
         pedidos.append(
             PedidoOperacion(
-                id=f.id, estado=f.estado, referencia=f.referencia, entregado_en=f.entregado_en, partes=partes,
-                pagado_en=f.pagado_en, total_confirmado=int(f.total), numero_partes=int(f.numero_partes),
-                incidencia_abierta=bool(f.incidencia_abierta), devolucion_sin_terminar=bool(f.devolucion_sin_terminar),
+                id=f.id,
+                estado=f.estado,
+                referencia=f.referencia,
+                entregado_en=f.entregado_en,
+                partes=partes,
+                pagado_en=f.pagado_en,
+                total_confirmado=int(f.total),
+                numero_partes=int(f.numero_partes),
+                incidencia_abierta=bool(f.incidencia_abierta),
+                devolucion_sin_terminar=bool(f.devolucion_sin_terminar),
             )
         )
     return ListaPedidosOperacion(pedidos=pedidos, hay_mas=hay_mas)
@@ -191,15 +221,24 @@ def pedidos_de_filas(sesion: Session, filas: list[Any], ahora: Any, hay_mas: boo
     ),
 )
 def listar_pedidos(
-    _operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response,
+    _operador: Operador,
+    fabrica: Fabrica,
+    reloj: RelojDep,
+    respuesta: Response,
     grupo: Annotated[str | None, Query(pattern=GRUPOS_LISTA)] = None,
     estado: Annotated[list[str] | None, Query(description="Uno o más estados del pedido")] = None,
 ) -> ListaPedidosOperacion:
     if estado and any(re.fullmatch(ESTADOS_LISTA, e) is None for e in estado):
-        raise ErrorMATU(422, detalle="Revisa los campos indicados",
-                        errores=[{"campo": "estado", "mensaje": "no es un estado del pedido", "tipo": "estado"}])
-    filtro = (consola.Filtro(EN_CURSO, False, False) if grupo is None and not estado
-              else consola.estados_del_filtro(grupo, estado or ()))
+        raise ErrorMATU(
+            422,
+            detalle="Revisa los campos indicados",
+            errores=[{"campo": "estado", "mensaje": "no es un estado del pedido", "tipo": "estado"}],
+        )
+    filtro = (
+        consola.Filtro(EN_CURSO, False, False)
+        if grupo is None and not estado
+        else consola.estados_del_filtro(grupo, estado or ())
+    )
     with sesion_tenant(fabrica, rol="operacion") as sesion:
         filas = consola_sql.lista(sesion, filtro.estados, filtro.todos, filtro.con_problema)
         vista = pedidos_de_filas(sesion, filas, reloj.ahora(), hay_mas=len(filas) > consola_sql.LIMITE_LISTA)
@@ -218,7 +257,12 @@ def listar_pedidos(
     ),
 )
 def generar_codigo(
-    parte_id: _ID, request: Request, operador: Operador, fabrica: Fabrica, reloj: RelojDep, secreto: SecretoCodigo,
+    parte_id: _ID,
+    request: Request,
+    operador: Operador,
+    fabrica: Fabrica,
+    reloj: RelojDep,
+    secreto: SecretoCodigo,
     respuesta: Response,
 ) -> CodigoGenerado:
     identificador = _uuid(parte_id)
@@ -233,15 +277,28 @@ def generar_codigo(
         )
         if not guardado:
             raise ErrorMATU(409, tipo="estado-parte", detalle="La parte no está lista para retirar")
-        _auditar(u, operador, AccionAuditoria.CODIGO_RETIRO_GENERAR, EntidadAuditoria.PEDIDO_COMERCIO,
-                 identificador, fila.grupo_id, pedido.persona_id, request)
+        _auditar(
+            u,
+            operador,
+            AccionAuditoria.CODIGO_RETIRO_GENERAR,
+            EntidadAuditoria.PEDIDO_COMERCIO,
+            identificador,
+            fila.grupo_id,
+            pedido.persona_id,
+            request,
+        )
     respuesta.headers["Cache-Control"] = "no-store"
     return CodigoGenerado(parte_id=identificador, codigo=codigo, expira_en=ahora + VIDA_CODIGO)
 
 
 def _mover(
-    fabrica: sessionmaker[Session], reloj: RelojDep, request: Request, operador: uuid.UUID, pedido_id: str,
-    pasos_desde: dict[str, list[str]], accion: AccionAuditoria,
+    fabrica: sessionmaker[Session],
+    reloj: RelojDep,
+    request: Request,
+    operador: uuid.UUID,
+    pedido_id: str,
+    pasos_desde: dict[str, list[str]],
+    accion: AccionAuditoria,
 ) -> EstadoPedidoVista:
     identificador = _uuid(pedido_id)
     grupo_id = _consultar_grupo(fabrica, _GRUPO_DE_PEDIDO, identificador).grupo_id
@@ -252,8 +309,12 @@ def _mover(
             raise ErrorMATU(404)
         camino = pasos_desde.get(pedido.estado)
         if camino is None:
-            raise ErrorMATU(409, tipo="estado-pedido", detalle="El estado del pedido no permite la acción",
-                            extension={"estado": pedido.estado})
+            raise ErrorMATU(
+                409,
+                tipo="estado-pedido",
+                detalle="El estado del pedido no permite la acción",
+                extension={"estado": pedido.estado},
+            )
         desde = pedido.estado
         for hacia in camino:
             u.despacho.cambiar_estado(identificador, desde, hacia, "operacion", operador, None, ahora)
@@ -278,10 +339,15 @@ _EN_CAMINO = {
 }
 
 
-@router.post("/pedidos/{pedido_id}/en-camino", response_model=EstadoPedidoVista, responses=_RESPUESTAS,
-             description="Retirado (o reprogramado tras no entregarse) → en_ruta (D-63-6).")
-def en_camino(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica,
-              reloj: RelojDep) -> EstadoPedidoVista:
+@router.post(
+    "/pedidos/{pedido_id}/en-camino",
+    response_model=EstadoPedidoVista,
+    responses=_RESPUESTAS,
+    description="Retirado (o reprogramado tras no entregarse) → en_ruta (D-63-6).",
+)
+def en_camino(
+    pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica, reloj: RelojDep
+) -> EstadoPedidoVista:
     return _mover(fabrica, reloj, request, operador, pedido_id, _EN_CAMINO, AccionAuditoria.DESPACHO_EN_CAMINO)
 
 
@@ -294,17 +360,25 @@ def en_camino(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fab
         " MATU debe a cada comercio por lo retirado (consumo_comercio, RF-31), con la boleta pendiente."
     ),
 )
-def entregado(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica,
-              reloj: RelojDep) -> EstadoPedidoVista:
+def entregado(
+    pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica, reloj: RelojDep
+) -> EstadoPedidoVista:
     pasos = {desde: ["entregado"] for desde in ENTREGADO_DESDE}
     return _mover(fabrica, reloj, request, operador, pedido_id, pasos, AccionAuditoria.DESPACHO_ENTREGAR)
 
 
-@router.post("/pedidos/{pedido_id}/no-entregado", response_model=EstadoPedidoVista, responses=_RESPUESTAS,
-             description=("en_ruta → no_entregado: nadie recibió el pedido (D-63-6). Emite PedidoNoEntregado, que avisa"
-                          " a quien pagó (MATU-76, D-76-5)."))
-def no_entregado(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica,
-                 reloj: RelojDep) -> EstadoPedidoVista:
+@router.post(
+    "/pedidos/{pedido_id}/no-entregado",
+    response_model=EstadoPedidoVista,
+    responses=_RESPUESTAS,
+    description=(
+        "en_ruta → no_entregado: nadie recibió el pedido (D-63-6). Emite PedidoNoEntregado, que avisa"
+        " a quien pagó (MATU-76, D-76-5)."
+    ),
+)
+def no_entregado(
+    pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica, reloj: RelojDep
+) -> EstadoPedidoVista:
     pasos = {desde: ["no_entregado"] for desde in NO_ENTREGADO_DESDE}
     return _mover(fabrica, reloj, request, operador, pedido_id, pasos, AccionAuditoria.DESPACHO_NO_ENTREGADO)
 
@@ -312,15 +386,25 @@ def no_entregado(pedido_id: _ID, request: Request, operador: Operador, fabrica: 
 def _retracto_vista(sesion: Session, r: Retracto, monto: int) -> RetractoOperacion:
     detalle, lineas = consola_sql.retracto_detalle(sesion, r.id)
     return RetractoOperacion(
-        id=r.id, pedido_id=r.pedido_id, estado=r.estado,  # type: ignore[arg-type]
-        solicitado_en=r.solicitado_en, plazo_hasta=r.plazo_hasta, incluye_envio=r.incluye_envio, monto=monto,
+        id=r.id,
+        pedido_id=r.pedido_id,
+        estado=r.estado,  # type: ignore[arg-type]
+        solicitado_en=r.solicitado_en,
+        plazo_hasta=r.plazo_hasta,
+        incluye_envio=r.incluye_envio,
+        monto=monto,
         origen=r.origen,  # type: ignore[arg-type]
         resuelto_en=r.resuelto_en,
         referencia=None if detalle is None else detalle.referencia,
         motivo_rechazo=None if detalle is None else detalle.motivo_rechazo,
         lineas=[
-            LineaRetractoOperacion(linea_id=x.pedido_linea_id, producto=x.nombre, presentacion=x.presentacion,
-                                   cantidad=int(x.cantidad), monto=int(x.cantidad) * int(x.precio_unitario))
+            LineaRetractoOperacion(
+                linea_id=x.pedido_linea_id,
+                producto=x.nombre,
+                presentacion=x.presentacion,
+                cantidad=int(x.cantidad),
+                monto=int(x.cantidad) * int(x.precio_unitario),
+            )
             for x in lineas
         ],
     )
@@ -395,7 +479,11 @@ def devolver_reserva(contador: ContadorVentana, clave: str) -> None:
 
 
 def _correo_fallido(
-    fabrica: sessionmaker[Session], reloj: RelojDep, operador: uuid.UUID, pedido_id: uuid.UUID, grupo_id: uuid.UUID,
+    fabrica: sessionmaker[Session],
+    reloj: RelojDep,
+    operador: uuid.UUID,
+    pedido_id: uuid.UUID,
+    grupo_id: uuid.UUID,
     request: Request,
 ) -> None:
     """J2: el intento fallido ya quedó contado por su reserva (reservar_intento); se audita en su propia transacción
@@ -423,13 +511,22 @@ def _correo_fallido(
     responses={
         **_RESPUESTAS,
         409: {"description": "fuera-de-plazo: pasaron los 90 días desde la entrega (CL-54)", **_PROBLEMA},
-        422: {"description": "producto-no-retractable, o solicitante-invalido: solicitado_por no es quien pagó ni un"
-              " admin activo, correo_solicitante no es de un admin activo del grupo (D-81-9), o vienen los dos. El"
-              " mismo cuerpo en todos los casos: nunca dice cuál ni quiénes son (MATU-114, C9)", **_PROBLEMA},
-        429: {"description": "demasiados-intentos: 5 correos que no calzan en una hora para la cuenta de operación"
-              " (MATU-114, C11), con Retry-After. No dice si el último correo era válido", **_PROBLEMA},
-        503: {"description": "Falta PEPPER_EMAIL o PEPPER_LIMITES, o Redis no responde, con correo_solicitante: no se"
-              " busca el correo", **_PROBLEMA},
+        422: {
+            "description": "producto-no-retractable, o solicitante-invalido: solicitado_por no es quien pagó ni un"
+            " admin activo, correo_solicitante no es de un admin activo del grupo (D-81-9), o vienen los dos. El"
+            " mismo cuerpo en todos los casos: nunca dice cuál ni quiénes son (MATU-114, C9)",
+            **_PROBLEMA,
+        },
+        429: {
+            "description": "demasiados-intentos: 5 correos que no calzan en una hora para la cuenta de operación"
+            " (MATU-114, C11), con Retry-After. No dice si el último correo era válido",
+            **_PROBLEMA,
+        },
+        503: {
+            "description": "Falta PEPPER_EMAIL o PEPPER_LIMITES, o Redis no responde, con correo_solicitante: no se"
+            " busca el correo",
+            **_PROBLEMA,
+        },
     },
     description=(
         "H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la"
@@ -439,8 +536,14 @@ def _correo_fallido(
     ),
 )
 def registrar_retracto_por_correo(
-    pedido_id: _ID, solicitud: SolicitudRetractoPorCorreo, request: Request, operador: Operador, fabrica: Fabrica,
-    reloj: RelojDep, pepper_email: Annotated[bytes, Depends(obtener_pepper_email)], pepper_limites: PepperLimites,
+    pedido_id: _ID,
+    solicitud: SolicitudRetractoPorCorreo,
+    request: Request,
+    operador: Operador,
+    fabrica: Fabrica,
+    reloj: RelojDep,
+    pepper_email: Annotated[bytes, Depends(obtener_pepper_email)],
+    pepper_limites: PepperLimites,
     contador: Contador,
 ) -> RetractoOperacion:
     identificador = _uuid(pedido_id)
@@ -474,17 +577,32 @@ def registrar_retracto_por_correo(
         sesion = _sesion_de(u)
         try:
             r = casos_retracto.solicitar(
-                u.pagos, retractos, grupo_id, identificador, solicitado_por, pedidas, reloj.ahora(),
-                origen="correo", actor=ActorTipo.OPERACION, actor_ref=operador,
+                u.pagos,
+                retractos,
+                grupo_id,
+                identificador,
+                solicitado_por,
+                pedidas,
+                reloj.ahora(),
+                origen="correo",
+                actor=ActorTipo.OPERACION,
+                actor_ref=operador,
             )
         except casos_retracto.SinPedidoEntregado:
             raise ErrorMATU(404) from None
         except casos_retracto.FueraDePlazo as error:
-            raise ErrorMATU(409, tipo="fuera-de-plazo", detalle="Pasaron los 90 días desde la entrega",
-                            extension={"plazo_hasta": error.plazo.isoformat()}) from None
+            raise ErrorMATU(
+                409,
+                tipo="fuera-de-plazo",
+                detalle="Pasaron los 90 días desde la entrega",
+                extension={"plazo_hasta": error.plazo.isoformat()},
+            ) from None
         except RetractoInvalido:
-            raise ErrorMATU(422, tipo="producto-no-retractable",
-                            detalle="Elige productos entregados, hasta lo que queda por devolver") from None
+            raise ErrorMATU(
+                422,
+                tipo="producto-no-retractable",
+                detalle="Elige productos entregados, hasta lo que queda por devolver",
+            ) from None
         return _retracto_vista(sesion, r, casos_retracto.monto_de(u.pagos, retractos, r))
 
 
@@ -500,13 +618,19 @@ def registrar_retracto_por_correo(
     ),
 )
 def listar_retractos(
-    _operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response,
+    _operador: Operador,
+    fabrica: Fabrica,
+    reloj: RelojDep,
+    respuesta: Response,
     estado: Annotated[list[str] | None, Query(description="solicitado, devuelto o rechazado; repetible")] = None,
 ) -> ListaRetractosOperacion:
     estados = list(dict.fromkeys(estado or ["solicitado"]))
     if any(e not in ESTADOS_RETRACTO for e in estados):
-        raise ErrorMATU(422, detalle="Revisa los campos indicados",
-                        errores=[{"campo": "estado", "mensaje": "no es un estado del retracto", "tipo": "estado"}])
+        raise ErrorMATU(
+            422,
+            detalle="Revisa los campos indicados",
+            errores=[{"campo": "estado", "mensaje": "no es un estado del retracto", "tipo": "estado"}],
+        )
     with sesion_tenant(fabrica, rol="operacion") as sesion:
         encontrados = RepositorioRetractosSQL(sesion).por_estado(estados, consola_sql.LIMITE_LISTA + 1)
     vistas = []
@@ -517,10 +641,15 @@ def listar_retractos(
     return ListaRetractosOperacion(retractos=vistas, hay_mas=len(encontrados) > consola_sql.LIMITE_LISTA)
 
 
-@router.get("/retractos/{retracto_id}", response_model=RetractoOperacion, responses=_RESPUESTAS,
-            description="MATU-81 (ruta 5): un retracto, resuelto o no, con sus productos, la referencia y el motivo.")
-def ver_retracto(retracto_id: _ID, _operador: Operador, fabrica: Fabrica, reloj: RelojDep,
-                 respuesta: Response) -> RetractoOperacion:
+@router.get(
+    "/retractos/{retracto_id}",
+    response_model=RetractoOperacion,
+    responses=_RESPUESTAS,
+    description="MATU-81 (ruta 5): un retracto, resuelto o no, con sus productos, la referencia y el motivo.",
+)
+def ver_retracto(
+    retracto_id: _ID, _operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response
+) -> RetractoOperacion:
     identificador = _uuid(retracto_id)
     grupo_id = _consultar_grupo(fabrica, _GRUPO_DE_RETRACTO, identificador).grupo_id
     with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(grupo_id) as (u, retractos):
@@ -537,8 +666,11 @@ def ver_retracto(retracto_id: _ID, _operador: Operador, fabrica: Fabrica, reloj:
     response_model=RetractoOperacion,
     responses={
         **_RESPUESTAS,
-        422: {"description": "motivo-rechazo: rechazar exige `motivo` (sello_abierto o producto_no_recibido), y"
-              " devolver no lo lleva (C24)", **_PROBLEMA},
+        422: {
+            "description": "motivo-rechazo: rechazar exige `motivo` (sello_abierto o producto_no_recibido), y"
+            " devolver no lo lleva (C24)",
+            **_PROBLEMA,
+        },
         503: {"description": "Sin PASARELA_PAGO no se puede devolver", **_PROBLEMA},
     },
     description=(
@@ -547,21 +679,35 @@ def ver_retracto(retracto_id: _ID, _operador: Operador, fabrica: Fabrica, reloj:
     ),
 )
 def resolver_retracto(
-    retracto_id: _ID, solicitud: SolicitudResolverRetracto, operador: Operador, fabrica: Fabrica, reloj: RelojDep,
+    retracto_id: _ID,
+    solicitud: SolicitudResolverRetracto,
+    operador: Operador,
+    fabrica: Fabrica,
+    reloj: RelojDep,
     pasarela: PasarelaDep,
 ) -> RetractoOperacion:
     identificador = _uuid(retracto_id)
     devolver = solicitud.decision == "devolver"
     if devolver == (solicitud.motivo is not None):
-        raise ErrorMATU(422, tipo="motivo-rechazo", detalle="Rechazar pide el motivo; devolver no lo lleva",
-                        errores=[{"campo": "motivo", "mensaje": "solo y siempre al rechazar", "tipo": "motivo"}])
+        raise ErrorMATU(
+            422,
+            tipo="motivo-rechazo",
+            detalle="Rechazar pide el motivo; devolver no lo lleva",
+            errores=[{"campo": "motivo", "mensaje": "solo y siempre al rechazar", "tipo": "motivo"}],
+        )
     grupo_id = _consultar_grupo(fabrica, _GRUPO_DE_RETRACTO, identificador).grupo_id
     if devolver and pasarela is None:
         raise ErrorMATU(503, tipo="pasarela-no-disponible", detalle="No se puede devolver en este momento")
     with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(grupo_id) as (u, retractos):
         try:
             resuelto = casos_retracto.resolver(
-                u.pagos, retractos, pasarela, identificador, devolver, operador, reloj.ahora()  # type: ignore[arg-type]
+                u.pagos,
+                retractos,
+                pasarela,  # type: ignore[arg-type]
+                identificador,
+                devolver,
+                operador,
+                reloj.ahora(),
             )
         except casos_retracto.SinPedidoEntregado:
             raise ErrorMATU(404) from None

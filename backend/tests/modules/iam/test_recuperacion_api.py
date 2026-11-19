@@ -153,9 +153,7 @@ def test_celular_no_verificado_va_al_correo_y_cambia_la_contrasena_revocando_tod
     assert _entrar(entorno_iam, email_sintetico, contrasena_sintetica).status_code == 401
     # Todas las sesiones anteriores quedaron revocadas con cambio_clave
     entorno_iam.cliente.cookies.clear()
-    renovar = entorno_iam.cliente.post(
-        "/v1/sesiones/renovar", headers={**WEB, "Cookie": f"{NOMBRE_COOKIE}={refresh}"}
-    )
+    renovar = entorno_iam.cliente.post("/v1/sesiones/renovar", headers={**WEB, "Cookie": f"{NOMBRE_COOKIE}={refresh}"})
     assert renovar.status_code == 401
     assert _filas(
         "SELECT count(*) FROM sesion_refresh WHERE usuario_id = %s AND"
@@ -181,9 +179,7 @@ def test_codigo_reutilizado(
     _codigo_invalido(_cambiar(entorno_iam, email_sintetico, codigo, nueva + "x"))
 
 
-def test_codigo_vencido(
-    entorno_iam: EntornoIam, email_sintetico: str, contrasena_sintetica: str, nueva: str
-) -> None:
+def test_codigo_vencido(entorno_iam: EntornoIam, email_sintetico: str, contrasena_sintetica: str, nueva: str) -> None:
     usuario = _cuenta(entorno_iam, email_sintetico, contrasena_sintetica)
     _pedir(entorno_iam, email_sintetico)
     codigo = _ultimo_codigo(entorno_iam)
@@ -204,9 +200,7 @@ def test_intentos_agotados(
     _codigo_invalido(_cambiar(entorno_iam, email_sintetico, codigo, nueva))
 
 
-def test_demasiados_fallos_429_con_retry_after(
-    entorno_iam: EntornoIam, email_sintetico: str, nueva: str
-) -> None:
+def test_demasiados_fallos_429_con_retry_after(entorno_iam: EntornoIam, email_sintetico: str, nueva: str) -> None:
     for _ in range(6):
         _codigo_invalido(_cambiar(entorno_iam, email_sintetico, "000000", nueva))
     respuesta = _cambiar(entorno_iam, email_sintetico, "000000", nueva)
@@ -251,9 +245,7 @@ def test_limite_de_envios_responde_igual_y_no_envia(
     assert len(entorno_iam.enviador.enviados) == 4
 
 
-def test_contrasena_nueva_corta_422_sin_repetir_valores(
-    entorno_iam: EntornoIam, email_sintetico: str
-) -> None:
+def test_contrasena_nueva_corta_422_sin_repetir_valores(entorno_iam: EntornoIam, email_sintetico: str) -> None:
     respuesta = _cambiar(entorno_iam, email_sintetico, "123456", "corta")
     assert respuesta.status_code == 422
     assert respuesta.json()["type"] == "/errores/validacion"
@@ -292,9 +284,7 @@ def test_verificar_el_celular_y_recuperar_por_sms(
     _codigo_invalido(
         entorno_iam.cliente.post("/v1/cuenta/celular/verificar", json={"codigo": _otro(codigo)}, headers=cabeceras)
     )
-    confirmado = entorno_iam.cliente.post(
-        "/v1/cuenta/celular/verificar", json={"codigo": codigo}, headers=cabeceras
-    )
+    confirmado = entorno_iam.cliente.post("/v1/cuenta/celular/verificar", json={"codigo": codigo}, headers=cabeceras)
     assert confirmado.status_code == 204
     assert entorno_iam.cliente.get("/v1/cuenta", headers=cabeceras).json()["celular_verificado"] is True
     ya = entorno_iam.cliente.post("/v1/cuenta/celular/codigo", headers=cabeceras)

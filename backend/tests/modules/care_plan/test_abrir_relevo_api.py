@@ -62,7 +62,9 @@ class EntornoAbrir:
     def familia_con_ficha(self, textos: dict[str, str] | None = None, **opciones: Any) -> FamiliaCreada:
         familia = self.ficha.familia(**opciones)
         self.ficha.fabrica.ficha(
-            familia.persona, actualizado_por=familia.admin.id, custodia=self.ficha.custodia,
+            familia.persona,
+            actualizado_por=familia.admin.id,
+            custodia=self.ficha.custodia,
             textos={"rutina": RUTINA, "manejo_situaciones": "", "red_apoyo": RED} if textos is None else textos,
         )
         return familia
@@ -77,12 +79,15 @@ class EntornoAbrir:
         ``campos_anteriores`` (por omisión rutina y manejo_situaciones) el acceso queda como uno creado
         antes de MATU-50, con solo esos campos, fijados como superusuario. None deja el acceso nuevo."""
         cuerpo: dict[str, Any] = {
-            "nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137",
-            "motivo": "turno_de_noche", "relevo_informado": True,
+            "nombre_relevo": "Rosa",
+            "telefono_relevo": "+56 9 5555 0137",
+            "motivo": "turno_de_noche",
+            "relevo_informado": True,
         }
         cuerpo.update(cambios)
         respuesta = self.ficha.iam.cliente.post(
-            RUTA_ACCESOS.format(familia.persona.id), json=cuerpo,
+            RUTA_ACCESOS.format(familia.persona.id),
+            json=cuerpo,
             headers=self.ficha._cabeceras(familia.admin, familia.grupo.id),
         )
         assert respuesta.status_code == 201, respuesta.text
@@ -92,7 +97,8 @@ class EntornoAbrir:
         if campos_anteriores is not None:
             _ejecutar(
                 "UPDATE acceso_relevo SET secciones_permitidas = %s WHERE id = %s",
-                list(campos_anteriores), creado["id"],
+                list(campos_anteriores),
+                creado["id"],
             )
         return uuid.UUID(creado["id"]), coincide.group(1), creado["pin"]
 
@@ -139,8 +145,7 @@ def _ejecutar(sql: str, *parametros: Any) -> None:
 
 
 def _acciones(acceso_id: uuid.UUID) -> list[str]:
-    return [f[0] for f in _todas(
-        "SELECT accion FROM auditoria WHERE actor_ref = %s ORDER BY id", acceso_id)]
+    return [f[0] for f in _todas("SELECT accion FROM auditoria WHERE actor_ref = %s ORDER BY id", acceso_id)]
 
 
 def _cabeceras_relevo(respuesta: Any) -> None:
@@ -274,18 +279,26 @@ def test_apertura_auditada(entorno: EntornoAbrir) -> None:
         "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, to_jsonb(a) ? 'ip',"
         " (to_jsonb(a) - 'id')::text"
         " FROM auditoria a"
-        " WHERE accion = 'relevo.abrir' AND actor_ref = %s", acceso_id)
+        " WHERE accion = 'relevo.abrir' AND actor_ref = %s",
+        acceso_id,
+    )
     assert len(filas) == 1
     grupo, actor_tipo, actor_ref, entidad, entidad_id, motivo, con_ip, fila = filas[0]
     plan = _una("SELECT id FROM plan_cuidado WHERE persona_cuidada_id = %s", familia.persona.id)
     assert plan is not None
     assert (grupo, actor_tipo, actor_ref, entidad, entidad_id) == (
-        familia.grupo.id, "relevo", acceso_id, "plan_cuidado", plan[0])
+        familia.grupo.id,
+        "relevo",
+        acceso_id,
+        "plan_cuidado",
+        plan[0],
+    )
     assert motivo is None and con_ip is False  # C8; la columna ip se borró en la 0025 (MATU-55)
     # El PIN como dato completo: los UUID, el request_id y la fecha de la fila lo traían por azar
     assert token not in fila and not aparece_como_dato(pin, fila) and "Rosa" not in fila
-    usos, ultimo = cast(tuple[int, datetime], _una(
-        "SELECT usos, ultimo_uso_en FROM acceso_relevo WHERE id = %s", acceso_id))
+    usos, ultimo = cast(
+        tuple[int, datetime], _una("SELECT usos, ultimo_uso_en FROM acceso_relevo WHERE id = %s", acceso_id)
+    )
     assert usos == 1 and ultimo == entorno.reloj.ahora()
     assert _acciones(acceso_id) == ["relevo.canje", "relevo.abrir"]
 
@@ -301,7 +314,8 @@ def test_pin_incorrecto_confirma_contador_y_auditoria(entorno: EntornoAbrir) -> 
     assert _una("SELECT pin_intentos_fallidos FROM acceso_relevo WHERE id = %s", acceso_id) == (1,)
     assert _todas(
         "SELECT actor_tipo, to_jsonb(a) ? 'ip' FROM auditoria a WHERE accion = 'relevo.pin_incorrecto'"
-        " AND actor_ref = %s", acceso_id
+        " AND actor_ref = %s",
+        acceso_id,
     ) == [("relevo", False)]
     # El PIN correcto vuelve el contador a 0
     assert entorno.canjear(token, pin).status_code == 204
@@ -315,8 +329,10 @@ def test_presentacion_y_canje_no_traen_nada_de_la_ficha(entorno: EntornoAbrir) -
     presentacion = entorno.presentar(token)
     assert presentacion.status_code == 200
     _cabeceras_relevo(presentacion)
-    assert presentacion.json() == {"nombre_pila_comparte": familia.admin.nombre.split()[0],
-                                   "nombre_pila": familia.persona.nombre_pila}
+    assert presentacion.json() == {
+        "nombre_pila_comparte": familia.admin.nombre.split()[0],
+        "nombre_pila": familia.persona.nombre_pila,
+    }
     canje = entorno.canjear(token, pin)
     assert canje.status_code == 204 and canje.content == b""
     _cabeceras_relevo(canje)
@@ -331,8 +347,9 @@ def test_cookie_de_sesion_efimera(entorno: EntornoAbrir) -> None:
     acceso_id, token, pin = entorno.compartir(familia)  # 24 horas: Max-Age = 12 horas
     canje = entorno.canjear(token, pin)
     cookie = canje.headers["set-cookie"]
-    valor = re.match(rf"^{COOKIE}=([A-Za-z0-9_-]+); Max-Age=43200; Path=/v1/relevo; HttpOnly; Secure; SameSite=Strict$",
-                     cookie)
+    valor = re.match(
+        rf"^{COOKIE}=([A-Za-z0-9_-]+); Max-Age=43200; Path=/v1/relevo; HttpOnly; Secure; SameSite=Strict$", cookie
+    )
     assert valor and len(valor.group(1)) >= 22  # ≥ 128 bits
     assert "Domain" not in cookie
     assert entorno.sesiones.ttls == [43200]
@@ -382,17 +399,22 @@ def test_indice_vigente_pero_rls_sin_filas_410_vencido(entorno: EntornoAbrir) ->
     """C5: indice_token dice vigente según el Reloj, pero now() de la base ya lo venció."""
     familia = entorno.familia_con_ficha()
     acceso_id, token, pin = entorno.compartir(familia)
-    _ejecutar("UPDATE acceso_relevo SET creado_en = now() - interval '2 days', expira_en = now() - interval '1 minute'"
-              " WHERE id = %s", acceso_id)
+    _ejecutar(
+        "UPDATE acceso_relevo SET creado_en = now() - interval '2 days', expira_en = now() - interval '1 minute'"
+        " WHERE id = %s",
+        acceso_id,
+    )
     _problema(entorno.presentar(token), 410, "relevo-vencido")
     _problema(entorno.canjear(token, pin), 410, "relevo-vencido")
 
 
 def _revocar_consentimientos(familia: FamiliaCreada) -> None:
     # El consentimiento es inalterable (migración 0006): solo se registra la revocación, una vez
-    _ejecutar("UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro'"
-              " WHERE persona_cuidada_id = %s AND revocado_en IS NULL",
-              familia.persona.id)
+    _ejecutar(
+        "UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro'"
+        " WHERE persona_cuidada_id = %s AND revocado_en IS NULL",
+        familia.persona.id,
+    )
 
 
 def _otorgar(familia: FamiliaCreada, calidad: str, revision_vence_en: datetime | None) -> None:
@@ -400,7 +422,11 @@ def _otorgar(familia: FamiliaCreada, calidad: str, revision_vence_en: datetime |
     _ejecutar(
         "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
         " version_politica, evidencia, revision_vence_en) VALUES (%s, %s, %s, %s, 'plan_cuidado', '0.0', '{}', %s)",
-        familia.grupo.id, familia.persona.id, familia.admin.id, calidad, revision_vence_en,
+        familia.grupo.id,
+        familia.persona.id,
+        familia.admin.id,
+        calidad,
+        revision_vence_en,
     )
 
 
@@ -496,8 +522,12 @@ def test_canjes_simultaneos_no_pierden_intentos_ni_pasan_de_cinco(entorno: Entor
         try:
             with sesion_tenant(fabrica, acceso_relevo_id=acceso_id, rol="relevo") as sesion:
                 resultado = canjear(
-                    malo, RepositorioAccesoRelevoSQL(sesion), HuellasHmac(pepper),
-                    RegistroAuditoriaSql(sesion, entorno.reloj), entorno.reloj, None,
+                    malo,
+                    RepositorioAccesoRelevoSQL(sesion),
+                    HuellasHmac(pepper),
+                    RegistroAuditoriaSql(sesion, entorno.reloj),
+                    entorno.reloj,
+                    None,
                 )
             resultados.append("aceptado" if isinstance(resultado, PinIncorrecto | AccesoBloqueadoAhora) else "otro")
         except Exception as error:  # noqa: BLE001 - el bloqueo de otro hilo es un resultado esperado

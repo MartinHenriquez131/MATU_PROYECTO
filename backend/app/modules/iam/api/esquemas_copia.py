@@ -83,9 +83,17 @@ class DispositivoDelEventoCopia(_Cerrado):
 
 class EventoCuentaCopia(_Cerrado):
     tipo: Literal[
-        "entraste", "saliste", "cerraste_en_dispositivo", "salida_por_seguridad", "contrasena_cambiada",
-        "celular_confirmado", "codigo_recuperacion_pedido", "avisos_cambiados", "avisos_activados",
-        "avisos_desactivados", "pediste_una_copia",
+        "entraste",
+        "saliste",
+        "cerraste_en_dispositivo",
+        "salida_por_seguridad",
+        "contrasena_cambiada",
+        "celular_confirmado",
+        "codigo_recuperacion_pedido",
+        "avisos_cambiados",
+        "avisos_activados",
+        "avisos_desactivados",
+        "pediste_una_copia",
     ]
     ocurrido_en: Instante
     dispositivo: DispositivoDelEventoCopia | None

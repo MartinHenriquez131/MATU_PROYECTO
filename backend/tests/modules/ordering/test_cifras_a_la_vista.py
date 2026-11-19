@@ -19,11 +19,13 @@ CIFRAS = (12990, 9990, 9990 + COSTO_ENVIO)
 
 CUERPO_DEL_AZAR = {
     "id": "e372bab4-9990-4b8b-b9b9-016659a10826",
-    "lineas": [{
-        "producto": {"id": "6271ef78-ab9c-4f9e-84e4-b6615a5c5b8f", "nombre": "Producto panal 199901"},
-        "comercio": {"nombre_fantasia": "Bodega La Muestra 199901", "ficticio": True},
-        "cantidad": 1,
-    }],
+    "lineas": [
+        {
+            "producto": {"id": "6271ef78-ab9c-4f9e-84e4-b6615a5c5b8f", "nombre": "Producto panal 199901"},
+            "comercio": {"nombre_fantasia": "Bodega La Muestra 199901", "ficticio": True},
+            "cantidad": 1,
+        }
+    ],
     "vence_en": "2026-10-20T12:15:00Z",
     "pagado_en": None,
     "actualizado_en": "2026-11-18T07:58:43.912990Z",
@@ -169,12 +171,14 @@ def test_qa_cuerpos_al_azar_con_la_forma_del_pedido_nunca_dan_falso_positivo() -
         cuerpo = {
             "id": un_uuid(),
             "persona_cuidada_id": un_uuid(),
-            "lineas": [{
-                "id": un_uuid(),
-                "producto": {"id": un_uuid(), "nombre": f"Producto panal {sufijo}"},
-                "comercio": {"id": un_uuid(), "nombre_fantasia": f"Bodega La Muestra {sufijo}"},
-                "cantidad": 2,
-            }],
+            "lineas": [
+                {
+                    "id": un_uuid(),
+                    "producto": {"id": un_uuid(), "nombre": f"Producto panal {sufijo}"},
+                    "comercio": {"id": un_uuid(), "nombre_fantasia": f"Bodega La Muestra {sufijo}"},
+                    "cantidad": 2,
+                }
+            ],
             "actualizado_en": f"2026-11-18T07:58:43.{rnd.randrange(10**6):06d}Z",
         }
         assert cifras_a_la_vista(cuerpo, CIFRAS_QA) == set(), cuerpo

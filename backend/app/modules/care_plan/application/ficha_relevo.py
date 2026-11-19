@@ -69,8 +69,11 @@ def leer_ficha_relevo(
     mostradas = secciones_para_relevo(acceso.campos, acceso.creado_en, visibles)
     registro.registrar(
         entrada_relevo(
-            acceso, AccionAuditoria.RELEVO_ABRIR, request_id,
-            entidad=EntidadAuditoria.PLAN_CUIDADO, entidad_id=acceso.plan_id,
+            acceso,
+            AccionAuditoria.RELEVO_ABRIR,
+            request_id,
+            entidad=EntidadAuditoria.PLAN_CUIDADO,
+            entidad_id=acceso.plan_id,
             secciones=tuple(s.tipo.value for s in mostradas),
         )
     )

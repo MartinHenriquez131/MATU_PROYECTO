@@ -49,7 +49,7 @@ def hotp(secreto: bytes, contador: int, cifras: int = CIFRAS, algoritmo: str = "
         raise ValueError("El contador no puede ser negativo")
     resumen = hmac.new(secreto, struct.pack(">Q", contador), algoritmo).digest()
     corte = resumen[-1] & 0x0F
-    binario = struct.unpack(">I", resumen[corte:corte + 4])[0] & 0x7FFFFFFF
+    binario = struct.unpack(">I", resumen[corte : corte + 4])[0] & 0x7FFFFFFF
     return f"{binario % 10**cifras:0{cifras}d}"
 
 

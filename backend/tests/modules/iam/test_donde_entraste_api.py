@@ -29,8 +29,22 @@ PUSH_2 = "https://fcm.googleapis.com/fcm/send/ejemplo-sintetico-donde-entraste-o
 RUTA = "/v1/yo/ingresos"
 RUTA_PUSH = "/v1/dispositivos/actual/push"
 # Los nombres que nunca salen en un evento (C3, decisión 256)
-PROHIBIDOS = {"id", "request_id", "actor_ref", "actor_tipo", "entidad", "entidad_id", "detalle", "familia_id",
-              "grupo_id", "ip", "plataforma", "push_token", "accion", "agente"}
+PROHIBIDOS = {
+    "id",
+    "request_id",
+    "actor_ref",
+    "actor_tipo",
+    "entidad",
+    "entidad_id",
+    "detalle",
+    "familia_id",
+    "grupo_id",
+    "ip",
+    "plataforma",
+    "push_token",
+    "accion",
+    "agente",
+}
 
 
 def _filas(sql: str, *parametros: Any) -> list[tuple[Any, ...]]:
@@ -38,14 +52,27 @@ def _filas(sql: str, *parametros: Any) -> list[tuple[Any, ...]]:
         return cx.execute(sql, parametros).fetchall()
 
 
-def _sembrar(usuario: uuid.UUID, accion: str, cuando: Any, *, entidad: str = "usuario",
-             entidad_id: uuid.UUID | None = None, actor: str = "usuario") -> None:
+def _sembrar(
+    usuario: uuid.UUID,
+    accion: str,
+    cuando: Any,
+    *,
+    entidad: str = "usuario",
+    entidad_id: uuid.UUID | None = None,
+    actor: str = "usuario",
+) -> None:
     with psycopg.connect(DSN, autocommit=True) as cx:
         cx.execute(
             "INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad, entidad_id, ocurrido_en)"
             " VALUES (%s, %s, %s, %s, %s, %s)",
-            (actor, usuario if actor == "usuario" else None, accion, entidad,
-             entidad_id if entidad_id is not None else usuario, cuando),
+            (
+                actor,
+                usuario if actor == "usuario" else None,
+                accion,
+                entidad,
+                entidad_id if entidad_id is not None else usuario,
+                cuando,
+            ),
         )
 
 
@@ -58,7 +85,8 @@ def _cuenta(entorno: EntornoIam, email: str, contrasena: str) -> uuid.UUID:
 def _entrar(entorno: EntornoIam, email: str, contrasena: str, agente: str = ANDROID) -> str:
     entorno.cliente.cookies.clear()
     respuesta = entorno.cliente.post(
-        "/v1/sesiones", json={"email": email, "contrasena": contrasena}, headers={"User-Agent": agente})
+        "/v1/sesiones", json={"email": email, "contrasena": contrasena}, headers={"User-Agent": agente}
+    )
     assert respuesta.status_code == 200, respuesta.text
     return str(respuesta.json()["access_token"])
 
@@ -69,7 +97,8 @@ def _bearer(token: str) -> dict[str, str]:
 
 def _did(entorno: EntornoIam, token: str) -> uuid.UUID:
     claims = jwt.decode(
-        token, entorno.clave_jwt, algorithms=["HS256"], options={"verify_exp": False, "verify_iat": False})
+        token, entorno.clave_jwt, algorithms=["HS256"], options={"verify_exp": False, "verify_iat": False}
+    )
     return uuid.UUID(claims["did"])
 
 
@@ -114,8 +143,12 @@ def test_los_ultimos_ingresos_de_la_propia_cuenta(
     reloj.avanzar(timedelta(minutes=1))
     assert entorno_iam.cliente.put(RUTA_PUSH, json={"push_token": PUSH}, headers=_bearer(telefono)).status_code == 204
     reloj.avanzar(timedelta(minutes=1))
-    assert entorno_iam.cliente.put(
-        "/v1/yo/avisos", json={"correo": False, "push": True}, headers=_bearer(telefono)).status_code == 200
+    assert (
+        entorno_iam.cliente.put(
+            "/v1/yo/avisos", json={"correo": False, "push": True}, headers=_bearer(telefono)
+        ).status_code
+        == 200
+    )
     reloj.avanzar(timedelta(minutes=1))
     computador = _entrar(entorno_iam, email_sintetico, contrasena_sintetica, agente=WINDOWS)
     reloj.avanzar(timedelta(minutes=1))
@@ -129,8 +162,11 @@ def test_los_ultimos_ingresos_de_la_propia_cuenta(
         "eventos": [
             # El dispositivo de cerraste_en_dispositivo es el que se cerró; el de origen no se muestra
             {"tipo": "cerraste_en_dispositivo", "ocurrido_en": "2026-10-20T12:04:00Z", "dispositivo": telefono_vista},
-            {"tipo": "entraste", "ocurrido_en": "2026-10-20T12:03:00Z",
-             "dispositivo": {"nombre": "Firefox en Windows", "clase": "computador", "actual": True}},
+            {
+                "tipo": "entraste",
+                "ocurrido_en": "2026-10-20T12:03:00Z",
+                "dispositivo": {"nombre": "Firefox en Windows", "clase": "computador", "actual": True},
+            },
             {"tipo": "avisos_cambiados", "ocurrido_en": "2026-10-20T12:02:00Z", "dispositivo": None},
             {"tipo": "avisos_activados", "ocurrido_en": "2026-10-20T12:01:00Z", "dispositivo": telefono_vista},
             {"tipo": "entraste", "ocurrido_en": "2026-10-20T12:00:00Z", "dispositivo": telefono_vista},
@@ -150,8 +186,12 @@ def test_lista_vacia_y_parametros_ignorados(
     otro_email = f"otro.{uuid.uuid4().hex[:10]}@ejemplo.cl"
     otro = _cuenta(entorno_iam, otro_email, contrasena_sintetica)
     # Ni un parámetro de usuario ni X-Grupo-Id cambian qué se ve (C2): A sigue viendo solo lo suyo
-    cuerpo = _ingresos(entorno_iam, token, params={"usuario_id": str(otro), "desde": "2020-01-01", "pagina": "2"},
-                       cabeceras={"X-Grupo-Id": str(uuid.uuid4())})
+    cuerpo = _ingresos(
+        entorno_iam,
+        token,
+        params={"usuario_id": str(otro), "desde": "2020-01-01", "pagina": "2"},
+        cabeceras={"X-Grupo-Id": str(uuid.uuid4())},
+    )
     assert [e["tipo"] for e in cuerpo["eventos"]] == ["entraste"]
     # Otra persona sin ingresos ve la lista vacía, no la de A
     _sembrar(otro, "cuenta.celular_solicitar", entorno_iam.reloj.ahora())
@@ -225,7 +265,11 @@ def test_ver_push_actual_con_la_clave_publica(
     assert respuesta.status_code == 200
     assert respuesta.headers["cache-control"] == "no-store"
     assert respuesta.json() == {
-        "clave_publica": clave_vapid, "permitido": True, "registrado": False, "envio_simulado": True}
+        "clave_publica": clave_vapid,
+        "permitido": True,
+        "registrado": False,
+        "envio_simulado": True,
+    }
     assert len(clave_vapid) == 87 and clave_vapid.startswith("B")
 
     assert entorno_iam.cliente.put(RUTA_PUSH, json={"push_token": PUSH}, headers=_bearer(token)).status_code == 204
@@ -236,7 +280,9 @@ def test_ver_push_actual_con_la_clave_publica(
     assert (dispositivo["clase"], dispositivo["push_activo"]) == ("telefono", True)
     # Leer no se audita
     assert [f[0] for f in _filas("SELECT accion FROM auditoria WHERE actor_ref = %s ORDER BY id", cuenta)] == [
-        "sesion.iniciar", "dispositivo.push_registrar"]
+        "sesion.iniciar",
+        "dispositivo.push_registrar",
+    ]
 
 
 @pytest.mark.rf("RF-39")
@@ -246,7 +292,11 @@ def test_ver_push_sin_clave_configurada_responde_null(
     entorno_iam.cliente.app.dependency_overrides[obtener_clave_publica_vapid] = lambda: None  # type: ignore[attr-defined]
     token = _entrar(entorno_iam, email_sintetico, contrasena_sintetica)
     assert entorno_iam.cliente.get(RUTA_PUSH, headers=_bearer(token)).json() == {
-        "clave_publica": None, "permitido": True, "registrado": False, "envio_simulado": True}
+        "clave_publica": None,
+        "permitido": True,
+        "registrado": False,
+        "envio_simulado": True,
+    }
 
 
 @pytest.mark.rf("RF-39")
@@ -272,7 +322,11 @@ def test_push_audita_solo_si_el_endpoint_cambia(
     for _vez in range(2):
         assert entorno_iam.cliente.delete(RUTA_PUSH, headers=_bearer(token)).status_code == 204
     assert [f[0] for f in _filas("SELECT accion FROM auditoria WHERE actor_ref = %s ORDER BY id", cuenta)] == [
-        "sesion.iniciar", "dispositivo.push_registrar", "dispositivo.push_registrar", "dispositivo.push_borrar"]
+        "sesion.iniciar",
+        "dispositivo.push_registrar",
+        "dispositivo.push_registrar",
+        "dispositivo.push_borrar",
+    ]
 
 
 # --- La preferencia de avisos (decisión 259) -----------------------------------------------------------------------
@@ -300,7 +354,9 @@ def test_la_preferencia_de_avisos_se_audita_solo_si_cambia_y_sin_valores(
     assert entorno_iam.cliente.put("/v1/yo/avisos", json=del_pedido, headers=_bearer(token)).json() == del_pedido
     filas = _filas(
         "SELECT grupo_id, actor_tipo, entidad, entidad_id, detalle, request_id IS NOT NULL FROM auditoria"
-        " WHERE actor_ref = %s AND accion = 'avisos.preferencia'", cuenta)
+        " WHERE actor_ref = %s AND accion = 'avisos.preferencia'",
+        cuenta,
+    )
     assert filas == [(None, "usuario", "usuario", cuenta, None, True)] * 2
 
 

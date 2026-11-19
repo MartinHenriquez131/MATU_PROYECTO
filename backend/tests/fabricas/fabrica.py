@@ -613,8 +613,10 @@ class Fabrica:
         with self._conectar() as cx, cx.transaction():
             if grupos:
                 for sentencia in BORRAR_CONTENIDO_DE_GRUPOS:
-                    if any(t in sentencia for t in ("FROM consentimiento", "FROM transaccion_pasarela",
-                                                    "FROM persona_cuidada")):
+                    if any(
+                        t in sentencia
+                        for t in ("FROM consentimiento", "FROM transaccion_pasarela", "FROM persona_cuidada")
+                    ):
                         # consentimiento no se borra (trigger consentimiento_sin_borrado, 0006), ni el registro
                         # de la pasarela (transaccion_sin_borrado, MATU-62), ni una persona con auditoría (la clave
                         # foránea auditoria_persona_fk de la 0028, MATU-54: en producción la persona nunca se borra,

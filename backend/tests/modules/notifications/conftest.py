@@ -93,7 +93,9 @@ class EntornoAvisos:
         dispositivo_id = uuid.uuid4()
         ejecutar(
             "INSERT INTO dispositivo (id, usuario_id, plataforma, push_token) VALUES (%s, %s, 'web', %s)",
-            dispositivo_id, usuario.id, token,
+            dispositivo_id,
+            usuario.id,
+            token,
         )
         return dispositivo_id
 
@@ -101,7 +103,9 @@ class EntornoAvisos:
         ejecutar(
             "INSERT INTO preferencia_notificacion (usuario_id, tipo_evento, canal, activo)"
             " VALUES (%s, 'quiebre_proximo', %s, %s)",
-            usuario.id, canal, activo,
+            usuario.id,
+            canal,
+            activo,
         )
 
     def avisos(self, familia: FamiliaCreada) -> dict[tuple[uuid.UUID, str], tuple[str, str | None]]:

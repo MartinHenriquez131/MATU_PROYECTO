@@ -19,11 +19,20 @@ QUIEN_PAGO = uuid.UUID("00000000-0000-0000-0000-000000128c02")
 OTRA_CUENTA = uuid.UUID("00000000-0000-0000-0000-000000128c03")
 
 
-def _cabecera(pagado_en: datetime = AHORA, entregado_en: datetime | None = None,
-              estado: Estado = Estado.PAGADO) -> CabeceraPedido:
-    return CabeceraPedido(id=PEDIDO, referencia="4790", pagado_en=pagado_en, estado=estado,
-                          entregado_en=entregado_en, cancelado_en=None, total=28970, costo_envio=2990,
-                          condiciones_version="0.1")
+def _cabecera(
+    pagado_en: datetime = AHORA, entregado_en: datetime | None = None, estado: Estado = Estado.PAGADO
+) -> CabeceraPedido:
+    return CabeceraPedido(
+        id=PEDIDO,
+        referencia="4790",
+        pagado_en=pagado_en,
+        estado=estado,
+        entregado_en=entregado_en,
+        cancelado_en=None,
+        total=28970,
+        costo_envio=2990,
+        condiciones_version="0.1",
+    )
 
 
 class _Lectura:
@@ -51,8 +60,15 @@ class _Notas:
 
 
 def _cosa(anotado_en: datetime, nota: str = "Nota sintética") -> CosaAnotada:
-    return CosaAnotada(tipo="faltante", estado="abierta", anotado_en=anotado_en, resuelto_en=None, nota=nota,
-                       resolucion=None, nota_disponible=True)
+    return CosaAnotada(
+        tipo="faltante",
+        estado="abierta",
+        anotado_en=anotado_en,
+        resuelto_en=None,
+        nota=nota,
+        resolucion=None,
+        nota_disponible=True,
+    )
 
 
 def _lo_que_paso(lectura: _Lectura, notas: _Notas, rol: str, usuario: uuid.UUID) -> list[CosaAnotada]:
@@ -94,7 +110,9 @@ def test_e4_e5_vacia_sin_nada_anotado_y_en_el_orden_en_que_se_anoto() -> None:
     assert _lo_que_paso(lectura, _Notas([]), "pagador", QUIEN_PAGO) == []
     despues, antes = _cosa(AHORA, "Segunda"), _cosa(AHORA - timedelta(hours=1), "Primera")
     assert [x.nota for x in _lo_que_paso(lectura, _Notas([despues, antes]), "pagador", QUIEN_PAGO)] == [
-        "Primera", "Segunda"]
+        "Primera",
+        "Segunda",
+    ]
 
 
 def test_la_nota_no_sale_en_el_repr() -> None:

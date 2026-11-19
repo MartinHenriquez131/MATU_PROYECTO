@@ -52,7 +52,8 @@ class OutboxEnMemoria:
 
     def tomar(self, cantidad: int, ahora: datetime, grupo_id: uuid.UUID | None = None) -> list[EventoTomado]:
         pendientes = [
-            f for f in sorted(self.filas.values(), key=lambda f: f.id)
+            f
+            for f in sorted(self.filas.values(), key=lambda f: f.id)
             if f.publicado_en is None and f.fallido_en is None and f.disponible_en <= ahora
         ][:cantidad]
         for f in pendientes:

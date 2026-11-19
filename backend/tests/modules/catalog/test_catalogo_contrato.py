@@ -21,7 +21,13 @@ ESQUEMAS = {
     "Catalogo": {"precios_de_ejemplo", "categorias"},
     "CategoriaCatalogo": {"id", "nombre", "orden", "productos"},
     "ProductoCatalogo": {
-        "id", "nombre", "presentacion", "unidad", "unidades_por_envase", "retracto_pierde_al_abrir", "comercios",
+        "id",
+        "nombre",
+        "presentacion",
+        "unidad",
+        "unidades_por_envase",
+        "retracto_pierde_al_abrir",
+        "comercios",
     },
     "OfertaCatalogo": {"oferta_id", "comercio_id", "nombre_fantasia", "precio", "disponible", "ficticio"},
 }

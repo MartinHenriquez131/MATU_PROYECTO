@@ -101,6 +101,7 @@ _422_CUERPO = {
     **_PROBLEMA,
 }
 
+
 def _esquema_412() -> dict[str, Any]:
     """El esquema del 412 con referencias a los componentes que ya registra PerfilConsumoVista."""
     esquema = ProblemaVersionPerfilVista.model_json_schema(
@@ -482,4 +483,3 @@ def activar(
             409, tipo="perfil-duplicado", detalle="Ese producto ya está anotado para esta persona"
         ) from None
     return _guardado(response, _vista(leido, reloj))
-

@@ -97,9 +97,7 @@ _404: dict[int | str, dict[str, Any]] = {
     401: {"description": "no-autenticado o token-invalido", **_PROBLEMA},
     404: {"description": "Grupo ajeno, rol que no es admin o invitación inexistente o de otro grupo", **_PROBLEMA},
 }
-_EXITO: dict[str, Any] = {
-    "headers": {"Cache-Control": {"description": "no-store", "schema": {"type": "string"}}}
-}
+_EXITO: dict[str, Any] = {"headers": {"Cache-Control": {"description": "no-store", "schema": {"type": "string"}}}}
 _DE_LA_INVITACION: dict[int | str, dict[str, Any]] = {
     410: {"description": "invitacion-no-disponible, invitacion-usada o invitacion-vencida", **_PROBLEMA},
     422: {"description": "Cuerpo inválido (no cuenta como intento), o codigo-incorrecto", **_PROBLEMA},
@@ -337,7 +335,11 @@ def verificar_invitacion(
     try:
         with sesion_tenant(fabrica) as sesion:
             vista = verificar(
-                huella_de_texto(solicitud.token), solicitud.codigo, CanjeInvitacionesSQL(sesion), credenciales, reloj,
+                huella_de_texto(solicitud.token),
+                solicitud.codigo,
+                CanjeInvitacionesSQL(sesion),
+                credenciales,
+                reloj,
                 _request_id(request),
             )
     except CodigoNoVerificable:
@@ -391,7 +393,11 @@ def aceptar_invitacion(
     try:
         with sesion_tenant(fabrica, usuario_id=usuario.id) as sesion:
             union = aceptar(
-                huella_de_texto(solicitud.token), solicitud.codigo, CanjeInvitacionesSQL(sesion), credenciales, reloj,
+                huella_de_texto(solicitud.token),
+                solicitud.codigo,
+                CanjeInvitacionesSQL(sesion),
+                credenciales,
+                reloj,
                 _request_id(request),
             )
     except CodigoNoVerificable:

@@ -116,14 +116,48 @@ def _lista(acciones: Sequence[str]) -> str:
 
 
 ACCIONES_DE_PERSONA_0030 = (
-    "plan.leer", "plan.editar", "plan.quitar_seccion", "consentimiento.otorgar", "consentimiento.revocar",
-    "relevo.compartir", "relevo.revocar", "relevo.presentar", "relevo.canje", "relevo.pin_incorrecto",
-    "relevo.bloqueo", "relevo.abrir", "consumo.crear", "consumo.editar", "consumo.desactivar", "consumo.activar",
-    "consumo.eliminar", "alerta.materializar", "alerta.descartar", "alerta.resolver", "reposicion.declarar",
-    "clave.destruir", "persona.borrar", "persona.datos_descargar", "direccion.cambiar", "pedido.crear",
-    "pedido.confirmar", "pedido.cancelar", "pedido.regla_faltante", "pago.iniciar", "pago.aprobar", "pago.anular",
-    "pago.devolver", "pedido.retracto_solicitar", "codigo_retiro.generar", "despacho.en_camino", "despacho.entregar",
-    "despacho.no_entregado", "retracto.resolver", "operacion.pedido_ver", "incidencia.crear", "incidencia.resolver",
+    "plan.leer",
+    "plan.editar",
+    "plan.quitar_seccion",
+    "consentimiento.otorgar",
+    "consentimiento.revocar",
+    "relevo.compartir",
+    "relevo.revocar",
+    "relevo.presentar",
+    "relevo.canje",
+    "relevo.pin_incorrecto",
+    "relevo.bloqueo",
+    "relevo.abrir",
+    "consumo.crear",
+    "consumo.editar",
+    "consumo.desactivar",
+    "consumo.activar",
+    "consumo.eliminar",
+    "alerta.materializar",
+    "alerta.descartar",
+    "alerta.resolver",
+    "reposicion.declarar",
+    "clave.destruir",
+    "persona.borrar",
+    "persona.datos_descargar",
+    "direccion.cambiar",
+    "pedido.crear",
+    "pedido.confirmar",
+    "pedido.cancelar",
+    "pedido.regla_faltante",
+    "pago.iniciar",
+    "pago.aprobar",
+    "pago.anular",
+    "pago.devolver",
+    "pedido.retracto_solicitar",
+    "codigo_retiro.generar",
+    "despacho.en_camino",
+    "despacho.entregar",
+    "despacho.no_entregado",
+    "retracto.resolver",
+    "operacion.pedido_ver",
+    "incidencia.crear",
+    "incidencia.resolver",
 )
 # J2: el intento fallido de registrar un retracto por el correo de quien lo pidió, con el grupo y la persona del pedido
 ACCIONES_DE_PERSONA_0031 = (*ACCIONES_DE_PERSONA_0030, "operacion.retracto_correo_fallido")
@@ -423,12 +457,24 @@ ALTER POLICY clave_notas_familia_leer ON clave_notas USING (
 """
 
 UPGRADE = (
-    CUENTAS + INCIDENCIA_REGLAS_0031 + SESION_REFRESH_MFA_0031 + BUSCAR_CUENTA_0031 + MEMBRESIAS + AUDITORIA + CODIGO
+    CUENTAS
+    + INCIDENCIA_REGLAS_0031
+    + SESION_REFRESH_MFA_0031
+    + BUSCAR_CUENTA_0031
+    + MEMBRESIAS
+    + AUDITORIA
+    + CODIGO
     + CLAVE_NOTAS
 )
 DOWNGRADE = (
-    CLAVE_NOTAS_BAJADA + CODIGO_BAJADA + AUDITORIA_BAJADA + MEMBRESIAS_BAJADA + BUSCAR_CUENTA_0030
-    + SESION_REFRESH_MFA_0030 + INCIDENCIA_REGLAS_0030 + CUENTAS_BAJADA
+    CLAVE_NOTAS_BAJADA
+    + CODIGO_BAJADA
+    + AUDITORIA_BAJADA
+    + MEMBRESIAS_BAJADA
+    + BUSCAR_CUENTA_0030
+    + SESION_REFRESH_MFA_0030
+    + INCIDENCIA_REGLAS_0030
+    + CUENTAS_BAJADA
 )
 
 

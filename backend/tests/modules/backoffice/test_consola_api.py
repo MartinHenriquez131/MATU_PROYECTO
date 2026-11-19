@@ -42,8 +42,12 @@ def _entregado(d: Despacho, faltan: int = 0) -> tuple[Any, dict[str, Any], str]:
 
 
 def _auditadas(d: Despacho, accion: str, entidad_id: str) -> list[tuple[Any, ...]]:
-    return d.sql("SELECT actor_tipo, actor_ref, grupo_id IS NOT NULL, persona_cuidada_id IS NOT NULL FROM auditoria"
-                 " WHERE accion = %s AND entidad_id = %s", accion, uuid.UUID(entidad_id))
+    return d.sql(
+        "SELECT actor_tipo, actor_ref, grupo_id IS NOT NULL, persona_cuidada_id IS NOT NULL FROM auditoria"
+        " WHERE accion = %s AND entidad_id = %s",
+        accion,
+        uuid.UUID(entidad_id),
+    )
 
 
 def test_el_detalle_trae_partes_lineas_linea_de_tiempo_y_acciones_y_se_audita(despacho: Despacho) -> None:
@@ -77,8 +81,9 @@ def test_las_acciones_de_un_pedido_no_entregado_dicen_cuanto_se_devuelve(despach
     d = despacho
     _, pedido, _ = _entregado(d)
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/no-entregado").status_code == 200
-    acciones = {a["accion"]: a["monto_a_devolver"] for a in d.operacion("GET", f"/pedidos/{pedido['id']}").json()[
-        "acciones"]}
+    acciones = {
+        a["accion"]: a["monto_a_devolver"] for a in d.operacion("GET", f"/pedidos/{pedido['id']}").json()["acciones"]
+    }
     assert acciones == {"en_camino": 0, "cancelar_con_devolucion": 2 * PRECIO_PANAL + COSTO_ENVIO}
 
 
@@ -120,12 +125,17 @@ def test_la_conciliacion_del_pedido_y_los_cobros_pendientes(despacho: Despacho) 
     c = r.json()
     total = 2 * PRECIO_PANAL + COSTO_ENVIO
     assert (c["total_confirmado"], c["cobrado"], c["devuelto"], c["queda_cobrado"]) == (
-        total, total, PRECIO_PANAL, total - PRECIO_PANAL)
+        total,
+        total,
+        PRECIO_PANAL,
+        total - PRECIO_PANAL,
+    )
     assert c["estado_cargo"] == "devuelto_parcial" and c["calza"] is True
     [venta] = c["ventas"]
     assert venta["estado"] == "aprobada" and venta["buy_order"]
     assert [(a["motivo"], a["monto"], a["estado"]) for a in c["anulaciones"]] == [
-        ("producto_no_entregado", PRECIO_PANAL, "hecha")]
+        ("producto_no_entregado", PRECIO_PANAL, "hecha")
+    ]
     # C18: nada de la tarjeta, el token ni la sesión de Transbank
     for prohibido in ("token", "session_id", "ultimos4", "tipo_tarjeta", "cuotas", "codigo_autorizacion"):
         assert prohibido not in r.text
@@ -141,8 +151,9 @@ def test_incidencias_crear_editar_con_if_match_y_resolver(despacho: Despacho) ->
     d = despacho
     familia, pedido = d.pagado()
     nota = f"Nota sintética {uuid.uuid4().hex}"
-    r = d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "faltante", "descripcion": nota,
-                                                                       "asignarme": True})
+    r = d.operacion(
+        "POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "faltante", "descripcion": nota, "asignarme": True}
+    )
     assert r.status_code == 201, r.text
     inc = r.json()
     assert (inc["estado"], inc["asignada_a_mi"], inc["version"]) == ("abierta", True, 1)
@@ -152,15 +163,28 @@ def test_incidencias_crear_editar_con_if_match_y_resolver(despacho: Despacho) ->
     assert (inc["descripcion"], inc["resolucion"], inc["nota_disponible"]) == (nota, None, True)
     [(cifrada, clave, persona)] = d.sql(
         "SELECT i.descripcion, i.clave_notas_id, k.persona_cuidada_id FROM incidencia i"
-        " JOIN clave_notas k ON k.id = i.clave_notas_id WHERE i.id = %s", uuid.UUID(inc["id"]))
+        " JOIN clave_notas k ON k.id = i.clave_notas_id WHERE i.id = %s",
+        uuid.UUID(inc["id"]),
+    )
     assert nota.encode() not in bytes(cifrada) and persona == familia.persona.id
-    assert d.sql("SELECT count(*) FROM clave_datos WHERE dek_cifrada_con_kek = (SELECT dek_cifrada_con_kek"
-                 " FROM clave_notas WHERE id = %s)", clave) == [(0,)]
+    assert d.sql(
+        "SELECT count(*) FROM clave_datos WHERE dek_cifrada_con_kek = (SELECT dek_cifrada_con_kek"
+        " FROM clave_notas WHERE id = %s)",
+        clave,
+    ) == [(0,)]
     # Tipos de D-81-3 y el largo de C11
-    assert d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias",
-                       {"tipo": "desviacion_monto", "descripcion": "x"}).status_code == 422
-    assert d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias",
-                       {"tipo": "otro", "descripcion": "x" * 501}).status_code == 422
+    assert (
+        d.operacion(
+            "POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "desviacion_monto", "descripcion": "x"}
+        ).status_code
+        == 422
+    )
+    assert (
+        d.operacion(
+            "POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "otro", "descripcion": "x" * 501}
+        ).status_code
+        == 422
+    )
     # La lista y el filtro
     lista = d.operacion("GET", "/incidencias?estado=abierta").json()["incidencias"]
     assert inc["id"] in [i["id"] for i in lista]
@@ -174,8 +198,9 @@ def test_incidencias_crear_editar_con_if_match_y_resolver(despacho: Despacho) ->
     assert r.headers["etag"] == '"i2"'
     # Resolver exige la resolución, y se audita sin el texto
     assert d.operacion("PATCH", ruta, {"estado": "resuelta"}, **{"If-Match": '"i2"'}).status_code == 422
-    r = d.operacion("PATCH", ruta, {"estado": "resuelta", "resolucion": "Se devolvió lo que faltó"},
-                    **{"If-Match": '"i2"'})
+    r = d.operacion(
+        "PATCH", ruta, {"estado": "resuelta", "resolucion": "Se devolvió lo que faltó"}, **{"If-Match": '"i2"'}
+    )
     assert r.status_code == 200 and r.json()["resuelta_en"] is not None
     assert (r.json()["descripcion"], r.json()["resolucion"]) == (nota, "Se devolvió lo que faltó")
     [(resolucion,)] = d.sql("SELECT resolucion FROM incidencia WHERE id = %s", uuid.UUID(inc["id"]))
@@ -204,8 +229,9 @@ def test_incidencias_crear_editar_con_if_match_y_resolver(despacho: Despacho) ->
 
 def _incidencia_con_resolucion(d: Despacho, pedido: dict[str, Any], nota: str) -> dict[str, Any]:
     inc = d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "otro", "descripcion": nota}).json()
-    r = d.operacion("PATCH", f"/incidencias/{inc['id']}", {"resolucion": "Resolución sintética"},
-                    **{"If-Match": '"i1"'})
+    r = d.operacion(
+        "PATCH", f"/incidencias/{inc['id']}", {"resolucion": "Resolución sintética"}, **{"If-Match": '"i1"'}
+    )
     assert r.status_code == 200 and r.json()["resolucion"] == "Resolución sintética"
     return inc
 
@@ -214,11 +240,19 @@ def _destruir_clave_de_la_ficha(d: Despacho, familia: Any) -> None:
     """La clave de la ficha de la persona se destruye como la destruye plan_destruir_claves a los 90 días del retiro
     (superusuario: los disparadores corren igual)."""
     persona = familia.persona.id
-    d.sql("INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
-          " SELECT %s, %s, '\\x01', 1 WHERE NOT EXISTS (SELECT 1 FROM clave_datos WHERE persona_cuidada_id = %s"
-          " AND destruida_en IS NULL)", familia.grupo.id, persona, persona)
-    d.sql("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
-          " WHERE persona_cuidada_id = %s AND destruida_en IS NULL", persona)
+    d.sql(
+        "INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+        " SELECT %s, %s, '\\x01', 1 WHERE NOT EXISTS (SELECT 1 FROM clave_datos WHERE persona_cuidada_id = %s"
+        " AND destruida_en IS NULL)",
+        familia.grupo.id,
+        persona,
+        persona,
+    )
+    d.sql(
+        "UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
+        " WHERE persona_cuidada_id = %s AND destruida_en IS NULL",
+        persona,
+    )
 
 
 @pytest.mark.rf("Ley-21.719")
@@ -233,8 +267,9 @@ def test_con_la_persona_borrada_la_nota_no_esta_disponible_en_la_consola(despach
     persona = familia.persona.id
     borrado = d.e.pedir("POST", f"/v1/personas-cuidadas/{persona}/borrado", familia.admin, familia)
     assert borrado.status_code == 200, borrado.text
-    assert d.sql("SELECT count(*) FROM clave_notas WHERE persona_cuidada_id = %s AND destruida_en IS NULL",
-                 persona) == [(0,)]
+    assert d.sql(
+        "SELECT count(*) FROM clave_notas WHERE persona_cuidada_id = %s AND destruida_en IS NULL", persona
+    ) == [(0,)]
 
     r = d.operacion("GET", f"/incidencias/{inc['id']}")
     assert r.status_code == 200, r.text
@@ -247,8 +282,9 @@ def test_con_la_persona_borrada_la_nota_no_esta_disponible_en_la_consola(despach
 
     # Seguir trabajando la incidencia: resolverla con una resolución nueva, con la clave nueva
     version = r.headers["etag"]
-    r = d.operacion("PATCH", f"/incidencias/{inc['id']}", {"estado": "resuelta", "resolucion": "Cerrada"},
-                    **{"If-Match": version})
+    r = d.operacion(
+        "PATCH", f"/incidencias/{inc['id']}", {"estado": "resuelta", "resolucion": "Cerrada"}, **{"If-Match": version}
+    )
     assert r.status_code == 200 and r.json()["estado"] == "resuelta"
     # La nota de antes sigue ilegible, así que la incidencia sigue como no disponible
     assert r.json()["nota_disponible"] is False
@@ -271,14 +307,18 @@ def test_destruir_la_clave_de_la_ficha_no_destruye_la_nota(despacho: Despacho) -
     persona = familia.persona.id
     [(clave,)] = d.sql("SELECT id FROM clave_notas WHERE persona_cuidada_id = %s AND destruida_en IS NULL", persona)
     _destruir_clave_de_la_ficha(d, familia)
-    assert d.sql("SELECT count(*) FROM clave_datos WHERE persona_cuidada_id = %s AND destruida_en IS NULL",
-                 persona) == [(0,)]
+    assert d.sql(
+        "SELECT count(*) FROM clave_datos WHERE persona_cuidada_id = %s AND destruida_en IS NULL", persona
+    ) == [(0,)]
     assert d.sql("SELECT destruida_en IS NULL FROM clave_notas WHERE id = %s", clave) == [(True,)]
 
     r = d.operacion("GET", f"/incidencias/{inc['id']}")
     assert r.status_code == 200, r.text
     assert (r.json()["descripcion"], r.json()["resolucion"], r.json()["nota_disponible"]) == (
-        nota, "Resolución sintética", True)
+        nota,
+        "Resolución sintética",
+        True,
+    )
     copia = d.e.pedir("GET", f"/v1/personas-cuidadas/{persona}/datos", familia.admin, familia)
     assert copia.status_code == 200, copia.text
     [p] = [x for x in copia.json()["pedidos"] if x["referencia"] == inc["referencia"]]
@@ -336,8 +376,9 @@ def test_sin_la_kek_la_consola_y_la_copia_fallan_cerradas_con_503(despacho: Desp
         assert nota not in copia.text and "nota_disponible" not in copia.text
         assert copia.headers["cache-control"] == "no-store"
     # La copia fallida no se registró (la transacción se revierte entera, C19)
-    assert d.sql("SELECT count(*) FROM auditoria WHERE accion = 'persona.datos_descargar'"
-                 " AND persona_cuidada_id = %s", persona) == [(0,)]
+    assert d.sql(
+        "SELECT count(*) FROM auditoria WHERE accion = 'persona.datos_descargar' AND persona_cuidada_id = %s", persona
+    ) == [(0,)]
     copia = d.e.pedir("GET", ruta_copia, familia.admin, familia)
     assert copia.status_code == 200, copia.text
     [p] = [x for x in copia.json()["pedidos"] if x["referencia"] == inc["referencia"]]
@@ -379,8 +420,10 @@ def test_el_catalogo_se_edita_solo_en_los_comercios_ficticios_y_no_cambia_lo_con
     assert catalogo.status_code == 200
     oferta_id = d.e.oferta("panal", "uno")
     [oferta] = [o for o in catalogo.json()["ofertas"] if o["id"] == oferta_id]
-    d.sql("UPDATE comercio SET ficticio = true WHERE id = (SELECT comercio_id FROM oferta WHERE id = %s)",
-          uuid.UUID(oferta_id))
+    d.sql(
+        "UPDATE comercio SET ficticio = true WHERE id = (SELECT comercio_id FROM oferta WHERE id = %s)",
+        uuid.UUID(oferta_id),
+    )
     oferta = next(o for o in d.operacion("GET", "/catalogo").json()["ofertas"] if o["id"] == oferta_id)
     assert oferta["editable"] is True
     # C3: un total confirmado no cambia con el precio nuevo
@@ -395,15 +438,24 @@ def test_el_catalogo_se_edita_solo_en_los_comercios_ficticios_y_no_cambia_lo_con
     assert r.json()["precio"] == 15990 and r.headers["etag"] != oferta["version"]
     assert d.sql("SELECT total FROM pedido WHERE id = %s", uuid.UUID(pedido["id"]))[0][0] == total
     assert d.sql("SELECT precio_unitario FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))[0][0] == (
-        PRECIO_PANAL)
+        PRECIO_PANAL
+    )
     assert pagar(d.e, familia, pedido).status_code in (200, 201)
-    assert d.sql("SELECT t.monto FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id"
-                 " WHERE c.pedido_id = %s AND t.tipo = 'venta'", uuid.UUID(pedido["id"])) == [(total,)]
-    assert d.sql("SELECT count(*) FROM auditoria WHERE accion = 'catalogo.oferta_cambiar' AND entidad_id = %s"
-                 " AND grupo_id IS NULL", uuid.UUID(oferta_id)) == [(1,)]
+    assert d.sql(
+        "SELECT t.monto FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id"
+        " WHERE c.pedido_id = %s AND t.tipo = 'venta'",
+        uuid.UUID(pedido["id"]),
+    ) == [(total,)]
+    assert d.sql(
+        "SELECT count(*) FROM auditoria WHERE accion = 'catalogo.oferta_cambiar' AND entidad_id = %s"
+        " AND grupo_id IS NULL",
+        uuid.UUID(oferta_id),
+    ) == [(1,)]
     # D-81-7: un comercio real no se edita, ni por la API ni en la base
-    d.sql("UPDATE comercio SET ficticio = false WHERE id = (SELECT comercio_id FROM oferta WHERE id = %s)",
-          uuid.UUID(oferta_id))
+    d.sql(
+        "UPDATE comercio SET ficticio = false WHERE id = (SELECT comercio_id FROM oferta WHERE id = %s)",
+        uuid.UUID(oferta_id),
+    )
     version = r.headers["etag"]
     r = d.operacion("PATCH", ruta, {"stock": 3}, **{"If-Match": version})
     assert r.status_code == 409 and r.json()["type"] == "/errores/comercio-real"
@@ -416,8 +468,12 @@ def test_el_retracto_trae_sus_productos_y_el_rechazo_exige_motivo(despacho: Desp
     familia, pedido, _ = _entregado(d)
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
-    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                       {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    r = d.post_familia(
+        f"/v1/pedidos/{pedido['id']}/retractos",
+        familia.admin,
+        familia,
+        {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]},
+    )
     assert r.status_code == 201, r.text
     retracto = r.json()["id"]
     vista = d.operacion("GET", f"/retractos/{retracto}").json()
@@ -439,8 +495,12 @@ def test_la_lista_de_retractos_filtra_por_estado_y_por_omision_trae_los_por_reso
     familia, pedido, _ = _entregado(d)
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
-    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                       {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    r = d.post_familia(
+        f"/v1/pedidos/{pedido['id']}/retractos",
+        familia.admin,
+        familia,
+        {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]},
+    )
     assert r.status_code == 201, r.text
     retracto = r.json()["id"]
 
@@ -471,8 +531,12 @@ def test_c24_la_familia_ve_el_motivo_del_rechazo(despacho: Despacho) -> None:
     familia, pedido, _ = _entregado(d)
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
-    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                       {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    r = d.post_familia(
+        f"/v1/pedidos/{pedido['id']}/retractos",
+        familia.admin,
+        familia,
+        {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]},
+    )
     assert r.status_code == 201 and r.json()["motivo_rechazo"] is None
     retracto = r.json()["id"]
     ruta_familia = f"/v1/pedidos/{pedido['id']}/retractos"
@@ -493,8 +557,12 @@ def test_h2_la_copia_de_los_datos_trae_el_motivo_del_rechazo_en_las_dos_copias(d
     familia, pedido, _ = _entregado(d)
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
-    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                       {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    r = d.post_familia(
+        f"/v1/pedidos/{pedido['id']}/retractos",
+        familia.admin,
+        familia,
+        {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]},
+    )
     assert r.status_code == 201, r.text
     retracto = r.json()["id"]
 
@@ -504,8 +572,10 @@ def test_h2_la_copia_de_los_datos_trae_el_motivo_del_rechazo_en_las_dos_copias(d
         [p] = persona.json()["pedidos"]
         cuenta = d.como(familia.admin, "GET", "/v1/yo/datos")
         assert cuenta.status_code == 200, cuenta.text
-        return ([(x["estado"], x["motivo_rechazo"]) for x in p["retractos"]],
-                [(x["estado"], x["motivo_rechazo"]) for x in cuenta.json()["retractos"]])
+        return (
+            [(x["estado"], x["motivo_rechazo"]) for x in p["retractos"]],
+            [(x["estado"], x["motivo_rechazo"]) for x in cuenta.json()["retractos"]],
+        )
 
     assert copias() == ([("solicitado", None)], [("solicitado", None)])
     r = d.operacion("POST", f"/retractos/{retracto}/resolver", {"decision": "rechazar", "motivo": "sello_abierto"})
@@ -520,8 +590,12 @@ def test_las_anulaciones_pendientes_dicen_si_estan_en_curso_o_sin_terminar(despa
     familia, pedido, _ = _entregado(d)
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
-    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                       {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    r = d.post_familia(
+        f"/v1/pedidos/{pedido['id']}/retractos",
+        familia.admin,
+        familia,
+        {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]},
+    )
     assert r.status_code == 201, r.text
     d.pasarela.caida = True
     try:
@@ -529,8 +603,11 @@ def test_las_anulaciones_pendientes_dicen_si_estan_en_curso_o_sin_terminar(despa
         assert r.status_code == 200, r.text
     finally:
         d.pasarela.caida = False
-    [(anulacion,)] = d.sql("SELECT t.id FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id"
-                           " WHERE c.pedido_id = %s AND t.tipo = 'anulacion'", uuid.UUID(pedido["id"]))
+    [(anulacion,)] = d.sql(
+        "SELECT t.id FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id"
+        " WHERE c.pedido_id = %s AND t.tipo = 'anulacion'",
+        uuid.UUID(pedido["id"]),
+    )
 
     def del_pedido() -> list[dict[str, Any]]:
         respuesta = d.operacion("GET", "/cobros/pendientes")
@@ -557,11 +634,15 @@ def test_d_81_9_el_retracto_por_correo_va_a_nombre_del_admin_de_ese_correo(despa
     ajeno = f"nadie.{uuid.uuid4().hex[:8]}@ejemplo.cl"
     r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", {"lineas": lineas, "correo_solicitante": ajeno})
     assert r.status_code == 422 and ajeno not in r.text and ajeno not in d.e.iam.texto_log()
-    r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos",
-                    {"lineas": lineas, "correo_solicitante": familia.admin.email.upper()})
+    r = d.operacion(
+        "POST",
+        f"/pedidos/{pedido['id']}/retractos",
+        {"lineas": lineas, "correo_solicitante": familia.admin.email.upper()},
+    )
     assert r.status_code == 201, r.text
     assert d.sql("SELECT solicitado_por FROM retracto WHERE id = %s", uuid.UUID(r.json()["id"])) == [
-        (familia.admin.id,)]
+        (familia.admin.id,)
+    ]
     assert familia.admin.email not in d.e.iam.texto_log()
 
 
@@ -579,9 +660,13 @@ def test_c34_ninguna_ruta_de_operacion_lee_la_persona_ni_su_direccion(despacho: 
     try:
         referencia = d.sql("SELECT referencia FROM pedido WHERE id = %s", uuid.UUID(pedido["id"]))[0][0]
         rutas: list[tuple[str, str, Any]] = [
-            ("GET", "/pedidos?grupo=todos", None), ("POST", "/pedidos/buscar", {"referencia": referencia}),
-            ("GET", f"/pedidos/{pedido['id']}", None), ("GET", f"/pedidos/{pedido['id']}/cobro", None),
-            ("GET", "/cobros/pendientes", None), ("GET", "/retractos", None), ("GET", "/incidencias", None),
+            ("GET", "/pedidos?grupo=todos", None),
+            ("POST", "/pedidos/buscar", {"referencia": referencia}),
+            ("GET", f"/pedidos/{pedido['id']}", None),
+            ("GET", f"/pedidos/{pedido['id']}/cobro", None),
+            ("GET", "/cobros/pendientes", None),
+            ("GET", "/retractos", None),
+            ("GET", "/incidencias", None),
             ("POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "otro", "descripcion": "Revisión sintética"}),
             ("GET", "/catalogo", None),
         ]

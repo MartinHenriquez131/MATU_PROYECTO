@@ -37,19 +37,23 @@ def _marca(nombre: str) -> str:
 
 
 def _agregar(entorno: EntornoAbrir, familia: FamiliaCreada, seccion: str, texto: str) -> None:
-    respuesta = _put(entorno.ficha, familia.admin, familia.grupo.id, familia.persona.id, seccion, {"texto": texto},
-                     If_None_Match="*")
+    respuesta = _put(
+        entorno.ficha, familia.admin, familia.grupo.id, familia.persona.id, seccion, {"texto": texto}, If_None_Match="*"
+    )
     assert respuesta.status_code == 201, respuesta.text
 
 
 def _crear(entorno: EntornoAbrir, familia: FamiliaCreada, **cambios: Any) -> Any:
     cuerpo: dict[str, Any] = {
-        "nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "fin_de_semana_fuera",
+        "nombre_relevo": "Rosa",
+        "telefono_relevo": "+56 9 5555 0137",
+        "motivo": "fin_de_semana_fuera",
         "relevo_informado": True,
     }
     cuerpo.update(cambios)
     return entorno.ficha.iam.cliente.post(
-        RUTA_ACCESOS.format(familia.persona.id), json=cuerpo,
+        RUTA_ACCESOS.format(familia.persona.id),
+        json=cuerpo,
         headers=entorno.ficha._cabeceras(familia.admin, familia.grupo.id),
     )
 
@@ -144,8 +148,9 @@ def test_el_relevo_ve_solo_las_secciones_compartidas_en_orden(entorno: EntornoAb
 
 def test_campos_deprecado_con_los_tres_se_acepta_y_se_ignora(entorno: EntornoAbrir) -> None:
     familia, _ = _familia_con_secciones(entorno)
-    creado = _crear(entorno, familia, campos=["red_apoyo", "rutina", "manejo_situaciones"],
-                    secciones_adicionales=["quien_es"])
+    creado = _crear(
+        entorno, familia, campos=["red_apoyo", "rutina", "manejo_situaciones"], secciones_adicionales=["quien_es"]
+    )
     assert creado.status_code == 201, creado.text
     assert creado.json()["campos"] == BASE and creado.json()["secciones_adicionales"] == ["quien_es"]
 
@@ -163,9 +168,7 @@ def test_campos_deprecado_con_los_tres_se_acepta_y_se_ignora(entorno: EntornoAbr
         ({"secciones_adicionales": ["preferencias"]}, "secciones_adicionales", "seccion_no_agregada"),
     ],
 )
-def test_422_al_compartir(
-    entorno: EntornoAbrir, cambios: dict[str, Any], campo: str, tipo: str
-) -> None:
+def test_422_al_compartir(entorno: EntornoAbrir, cambios: dict[str, Any], campo: str, tipo: str) -> None:
     familia, _ = _familia_con_secciones(entorno)
     respuesta = _crear(entorno, familia, **cambios)
     assert respuesta.status_code == 422, respuesta.text
@@ -180,8 +183,9 @@ def test_422_si_no_hay_plan_y_se_pide_una_seccion(entorno: EntornoAbrir) -> None
     assert respuesta.status_code == 422
     assert respuesta.json()["errores"][0]["tipo"] == "seccion_no_agregada"
     with psycopg.connect(DSN) as cx:
-        fila = cx.execute("SELECT count(*) FROM plan_cuidado WHERE persona_cuidada_id = %s",
-                          (familia.persona.id,)).fetchone()
+        fila = cx.execute(
+            "SELECT count(*) FROM plan_cuidado WHERE persona_cuidada_id = %s", (familia.persona.id,)
+        ).fetchone()
     assert fila == (0,)
 
 
@@ -193,8 +197,15 @@ def test_editar_una_seccion_compartida_si_se_ve(entorno: EntornoAbrir) -> None:
     _, token, pin = entorno.compartir(familia, campos_anteriores=None, secciones_adicionales=["comunicacion"])
     entorno.reloj.avanzar(timedelta(minutes=1))
     nuevo = _marca("comunicacion editada")
-    editada = _put(entorno.ficha, familia.admin, familia.grupo.id, familia.persona.id, "comunicacion",
-                   {"texto": nuevo}, If_Match='"v1"')
+    editada = _put(
+        entorno.ficha,
+        familia.admin,
+        familia.grupo.id,
+        familia.persona.id,
+        "comunicacion",
+        {"texto": nuevo},
+        If_Match='"v1"',
+    )
     assert editada.status_code == 200, editada.text
     assert entorno.abrir(token, pin).json()["secciones"] == [{"tipo": "comunicacion", "texto": nuevo}]
 
@@ -208,8 +219,12 @@ def test_quitada_no_se_ve_y_vuelta_a_agregar_tampoco(entorno: EntornoAbrir) -> N
     assert entorno.canjear(token, pin).status_code == 204
 
     # Se quita remedios: el relevo deja de verla
-    assert _delete(entorno.ficha, familia.admin, familia.grupo.id, familia.persona.id, "remedios",
-                   If_Match='"v1"').status_code == 204
+    assert (
+        _delete(
+            entorno.ficha, familia.admin, familia.grupo.id, familia.persona.id, "remedios", If_Match='"v1"'
+        ).status_code
+        == 204
+    )
     ficha = entorno.leer()
     assert [s["tipo"] for s in ficha.json()["secciones"]] == ["comunicacion"]
     assert textos["remedios"] not in ficha.text

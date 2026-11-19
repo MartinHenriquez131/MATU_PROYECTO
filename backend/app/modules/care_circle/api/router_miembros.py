@@ -50,9 +50,7 @@ _404: dict[int | str, dict[str, Any]] = {
 _409_SALIR: dict[int | str, dict[str, Any]] = {
     409: {"description": "ultimo-admin o unica-persona. No cambia nada", **_PROBLEMA}
 }
-_EXITO: dict[str, Any] = {
-    "headers": {"Cache-Control": {"description": "no-store", "schema": {"type": "string"}}}
-}
+_EXITO: dict[str, Any] = {"headers": {"Cache-Control": {"description": "no-store", "schema": {"type": "string"}}}}
 _TEXTO_ULTIMO_ADMIN = "El grupo necesita alguien que lo administre. Primero da ese rol a otra persona"
 _TEXTO_UNICA_PERSONA = "Eres la única persona del grupo"
 
@@ -147,9 +145,7 @@ def cambiar(
         raise ErrorMATU(
             422,
             detalle="Revisa los campos indicados",
-            errores=[
-                {"campo": "puede_ver_plan", "mensaje": "solo se da a quien paga", "tipo": "permiso_solo_pagador"}
-            ],
+            errores=[{"campo": "puede_ver_plan", "mensaje": "solo se da a quien paga", "tipo": "permiso_solo_pagador"}],
         ) from None
     except VersionDesactualizada as error:
         raise ErrorMATU(

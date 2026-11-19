@@ -39,7 +39,9 @@ def _codigo(referencia: str) -> str:
         fila = cx.execute(
             "SELECT t.codigo_autorizacion FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id"
             " JOIN pedido p ON p.id = c.pedido_id WHERE p.referencia = %s AND t.tipo = 'venta'"
-            " AND t.estado = 'aprobada'", (referencia,)).fetchone()
+            " AND t.estado = 'aprobada'",
+            (referencia,),
+        ).fetchone()
     assert fila is not None and fila[0]
     return str(fila[0])
 
@@ -68,7 +70,8 @@ def test_la_copia_de_la_persona_trae_el_pedido_pagado_sin_telefono_ni_tarjeta(
     assert (pedido["estado"], pedido["total"], pedido["costo_envio"]) == ("pagado", TOTAL, COSTO_ENVIO)
     assert pedido["referencia"].isdigit()
     assert [(linea["cantidad"], linea["precio_unitario"], linea["subtotal"]) for linea in pedido["lineas"]] == [
-        (2, PRECIO_PANAL, 2 * PRECIO_PANAL)]
+        (2, PRECIO_PANAL, 2 * PRECIO_PANAL)
+    ]
     pago = pedido["pago"]
     assert (pago["estado"], pago["cobrado"], pago["devuelto"], pago["pago_de_prueba"]) == ("aprobado", TOTAL, 0, True)
     assert pago["pagado_por"] == {"nombre": familia.admin.nombre, "activo": True}
@@ -120,10 +123,14 @@ def test_tus_datos_de_quien_pago_y_salio_del_grupo_trae_su_pago_sin_el_nombre_de
     cuidador = familia.miembros["cuidador"].usuario
     with psycopg.connect(DSN, autocommit=True) as cx:
         # Queda otro admin, como exige la salida por la API
-        cx.execute("UPDATE membresia SET rol = 'admin' WHERE usuario_id = %s AND grupo_id = %s",
-                   (cuidador.id, familia.grupo.id))
-        cx.execute("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE usuario_id = %s"
-                   " AND grupo_id = %s", (familia.admin.id, familia.grupo.id))
+        cx.execute(
+            "UPDATE membresia SET rol = 'admin' WHERE usuario_id = %s AND grupo_id = %s",
+            (cuidador.id, familia.grupo.id),
+        )
+        cx.execute(
+            "UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE usuario_id = %s AND grupo_id = %s",
+            (familia.admin.id, familia.grupo.id),
+        )
 
     respuesta = e.iam.cliente.get("/v1/yo/datos", headers={"Authorization": f"Bearer {e.token(familia.admin)}"})
 

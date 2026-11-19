@@ -43,8 +43,12 @@ semilla = _cargar()
 CATALOGO = semilla.CATALOGO
 
 NOMBRES_D3 = {
-    "Pañal adulto M x30", "Toallitas húmedas x80", "Protectores diarios x20", "Crema protectora de la piel 100 g",
-    "Suplemento nutricional en polvo 400 g", "Bolsa colectora x10",
+    "Pañal adulto M x30",
+    "Toallitas húmedas x80",
+    "Protectores diarios x20",
+    "Crema protectora de la piel 100 g",
+    "Suplemento nutricional en polvo 400 g",
+    "Bolsa colectora x10",
 }
 # lenguaje.md 3.2 y D3: sin términos clínicos ni afirmaciones de salud
 PROHIBIDOS = ("escara", "úlcera", "ulcera", "antiescara", "ostom", "incontinencia", "previene", "cura", "diabét")
@@ -56,13 +60,18 @@ PROHIBIDOS = ("escara", "úlcera", "ulcera", "antiescara", "ostom", "incontinenc
 def test_los_seis_productos_de_d3_en_sus_categorias() -> None:
     assert {p.nombre for p in CATALOGO.productos} == NOMBRES_D3
     assert [(c.nombre, c.orden) for c in CATALOGO.categorias] == [
-        ("Higiene y cuidado personal", 1), ("Cuidado de la piel", 2), ("Alimentación", 3),
+        ("Higiene y cuidado personal", 1),
+        ("Cuidado de la piel", 2),
+        ("Alimentación", 3),
     ]
     categoria = {p.nombre: p.categoria for p in CATALOGO.productos}
     assert categoria["Crema protectora de la piel 100 g"] == "Cuidado de la piel"
     assert categoria["Suplemento nutricional en polvo 400 g"] == "Alimentación"
     assert {n for n, c in categoria.items() if c == "Higiene y cuidado personal"} == {
-        "Pañal adulto M x30", "Toallitas húmedas x80", "Protectores diarios x20", "Bolsa colectora x10",
+        "Pañal adulto M x30",
+        "Toallitas húmedas x80",
+        "Protectores diarios x20",
+        "Bolsa colectora x10",
     }
     # D3 de Jorge (08-11): la bolsa colectora va en «Higiene y cuidado personal», sin categoría propia, porque esa
     # categoría nombraría una condición de salud (lenguaje.md, sección 3.2)
@@ -82,7 +91,8 @@ def test_retracto_segun_d2() -> None:
     retracto = {p.nombre: p.retracto_pierde_al_abrir for p in CATALOGO.productos}
 
     assert {n for n, pierde in retracto.items() if not pierde} == {
-        "Suplemento nutricional en polvo 400 g", "Bolsa colectora x10",
+        "Suplemento nutricional en polvo 400 g",
+        "Bolsa colectora x10",
     }
 
 
@@ -170,11 +180,13 @@ def test_siembra_y_es_idempotente(copia: tuple[Any, list[Any]]) -> None:
 
     assert segundo == primero
     with psycopg.connect(DSN) as cx:
-        assert cx.execute("SELECT count(*) FROM oferta WHERE id = ANY(%s)",
-                          (list(primero.ofertas.values()),)).fetchone() == (12,)
+        assert cx.execute(
+            "SELECT count(*) FROM oferta WHERE id = ANY(%s)", (list(primero.ofertas.values()),)
+        ).fetchone() == (12,)
         filas = cx.execute(
             "SELECT p.nombre, o.precio, o.stock, p.marca, p.retracto_pierde_al_abrir FROM oferta o"
-            " JOIN producto p ON p.id = o.producto_id WHERE o.id = ANY(%s)", (list(primero.ofertas.values()),)
+            " JOIN producto p ON p.id = o.producto_id WHERE o.id = ANY(%s)",
+            (list(primero.ofertas.values()),),
         ).fetchall()
     assert {f[2] for f in filas} != {999}
     assert {f[3] for f in filas} == {None}
@@ -194,7 +206,9 @@ def test_lo_sembrado_se_lee_desde_el_catalogo(copia: tuple[Any, list[Any]]) -> N
 
     mias = [c for c in vista.categorias if c.id in set(sembrado.categorias.values())]
     assert [re.sub(r" \w{6}$", "", c.nombre) for c in mias] == [
-        "Higiene y cuidado personal", "Cuidado de la piel", "Alimentación",
+        "Higiene y cuidado personal",
+        "Cuidado de la piel",
+        "Alimentación",
     ]
     assert sum(len(p.comercios) for c in mias for p in c.productos) == 12
     assert any(not o.disponible for c in mias for p in c.productos for o in p.comercios)

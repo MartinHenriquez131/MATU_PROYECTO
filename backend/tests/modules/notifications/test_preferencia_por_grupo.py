@@ -44,10 +44,13 @@ def _put(iam: EntornoIam, usuario: UsuarioCreado, cuerpo: dict[str, bool]) -> di
 
 
 def _guardadas(usuario: UsuarioCreado) -> dict[str, bool]:
-    return dict(filas(
-        "SELECT canal, activo FROM preferencia_notificacion WHERE usuario_id = %s AND tipo_evento = 'quiebre_proximo'",
-        usuario.id,
-    ))
+    return dict(
+        filas(
+            "SELECT canal, activo FROM preferencia_notificacion WHERE usuario_id = %s AND tipo_evento ="
+            " 'quiebre_proximo'",
+            usuario.id,
+        )
+    )
 
 
 def _grupo_con(fabrica: Fabrica, usuario: UsuarioCreado, rol: str) -> FamiliaCreada:

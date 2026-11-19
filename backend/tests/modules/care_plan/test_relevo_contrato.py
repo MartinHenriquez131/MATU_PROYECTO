@@ -74,7 +74,10 @@ def test_contrato_del_canje(esquema: dict[str, Any]) -> None:
     pin = respuestas["401"]["content"]["application/problem+json"]["schema"]["properties"]
     assert pin["type"]["const"] == "/errores/pin-incorrecto"
     assert pin["intentos_restantes"] == {
-        "type": "integer", "minimum": 1, "maximum": 4, "description": "Intentos que quedan antes del bloqueo"
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 4,
+        "description": "Intentos que quedan antes del bloqueo",
     }
     tipos_410 = respuestas["410"]["content"]["application/problem+json"]["schema"]["properties"]["type"]["enum"]
     assert set(tipos_410) == {

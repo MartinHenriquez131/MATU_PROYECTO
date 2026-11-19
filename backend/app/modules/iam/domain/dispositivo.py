@@ -44,7 +44,7 @@ _SISTEMAS = (
 
 
 def nombre_dispositivo(agente_usuario: str | None) -> str:
-    """"Chrome en Android", "Safari en iPhone", … o "Navegador web" si no reconoce ambos."""
+    """ "Chrome en Android", "Safari en iPhone", … o "Navegador web" si no reconoce ambos."""
     if not agente_usuario:
         return NOMBRE_GENERICO
     navegador = next((nombre for marca, nombre in _NAVEGADORES if marca in agente_usuario), None)

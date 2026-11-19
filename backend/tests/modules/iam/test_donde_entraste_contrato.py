@@ -14,11 +14,29 @@ pytestmark = pytest.mark.rf("RF-37")
 
 DOCS = Path(__file__).resolve().parents[4] / "docs" / "api"
 RUTAS = ("/v1/yo/ingresos", "/v1/dispositivos/actual/push", "/v1/dispositivos", "/v1/yo/avisos")
-COMPONENTES = ("UltimosIngresosVista", "EventoCuentaVista", "DispositivoEventoVista", "PushActualVista",
-               "DispositivoVista")
+COMPONENTES = (
+    "UltimosIngresosVista",
+    "EventoCuentaVista",
+    "DispositivoEventoVista",
+    "PushActualVista",
+    "DispositivoVista",
+)
 # Lo que nunca sale en un evento ni en la configuración de push (C3, decisiones 256 y 261)
-PROHIBIDOS = {"id", "request_id", "actor_ref", "entidad_id", "detalle", "familia_id", "grupo_id", "ip", "plataforma",
-              "push_token", "endpoint", "clave_privada", "accion"}
+PROHIBIDOS = {
+    "id",
+    "request_id",
+    "actor_ref",
+    "entidad_id",
+    "detalle",
+    "familia_id",
+    "grupo_id",
+    "ip",
+    "plataforma",
+    "push_token",
+    "endpoint",
+    "clave_privada",
+    "accion",
+}
 
 
 @pytest.fixture(scope="module")
@@ -56,11 +74,19 @@ def test_los_esquemas_no_tienen_campos_prohibidos_y_son_cerrados(esquema: dict[s
     assert set(esquemas["DispositivoEventoVista"]["properties"]) == {"nombre", "clase", "actual"}
     assert set(esquemas["EventoCuentaVista"]["required"]) == {"tipo", "ocurrido_en", "dispositivo"}
     assert esquemas["EventoCuentaVista"]["properties"]["tipo"]["enum"] == [
-        "entraste", "saliste", "cerraste_en_dispositivo", "salida_por_seguridad", "contrasena_cambiada",
-        "celular_confirmado", "codigo_recuperacion_pedido", "avisos_cambiados", "avisos_activados",
+        "entraste",
+        "saliste",
+        "cerraste_en_dispositivo",
+        "salida_por_seguridad",
+        "contrasena_cambiada",
+        "celular_confirmado",
+        "codigo_recuperacion_pedido",
+        "avisos_cambiados",
+        "avisos_activados",
         "avisos_desactivados",
         # MATU-54 (decisión 376): la copia de «Tus datos», cambio aditivo
-        "pediste_una_copia"]
+        "pediste_una_copia",
+    ]
     # C5 y C7: clase y push_activo en cada dispositivo, sin el endpoint
     vista = esquemas["DispositivoVista"]
     assert {"clase", "push_activo"} <= set(vista["required"]) and "push_token" not in vista["properties"]

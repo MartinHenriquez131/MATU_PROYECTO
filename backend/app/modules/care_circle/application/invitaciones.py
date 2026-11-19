@@ -149,9 +149,7 @@ def anular_invitacion(
         repositorio.anular(invitacion, ahora, actor.usuario_id, actor.request_id)
 
 
-def anular_las_de(
-    invitado_por: uuid.UUID, actor: Actor, repositorio: RepositorioInvitaciones, ahora: datetime
-) -> int:
+def anular_las_de(invitado_por: uuid.UUID, actor: Actor, repositorio: RepositorioInvitaciones, ahora: datetime) -> int:
     """Anula las invitaciones sin usar de quien deja de administrar (decisión 307). Devuelve cuántas."""
     pendientes = repositorio.sin_usar_de(invitado_por, ahora)
     for invitacion in pendientes:

@@ -91,7 +91,9 @@ def test_la_revision_del_pedido_no_mira_autorizacion() -> None:
     # Nunca sin_autorizacion ni alerta_cerrada (C2)
     resultados = {
         motivo_omision_pedido(miembro_activo=m, canal_activo=c, con_destino=d)
-        for m in (True, False) for c in (True, False) for d in (True, False)
+        for m in (True, False)
+        for c in (True, False)
+        for d in (True, False)
     }
     assert resultados == {None, CodigoAviso.MIEMBRO_INACTIVO, CodigoAviso.SIN_DESTINO}
 
@@ -101,15 +103,24 @@ def test_textos_del_correo_del_pedido() -> None:
     assert correo.remitente == "MATU" and correo.texto_enlace == "Abrir MATU"
     assert correo.asunto == ASUNTO_PEDIDO == "MATU: hay una novedad en un pedido"
     assert correo.cuerpo == CUERPO_PEDIDO == "Hay una novedad en un pedido. Abre la app para verla."
-    assert correo.pie == PIE_PEDIDO == (
-        "Te llega este correo porque pagaste un pedido en MATU. Para dejar de recibir estos avisos por correo, entra a"
-        " MATU y desactívalos en Tu cuenta."
+    assert (
+        correo.pie
+        == PIE_PEDIDO
+        == (
+            "Te llega este correo porque pagaste un pedido en MATU. Para dejar de recibir estos avisos por correo,"
+            " entra a"
+            " MATU y desactívalos en Tu cuenta."
+        )
     )
     dinero = correo_pedido(ORIGEN, dinero=True)
     assert (dinero.asunto, dinero.cuerpo) == (correo.asunto, correo.cuerpo)
-    assert dinero.pie == PIE_PEDIDO_DINERO == (
-        "Te llega este correo porque pagaste un pedido en MATU. Como es sobre tu dinero, te llega aunque hayas"
-        " desactivado los avisos por correo."
+    assert (
+        dinero.pie
+        == PIE_PEDIDO_DINERO
+        == (
+            "Te llega este correo porque pagaste un pedido en MATU. Como es sobre tu dinero, te llega aunque hayas"
+            " desactivado los avisos por correo."
+        )
     )
 
 

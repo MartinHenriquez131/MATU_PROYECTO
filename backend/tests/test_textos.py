@@ -49,7 +49,13 @@ def test_aparece_como_dato_un_grupo_del_uuid_no_cuenta() -> None:
 @pytest.mark.parametrize(
     "escrito",
     [
-        "+56 9 5555 0137", "+56955550137", "56 9 5555 0137", "9 5555 0137", "955550137", "5555 0137", "55550137",
+        "+56 9 5555 0137",
+        "+56955550137",
+        "56 9 5555 0137",
+        "9 5555 0137",
+        "955550137",
+        "5555 0137",
+        "55550137",
         "Rosa, +56 9 5555 0137.",
     ],
 )
@@ -81,9 +87,11 @@ def test_el_precio_dentro_de_un_request_id_no_es_un_dato_del_log() -> None:
     «12990», el precio del pañal de las pruebas, y ``str(PRECIO_PANAL) not in logs`` fallaba sin que el log
     llevara el monto. La Idempotency-Key no estaba en el log: pytest muestra «is contained here» también para la
     primera mitad de un ``A and B`` aunque sea la segunda la que falla."""
-    linea = ('{"ts": "2026-11-17T22:23:47.689+00:00", "nivel": "INFO", "logger": "matu.api", "mensaje": "peticion",'
-             ' "request_id": "3f6d1a2e-8c4b-4f2b-b63a-5e1299067ca2", "ruta": "/v1/comercio/partes/{parte_id}/listo",'
-             ' "estado": 200, "duracion_ms": 14.1}')
+    linea = (
+        '{"ts": "2026-11-17T22:23:47.689+00:00", "nivel": "INFO", "logger": "matu.api", "mensaje": "peticion",'
+        ' "request_id": "3f6d1a2e-8c4b-4f2b-b63a-5e1299067ca2", "ruta": "/v1/comercio/partes/{parte_id}/listo",'
+        ' "estado": 200, "duracion_ms": 14.1}'
+    )
     assert "12990" in linea  # la comprobación de antes fallaba aquí
     assert not aparece_como_dato("12990", linea)
     assert aparece_como_dato("12990", '{"monto": 12990}')

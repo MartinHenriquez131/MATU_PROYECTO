@@ -42,8 +42,7 @@ _RETRY_AFTER: dict[str, Any] = {
 }
 _SET_COOKIE: dict[str, Any] = {
     "description": (
-        "Cookie de sesión de relevo. Max-Age es el menor entre 43200 (12 horas) y los segundos que le quedan "
-        "al acceso"
+        "Cookie de sesión de relevo. Max-Age es el menor entre 43200 (12 horas) y los segundos que le quedan al acceso"
     ),
     "required": True,
     "schema": {"type": "string"},
@@ -100,8 +99,13 @@ def _respuesta(
 
 def _ejemplo(tipo: str, titulo: str, status: int, detalle: str, sufijo: str, **extra: Any) -> dict[str, Any]:
     return {
-        "type": tipo, "title": titulo, "status": status, "detail": detalle, "errores": [],
-        "request_id": _REQUEST_ID_EJEMPLO + sufijo, **extra,
+        "type": tipo,
+        "title": titulo,
+        "status": status,
+        "detail": detalle,
+        "errores": [],
+        "request_id": _REQUEST_ID_EJEMPLO + sufijo,
+        **extra,
     }
 
 
@@ -121,8 +125,11 @@ _NO_DISPONIBLE = _respuesta(
         410,
     ),
     _ejemplo(
-        "/errores/relevo-vencido", "Ya no está disponible", 410,
-        "Este enlace venció. Pídele a quien te envió el enlace uno nuevo", "eb",
+        "/errores/relevo-vencido",
+        "Ya no está disponible",
+        410,
+        "Este enlace venció. Pídele a quien te envió el enlace uno nuevo",
+        "eb",
     ),
 )
 _BLOQUEADO = _respuesta(
@@ -130,8 +137,11 @@ _BLOQUEADO = _respuesta(
     "revoca y crea un acceso nuevo",
     _problema(["/errores/relevo-bloqueado"], 423),
     _ejemplo(
-        "/errores/relevo-bloqueado", "Bloqueado", 423,
-        "El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo", "ed",
+        "/errores/relevo-bloqueado",
+        "Bloqueado",
+        423,
+        "El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo",
+        "ed",
     ),
 )
 _VALIDACION = _problema(["/errores/validacion"], 422)
@@ -188,7 +198,10 @@ RESPUESTAS_PRESENTACION: dict[int | str, dict[str, Any]] = {
     410: _NO_DISPONIBLE,
     422: _validacion(
         "Falta el token o el cuerpo trae un campo extra. No revela nada del acceso",
-        "token", "Field required", "missing", "f1",
+        "token",
+        "Field required",
+        "missing",
+        "f1",
     ),
     423: _BLOQUEADO,
     429: _demasiadas(
@@ -259,20 +272,29 @@ RESPUESTAS_CANJE: dict[int | str, dict[str, Any]] = {
             401,
             {
                 "intentos_restantes": {
-                    "type": "integer", "minimum": 1, "maximum": 4,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4,
                     "description": "Intentos que quedan antes del bloqueo",
                 }
             },
         ),
         _ejemplo(
-            "/errores/pin-incorrecto", "PIN incorrecto", 401, "El PIN no coincide. Te quedan 3 intentos", "ea",
+            "/errores/pin-incorrecto",
+            "PIN incorrecto",
+            401,
+            "El PIN no coincide. Te quedan 3 intentos",
+            "ea",
             intentos_restantes=3,
         ),
     ),
     410: _NO_DISPONIBLE,
     422: _validacion(
         "Falta el token o el PIN, o el PIN no son 4 dígitos. No cuenta como intento y no revela nada del acceso",
-        "pin", "String should match pattern '^[0-9]{4}$'", "string_pattern_mismatch", "e9",
+        "pin",
+        "String should match pattern '^[0-9]{4}$'",
+        "string_pattern_mismatch",
+        "e9",
     ),
     423: _BLOQUEADO,
     429: _demasiadas(
@@ -286,8 +308,11 @@ RESPUESTAS_CANJE: dict[int | str, dict[str, Any]] = {
         "quedó registrado como relevo.canje, pero no hay cookie",
         _SIN_SERVICIO,
         _ejemplo(
-            "/errores/servicio-no-disponible", "Servicio no disponible", 503,
-            "La ficha no está disponible en este momento. Cita el request_id si lo reportas", "f4",
+            "/errores/servicio-no-disponible",
+            "Servicio no disponible",
+            503,
+            "La ficha no está disponible en este momento. Cita el request_id si lo reportas",
+            "f4",
         ),
     ),
 }

@@ -246,9 +246,7 @@ AbrirGrupo = Callable[[uuid.UUID], AbstractContextManager[Unidad]]
 
 
 class ResolverVenta(Protocol):
-    def __call__(
-        self, token: str | None, orden: str | None, sesion: str | None
-    ) -> tuple[uuid.UUID, uuid.UUID] | None:
+    def __call__(self, token: str | None, orden: str | None, sesion: str | None) -> tuple[uuid.UUID, uuid.UUID] | None:
         """La venta y su grupo, por token o por buy_order y session_id juntos (pago_resolver_venta). Solo ids."""
         ...
 

@@ -115,8 +115,16 @@ def test_pytest_termina_antes_de_correr_con_la_base_de_uso() -> None:
     entorno.update({"MATU_TEST_DSN": _dsn("matu"), "DATABASE_URL": _url("matu_wt94"), "PYTHONIOENCODING": "utf-8"})
 
     proceso = subprocess.run(
-        [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-q", "--collect-only",
-         "tests/test_proteccion_base.py"],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-p",
+            "no:cacheprovider",
+            "-q",
+            "--collect-only",
+            "tests/test_proteccion_base.py",
+        ],
         cwd=BACKEND,
         env=entorno,
         capture_output=True,

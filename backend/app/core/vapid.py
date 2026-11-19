@@ -55,8 +55,10 @@ def validar_clave_privada(texto: str) -> None:
 
 def clave_publica(texto_privada: str) -> str:
     """La clave pública de la privada, en base64url sin relleno (87 caracteres, empieza con «B»)."""
-    punto = _privada(texto_privada).public_key().public_bytes(
-        serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
+    punto = (
+        _privada(texto_privada)
+        .public_key()
+        .public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
     )
     return _b64url(punto)
 

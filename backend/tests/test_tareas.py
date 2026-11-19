@@ -407,11 +407,13 @@ def test_main_arma_cada_conexion_con_su_variable(monkeypatch: pytest.MonkeyPatch
 
     roles = ("matu_app", "matu_scheduler", "matu_publisher")
     urls = {rol: f"postgresql+psycopg://{rol}@db.invalid/matu" for rol in roles}
-    config = obtener_configuracion().model_copy(update={
-        "database_url": urls["matu_app"],
-        "scheduler_database_url": urls["matu_scheduler"],
-        "publisher_database_url": urls["matu_publisher"],
-    })
+    config = obtener_configuracion().model_copy(
+        update={
+            "database_url": urls["matu_app"],
+            "scheduler_database_url": urls["matu_scheduler"],
+            "publisher_database_url": urls["matu_publisher"],
+        }
+    )
     monkeypatch.setattr(tareas, "obtener_configuracion", lambda: config)
     monkeypatch.setattr(tareas, "create_engine", lambda url, **_: url)
     monkeypatch.setitem(tareas.TAREAS, "avisos", espia)
@@ -600,4 +602,3 @@ def test_conservacion_pedidos_corre_con_la_capa_3_apagada() -> None:
     )
     assert tareas.correr(["conservacion_pedidos"], ctx) == tareas.SALIDA_OK
     assert espia.sesiones
-

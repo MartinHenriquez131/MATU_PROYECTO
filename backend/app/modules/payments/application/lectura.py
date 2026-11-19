@@ -178,9 +178,7 @@ def estado_del_pago(
 
     estado = ESTADO_PAGO[None if cargo is None else cargo.estado]
     comprobante = None
-    pagadora = next(
-        (v for v in ventas if v.estado is EstadoVenta.APROBADA and not v.anulada_por_pago_tardio), None
-    )
+    pagadora = next((v for v in ventas if v.estado is EstadoVenta.APROBADA and not v.anulada_por_pago_tardio), None)
     condiciones = repositorio.condiciones_aceptadas(pedido.id)
     if (
         estado in CON_COMPROBANTE

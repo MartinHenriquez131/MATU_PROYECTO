@@ -86,7 +86,6 @@ def correo_quiebre(origen_web: str) -> MensajeCorreo:
     )
 
 
-
 def correo_pedido(origen_web: str, *, dinero: bool) -> MensajeCorreo:
     """El correo del aviso del pedido (MATU-76). ``dinero``: anulación, faltante o cancelación con devolución."""
     return MensajeCorreo(

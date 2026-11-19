@@ -208,9 +208,10 @@ def test_con_un_salto_x_forwarded_proto_como_uvicorn() -> None:
     assert _pasar(_matu(1), _scope(PROXY, ("X-Forwarded-Proto", "https")))["scheme"] == "https"
     assert _pasar(_matu(1), _scope(PROXY, ("X-Forwarded-Proto", "https"), tipo="websocket"))["scheme"] == "wss"
     assert _pasar(_matu(1), _scope(PROXY, ("X-Forwarded-Proto", "gopher")))["scheme"] == "http"
-    assert _pasar(_matu(1), _scope(PROXY, ("X-Forwarded-Proto", "http"), ("X-Forwarded-Proto", "https")))[
-        "scheme"
-    ] == "https"
+    assert (
+        _pasar(_matu(1), _scope(PROXY, ("X-Forwarded-Proto", "http"), ("X-Forwarded-Proto", "https")))["scheme"]
+        == "https"
+    )
 
 
 def test_lifespan_pasa_sin_cambios() -> None:

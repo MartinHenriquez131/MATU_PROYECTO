@@ -29,7 +29,6 @@ LARGO_MAXIMO_NOMBRE_RELEVO = 60
 ROLES_QUE_VEN_TELEFONO = frozenset({"admin", "cuidador"})
 
 
-
 class MotivoAcceso(StrEnum):
     """Enumerado sin texto libre (decisión 16): queda 3 años en la auditoría."""
 
@@ -145,9 +144,7 @@ def bloqueado(intentos: int) -> bool:
 def campos_para_relevo(permitidos: tuple[str, ...], textos: dict[str, str]) -> dict[str, str | None]:
     """Solo los campos habilitados, en el orden de la ficha. Un campo vacío o nunca escrito es None
     ("Sin completar"). Un campo no habilitado no aparece aunque tenga texto."""
-    return {
-        c.value: (textos.get(c.value) or None) for c in CAMPOS_FICHA if c.value in permitidos
-    }
+    return {c.value: (textos.get(c.value) or None) for c in CAMPOS_FICHA if c.value in permitidos}
 
 
 # --- Revocar un acceso de relevo (MATU-20, RF-07) ----------------------------------------------------
