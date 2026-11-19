@@ -27,6 +27,9 @@ from pathlib import Path
 
 import pytest
 
+# MATU-79: las reglas de dependencia de la sección 6.4 son la verificación de la evolucionabilidad modular (RNF-04)
+pytestmark = pytest.mark.rf("RNF-04")
+
 APP = Path(__file__).resolve().parents[1] / "app"
 
 # ---------------------------------------------------------------------------

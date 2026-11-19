@@ -26,7 +26,7 @@ def test_recorrido_relevo(entorno: EntornoAbrir) -> None:
     familia = entorno.ficha.familia()
     for campo, texto in (("rutina", "Almuerza a las 13:00 en el comedor"), ("red_apoyo", "Sobrino: Tomás")):
         escrita = entorno.ficha.escribir(familia.admin, familia.grupo.id, familia.persona.id, campo, {"texto": texto})
-        assert escrita.status_code in (200, 201), escrita.text
+        assert escrita.status_code == 201, escrita.text  # primera escritura de cada campo
     # MATU-50: un acceso nuevo comparte siempre los tres campos base
     acceso_id, token, pin = entorno.compartir(familia, campos_anteriores=None)
     assert str(entorno.relevo.base_url) == "https://testserver"

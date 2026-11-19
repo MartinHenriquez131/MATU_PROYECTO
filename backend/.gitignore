@@ -1,0 +1,4 @@
+# MATU-79: lo que deja pytest-cov al medir la cobertura (scripts/cobertura_por_capa.py)
+.coverage
+.coverage.*
+cobertura.json

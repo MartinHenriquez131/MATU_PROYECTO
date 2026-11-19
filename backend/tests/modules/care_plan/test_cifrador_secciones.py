@@ -3,7 +3,7 @@
 Usa la custodia de las fixtures (CustodiaEnMemoria) y el doble RepositorioClavesEnMemoria. Las
 pruebas contra PostgreSQL (misma transacción, concurrencia, RLS) están en test_cifrado_integracion.py.
 
-Trazan a ADR-014 y ADR-016 (no hay un RF): sin marca rf. Solo textos sintéticos.
+Trazan a ADR-014 y ADR-016 y al RNF-08 (ficha cifrada y fuera de los registros): marca RNF-08. Solo textos sintéticos.
 """
 
 import logging
@@ -31,6 +31,8 @@ from app.modules.care_plan.domain.cifrado import (
 from app.modules.care_plan.infrastructure.cifrador_aes_gcm import CifradorAesGcm
 from tests.dobles.custodia_en_memoria import CustodiaEnMemoria
 from tests.dobles.repositorio_claves_en_memoria import RepositorioClavesEnMemoria
+
+pytestmark = pytest.mark.rf("RNF-08")
 
 GRUPO = uuid.UUID("00000000-0000-0000-0000-0000000012a0")
 PERSONA = uuid.UUID("00000000-0000-0000-0000-0000000012a1")

@@ -28,7 +28,9 @@ def obtener_engine() -> Engine:
     url = obtener_configuracion().database_url
     if not url:
         raise RuntimeError("Falta DATABASE_URL. Copia .env.example a .env y complétalo.")
-    return create_engine(url, pool_pre_ping=True)
+    # MATU-79: hide_parameters saca los parámetros del texto de los errores de la base. Sin él, un DBAPIError trae
+    # «[parameters: ...]» con los valores de la consulta (un email, un nombre, una huella), y ese texto llega a un log
+    return create_engine(url, pool_pre_ping=True, hide_parameters=True)
 
 
 @lru_cache

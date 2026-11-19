@@ -11,10 +11,11 @@
           "salud"
         ],
         "summary": "Salud",
+        "description": "Comprueba la base (`SELECT 1`) y Redis (`PING`), cada una con un tiempo límite de 2 segundos. Responde sin\ndatos: 200 si las dos responden y 503 si alguna falla.",
         "operationId": "salud_v1_salud_get",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "La API responde y alcanza la base y Redis",
             "content": {
               "application/json": {
                 "schema": {
@@ -25,6 +26,12 @@
                   "title": "Response Salud V1 Salud Get"
                 }
               }
+            }
+          },
+          "503": {
+            "description": "servicio-no-disponible: la base o Redis no responden dentro del tiempo límite. El problema no dice cuál ni trae detalle interno",
+            "content": {
+              "application/problem+json": {}
             }
           }
         }

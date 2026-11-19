@@ -216,6 +216,7 @@ def test_caso_4_se_devuelve_el_total_envio_incluido() -> None:
 # --- Caso 5: el retorno llega dos veces ----------------------------------------------------------------------------
 
 
+@pytest.mark.rf("RNF-01")
 def test_caso_5_retorno_repetido_un_solo_cobro_y_un_solo_cargo() -> None:
     escena = Escena()
     token = escena.pagado()
@@ -230,6 +231,7 @@ def test_caso_5_retorno_repetido_un_solo_cobro_y_un_solo_cargo() -> None:
     assert escena.acciones().count(AccionAuditoria.PAGO_APROBAR) == 1
 
 
+@pytest.mark.rf("RNF-01")
 def test_caso_5_el_segundo_commit_de_transbank_no_falla_y_no_paga_dos_veces() -> None:
     """La idempotencia es de MATU: aunque se llegue a llamar dos veces al commit (la venta quedó autorizando), la
     PasarelaFalsa devuelve la misma transacción y el pedido se paga una sola vez."""
@@ -249,6 +251,7 @@ def test_caso_5_el_segundo_commit_de_transbank_no_falla_y_no_paga_dos_veces() ->
 # --- Caso 6: el retorno nunca llega --------------------------------------------------------------------------------
 
 
+@pytest.mark.rf("RNF-01")
 def test_caso_6_la_conciliacion_cierra_en_menos_de_15_minutos() -> None:
     escena = Escena()
     token = escena.pagar().token
@@ -265,6 +268,7 @@ def test_caso_6_la_conciliacion_cierra_en_menos_de_15_minutos() -> None:
     assert escena.pasarela.cobrado(token) == TOTAL
 
 
+@pytest.mark.rf("RNF-01")
 def test_caso_6_sin_pago_la_conciliacion_cierra_sin_cobro_por_formulario_vencido() -> None:
     escena = Escena()
     escena.pagar()
@@ -278,6 +282,7 @@ def test_caso_6_sin_pago_la_conciliacion_cierra_sin_cobro_por_formulario_vencido
 # --- Caso 7: la pasarela no responde durante 20 minutos ------------------------------------------------------------
 
 
+@pytest.mark.rf("RNF-01")
 def test_caso_7_reintentos_sin_doble_cobro_y_alerta_a_operacion(caplog: pytest.LogCaptureFixture) -> None:
     escena = Escena()
     token = escena.pagar().token
@@ -462,6 +467,7 @@ def test_la_anulacion_que_falla_se_reintenta_sin_devolver_dos_veces() -> None:
 # --- La vuelta: salió, se acabó el tiempo, desconocida --------------------------------------------------------------
 
 
+@pytest.mark.rf("RNF-01")
 def test_salio_de_webpay_sin_commit_y_el_reintento_reutiliza_el_cargo() -> None:
     escena = Escena()
     venta = escena.pagar().venta

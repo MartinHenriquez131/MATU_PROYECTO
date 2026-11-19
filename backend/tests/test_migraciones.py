@@ -13,13 +13,17 @@ para crear y borrar la base desechable). Sin MIGRATIONS_DATABASE_URL la prueba s
 """
 
 import os
+import secrets
 import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import psycopg
 import pytest
 from dotenv import load_dotenv
+from psycopg import sql
 from psycopg.conninfo import make_conninfo
 from sqlalchemy.engine import make_url
 
@@ -31,10 +35,15 @@ load_dotenv(BACKEND.parent / ".env")
 # tests/conftest.py exige que sea de pruebas
 DSN = os.environ.get("MATU_TEST_DSN", "")
 URL_MIGRACIONES = os.environ.get("MIGRATIONS_DATABASE_URL")
-# La base desechable. MATU_BASE_MIGRACIONES (MATU-62) fuerza un nombre. Por omisión (MATU-94) lleva el nombre de la
-# de origen y termina en _test: antes era una sola, matu_prueba_migraciones, para todas las copias del repositorio en
-# el mismo servidor, y dos corridas a la vez (wt94 y wt62, el 11-11) se la borraban una a la otra
-BASE = os.environ.get("MATU_BASE_MIGRACIONES") or f"{nombre_de_la_base(DSN) or 'matu'}_migraciones_test"
+# La base desechable. MATU_BASE_MIGRACIONES (MATU-62) fuerza un nombre. Por omisión lleva el nombre de la de origen
+# y termina en _test. Antes era una sola, matu_prueba_migraciones, para todas las copias del repositorio en el mismo
+# servidor, y dos corridas a la vez (wt94 y wt62, el 11-11) se la borraban una a la otra. MATU-94 le puso el nombre de
+# la base de origen, que todavía choca si dos corridas usan la misma (el QA y el desarrollo sobre matu_wt55). MATU-79:
+# además el pid y un sufijo aleatorio, uno por corrida, dentro de los 63 caracteres de un nombre de PostgreSQL
+SUFIJO_CORRIDA = f"{os.getpid()}_{secrets.token_hex(3)}"
+BASE = os.environ.get("MATU_BASE_MIGRACIONES") or (
+    f"{(nombre_de_la_base(DSN) or 'matu')[:32]}_mig_{SUFIJO_CORRIDA}_test".lower()
+)
 
 pytestmark = pytest.mark.skipif(
     not URL_MIGRACIONES or not DSN, reason="MIGRATIONS_DATABASE_URL o MATU_TEST_DSN no está definida"
@@ -116,18 +125,51 @@ def _dsn(dbname: str) -> str:
     return make_conninfo(DSN, dbname=dbname)
 
 
+def _borrar_base(nombre: str) -> None:
+    with psycopg.connect(_dsn("postgres"), autocommit=True) as c:
+        c.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(nombre)))
+
+
+def _existe_base(nombre: str) -> bool:
+    with psycopg.connect(_dsn("postgres")) as c:
+        return c.execute("SELECT 1 FROM pg_database WHERE datname = %s", (nombre,)).fetchone() is not None
+
+
+@contextmanager
+def _base_temporal(nombre: str) -> Iterator[None]:
+    """Crea la base desechable y la borra al salir, también si la prueba falla o si falla su preparación (MATU-79).
+    Antes de crearla borra una que haya quedado con el mismo nombre, que solo puede ser de esta misma corrida."""
+    _borrar_base(nombre)
+    try:
+        with psycopg.connect(_dsn("postgres"), autocommit=True) as c:
+            c.execute(sql.SQL("CREATE DATABASE {} OWNER matu_owner").format(sql.Identifier(nombre)))
+        # Lo mismo que hace infra/postgres/init/10_matu.sh con la base matu
+        with psycopg.connect(_dsn(nombre), autocommit=True) as c:
+            c.execute("CREATE EXTENSION IF NOT EXISTS btree_gist")
+            c.execute("ALTER SCHEMA public OWNER TO matu_owner")
+        yield
+    finally:
+        _borrar_base(nombre)
+
+
 @pytest.fixture
 def base_desechable():
-    with psycopg.connect(_dsn("postgres"), autocommit=True) as c:
-        c.execute(f"DROP DATABASE IF EXISTS {BASE} WITH (FORCE)")
-        c.execute(f"CREATE DATABASE {BASE} OWNER matu_owner")
-    # Lo mismo que hace infra/postgres/init/10_matu.sh con la base matu
-    with psycopg.connect(_dsn(BASE), autocommit=True) as c:
-        c.execute("CREATE EXTENSION IF NOT EXISTS btree_gist")
-        c.execute("ALTER SCHEMA public OWNER TO matu_owner")
-    yield
-    with psycopg.connect(_dsn("postgres"), autocommit=True) as c:
-        c.execute(f"DROP DATABASE IF EXISTS {BASE} WITH (FORCE)")
+    with _base_temporal(BASE):
+        yield
+
+
+def test_la_base_desechable_es_unica_por_corrida_y_se_borra_aunque_la_prueba_falle():
+    """MATU-79: el nombre lleva el pid y un sufijo aleatorio, y la base se borra aunque la prueba lance un error."""
+    if not os.environ.get("MATU_BASE_MIGRACIONES"):
+        assert BASE != "matu_prueba_migraciones"
+        assert BASE.endswith(f"_mig_{SUFIJO_CORRIDA}_test") and str(os.getpid()) in BASE
+        assert len(BASE) <= 63
+    # Una base propia de esta prueba, para no tocar BASE
+    nombre = f"{BASE[:40]}_{secrets.token_hex(4)}_test"
+    with pytest.raises(RuntimeError, match="la prueba falló"), _base_temporal(nombre):
+        assert _existe_base(nombre)
+        raise RuntimeError("la prueba falló")
+    assert not _existe_base(nombre)
 
 
 def alembic(*args: str) -> None:
