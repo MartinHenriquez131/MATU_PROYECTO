@@ -84,6 +84,7 @@ def test_la_app_conserva_lo_que_usa_de_indice_token_y_usuario() -> None:
     assert all(permisos), permisos
 
 
+@requiere_base
 @pytest.mark.rf("RF-38")
 @pytest.mark.rf("Ley-21.719")
 def test_la_app_no_lee_el_contacto_de_las_cuentas() -> None:
