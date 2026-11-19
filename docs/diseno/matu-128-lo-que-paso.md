@@ -1,6 +1,8 @@
 # MATU-128 · Quien pagó ve «Lo que pasó con tu pedido» · Especificación de diseño
 
-**Versión 1.0 · 19/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.1 · 19/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+
+**Cambios de la v1.1:** la sección 4.3 sigue la corrección del P1 de la revisión visual (WCAG 1.4.10), hecha en f61da6f. La tarjeta de cada cosa anotada ya no lleva `items-start`, y la etiqueta se alinea sola con `self-start`. Con `items-start`, cada párrafo tomaba el ancho mínimo de su contenido, y una palabra larga sin espacios en la nota desplazaba el detalle hacia el lado a 360 px y a 320 px con el texto al 200 %. Nada más cambia.
 
 **Viene de:** la revisión previa del analista (C5 y C6, sección «Frontend y diseñador») y las decisiones R2 y R3: una ruta aparte, `GET /v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso`, que responde 200 a quien pagó ese pedido, 404 a quien no lo pagó y 503 sin la clave. Solo quien pagó ve el bloque en «Tus pedidos». Quien administra y quien cuida lo siguen viendo en «Datos de», sin cambios.
 
@@ -141,17 +143,17 @@ La rejilla de MATU-92 4.8, `3fr / 2fr`, sin cambios. El bloque va en la columna 
 
 La tarjeta ocupa el ancho de la columna, como las de «Cómo va». Los párrafos de dentro llevan `max-w-prose`, para que la línea no pase de unos 70 caracteres a 1920 px.
 
-### 4.3 Clases, por nombre
+### 4.3 Clases, por nombre (v1.1)
 
 | Pieza | Clases |
 |---|---|
 | La sección | `section aria-labelledby="lo-que-paso-t" className="flex min-w-0 flex-col gap-3"`, como «Cómo va» |
 | `h2` | `id="lo-que-paso-t" className="titular text-2xl"`, como «Cómo va» |
 | La lista | `ul className="flex flex-col gap-3"` |
-| Cada cosa anotada | `li className="flex min-w-0 flex-col items-start gap-2 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea"`, la misma tarjeta de «Cómo va» |
+| Cada cosa anotada | `li className="flex min-w-0 flex-col gap-2 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea"`, la misma tarjeta de «Cómo va». **Sin `items-start`** (v1.1): los hijos se estiran al ancho de la tarjeta, y así `break-words` corta una palabra larga dentro de la tarjeta en vez de empujarla hacia afuera |
 | El tipo | `h3 className="max-w-full break-words text-lg font-bold"` |
-| Resuelto | `Etiqueta tono="ok"` con `CircleCheck aria-hidden className="size-4 shrink-0"` y la palabra |
-| En revisión | `Etiqueta tono="neutro"` con `Hourglass aria-hidden className="size-4 shrink-0"` y la palabra |
+| Resuelto | `Etiqueta tono="ok" className="self-start"` con `CircleCheck aria-hidden className="size-4 shrink-0"` y la palabra. `self-start` (v1.1) deja la etiqueta del ancho de su palabra, sin estirarse a lo ancho de la tarjeta, igual que en la variante `copia` de «Datos de» |
+| En revisión | `Etiqueta tono="neutro" className="self-start"` con `Hourglass aria-hidden className="size-4 shrink-0"` y la palabra |
 | Las fechas | `p className="text-base text-tenue"`, la fecha en `span.cifras` dentro de `time dateTime={iso}` |
 | Lo anotado | `p className="max-w-prose text-base whitespace-pre-line break-words"` |
 | La resolución | el mismo `p`, con «Cómo se resolvió:» en `b` y un espacio |
