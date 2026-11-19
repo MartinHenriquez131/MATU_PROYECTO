@@ -339,6 +339,7 @@ def test_vaciar_con_if_match(entorno_ficha: EntornoFicha) -> None:
 # --- El 412 registra plan.leer (contrato, decisión 8; MATU-14) ---------------------------------------------
 
 
+@pytest.mark.rf("RNF-02")
 def test_412_registra_plan_leer(entorno_ficha: EntornoFicha) -> None:
     entorno_ficha.app.dependency_overrides.pop(obtener_auditoria_ficha, None)
     familia, admin, cuidador = _dos_miembros(entorno_ficha)
@@ -378,6 +379,7 @@ def test_412_con_auditoria_espia(entorno_ficha: EntornoFicha) -> None:
 # --- Logs sin texto (CLAUDE.md, agente 2, punto 5) ------------------------------------------------------------
 
 
+@pytest.mark.rf("RNF-08")
 def test_log_sin_texto_en_412_y_428(entorno_ficha: EntornoFicha, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG)
     familia, admin, cuidador = _dos_miembros(entorno_ficha)

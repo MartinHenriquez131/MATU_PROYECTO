@@ -382,9 +382,10 @@ def test_completitud_por_campo(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
     grupo, persona = familia.grupo.id, familia.persona.id
 
-    def guardar(campo: str, texto: str) -> int:
+    def guardar(campo: str, texto: str, estado: int = 201) -> int:
+        # MATU-79: el código exacto, 201 la primera escritura (If-None-Match: *) y 200 las siguientes (If-Match)
         respuesta = entorno_ficha.escribir(familia.admin, grupo, persona, campo, {"texto": texto})
-        assert respuesta.status_code in (200, 201), respuesta.text
+        assert respuesta.status_code == estado, respuesta.text
         guardada = _una("SELECT completitud_pct FROM plan_cuidado WHERE persona_cuidada_id = %s", persona)
         leida = entorno_ficha.leer(familia.admin, grupo, persona).json()["completitud"]
         # La respuesta, la base y la lectura dicen lo mismo
@@ -397,8 +398,8 @@ def test_completitud_por_campo(entorno_ficha: EntornoFicha) -> None:
     assert guardar("manejo_situaciones", _texto("manejo_situaciones")) == 67
     assert guardar("red_apoyo", _texto("red_apoyo")) == 100
     # Vaciar un campo baja la completitud, y volver a escribirlo la sube
-    assert guardar("manejo_situaciones", "") == 67
-    assert guardar("manejo_situaciones", _texto("manejo_situaciones")) == 100
+    assert guardar("manejo_situaciones", "", estado=200) == 67
+    assert guardar("manejo_situaciones", _texto("manejo_situaciones"), estado=200) == 100
 
 
 # --- Criterio 5 y decisión D-B: consentimiento y revisión anual --------------------------------------
@@ -576,6 +577,7 @@ def test_clave_destruida_404_sin_clave_nueva(entorno_ficha: EntornoFicha) -> Non
 
 
 @pytest.mark.rf("RF-02")
+@pytest.mark.rf("RNF-02")
 def test_lectura_y_escritura_llaman_a_la_auditoria(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
     grupo, persona = familia.grupo.id, familia.persona.id
@@ -611,6 +613,7 @@ def _texto_en_registros(caplog: pytest.LogCaptureFixture, texto: str) -> list[st
 
 
 @pytest.mark.rf("RF-02")
+@pytest.mark.rf("RNF-08")
 def test_log_sin_texto_de_ficha(entorno_ficha: EntornoFicha, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG)
     familia = entorno_ficha.familia()
@@ -679,6 +682,7 @@ def _filas_auditoria(request_id: str) -> list[tuple[Any, ...]]:
 
 @requiere_base
 @pytest.mark.rf("RF-08")
+@pytest.mark.rf("RNF-02")
 def test_escritura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
     _auditoria_real(entorno_ficha)
     familia = entorno_ficha.familia()
@@ -704,6 +708,7 @@ def test_escritura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
 
 @requiere_base
 @pytest.mark.rf("RF-08")
+@pytest.mark.rf("RNF-02")
 def test_lectura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
     _auditoria_real(entorno_ficha)
     familia = entorno_ficha.familia()
@@ -723,6 +728,7 @@ def test_lectura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
 
 @pytest.mark.rf("RF-08")
 @pytest.mark.parametrize("accion", ["leer", "escribir"])
+@pytest.mark.rf("RNF-02")
 def test_si_la_auditoria_falla_no_se_devuelve_el_texto(entorno_ficha: EntornoFicha, accion: str) -> None:
     familia = entorno_ficha.familia()
     grupo, persona = familia.grupo.id, familia.persona.id

@@ -222,7 +222,7 @@ export const SALIR = {
    * MATU-116 (T5, especificación 3): con la capa 3, en la sección y en la pregunta. Partido para el
    * correo, que va en `EnlaceEnFrase`. Reemplaza el de la v1.3. [T5]
    */
-  pideloAConCapa3: ['Tus pagos los seguirás viendo en Tus datos. Si después necesitas lo que hiciste en el grupo o el detalle de un pedido, pídelo a ', '.'] as const,
+  pideloAConCapa3: ['Tus pagos los seguirás viendo en «Tus datos». Si después necesitas lo que hiciste en el grupo o el detalle de un pedido, pídelo a ', '.'] as const,
   ocupado: 'Saliendo del grupo…', // [NUEVO]
   hecho: (grupo: string, n: number) => [`Saliste de ${grupo}.`, cortamos(n)].filter(Boolean).join(' '), // [NUEVO]
   errRed: 'No pudimos sacarte del grupo. Revisa tu conexión y vuelve a intentarlo. Sigues en el grupo.', // [NUEVO]
