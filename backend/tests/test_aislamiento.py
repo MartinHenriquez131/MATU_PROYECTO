@@ -5590,7 +5590,8 @@ def test_79c_cuenta_contacto_propia_devuelve_solo_la_cuenta_del_contexto(cx):
     celular sin verificar cuando matu_app lo cambia (A8)."""
     cx.execute("UPDATE usuario SET telefono = '+56900000079' WHERE id = %s", (U_OBS_A,))
     cx.execute("UPDATE usuario SET celular_verificado_en = now() WHERE id = %s", (U_OBS_A,))
-    propia = "SELECT id, email, telefono, celular_verificado_en IS NOT NULL, celular_canal FROM cuenta_contacto_propia()"
+    propia = ("SELECT id, email, telefono, celular_verificado_en IS NOT NULL, celular_canal"
+              " FROM cuenta_contacto_propia()")
     como(cx, usuario_id=U_OBS_A, grupo_id=G_A)
     assert cx.execute(propia).fetchall() == [(U_OBS_A, "obs.a@x.cl", "+56900000079", True, "sms")]
     # La función no tiene parámetro: otra cuenta no sale ni filtrando por su id
