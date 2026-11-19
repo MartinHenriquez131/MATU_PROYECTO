@@ -2030,7 +2030,7 @@ export interface paths {
         put?: never;
         /**
          * Crear Incidencia
-         * @description Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la puede leer la familia en la copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.
+         * @description Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la leen quien pagó el pedido, en «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, teléfonos, correos, datos de salud, la dirección ni quién de la familia reclamó (D5, ampliada por MATU-128). Un texto con forma de correo o de teléfono chileno responde 422 nota-con-contacto, sin guardar nada. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.
          */
         post: operations["crear_incidencia_v1_operacion_pedidos__pedido_id__incidencias_post"];
         delete?: never;
@@ -2077,6 +2077,26 @@ export interface paths {
          * @description Cambia el precio (pesos enteros con IVA incluido, mayor que 0), el stock o si se ofrece, solo en un comercio ficticio (C1, C2; la base lo exige con el trigger oferta_operacion_ficticia). Exige If-Match (C4). Un precio nuevo vale solo para las confirmaciones nuevas: no cambia los pedidos confirmados ni pagados (C3). Se audita catalogo.oferta_cambiar sin grupo y sin los valores.
          */
         patch: operations["cambiar_oferta_v1_operacion_ofertas__oferta_id__patch"];
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/lo-que-paso": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * «Lo que pasó con tu pedido»: lo que anotó el equipo de MATU, para quien pagó el pedido
+         * @description MATU-128 (R2, R3 y C5; decisión 484). Solo quien pagó este pedido, en cualquier rol (también «Se informa»), mientras siga activo en el grupo: lo decide el servidor con lo que pagó cada cuenta, nunca con el rol, y la pantalla muestra el bloque solo si la ruta responde 200 con algo. El admin y el cuidador que no pagaron reciben 404 y lo siguen viendo en la copia de los datos («Datos de»). Por cada cosa anotada: tipo, estado, anotado_en, resuelto_en, la nota y la resolución descifradas y nota_disponible (decisión 471). Nunca quién del equipo la anotó, a quién se asignó ni su id. Ordenadas por anotado_en, de la más antigua a la más reciente; vacía si no hay nada anotado (aunque falte la KEK). Cache-Control: no-store. No se audita. La nota y la resolución nunca van a logs, errores, eventos ni auditoría. Capa 3
+         */
+        get: operations["ver_lo_que_paso_v1_pedidos__pedido_id__lo_que_paso_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -6707,7 +6727,7 @@ export interface components {
             estado?: ("abierta" | "en_gestion" | "resuelta") | null;
             /**
              * Resolucion
-             * @description Hasta 500 caracteres. No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota
+             * @description Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo o de teléfono responde 422 nota-con-contacto
              */
             resolucion?: string | null;
             /** Asignacion */
@@ -6722,7 +6742,7 @@ export interface components {
             tipo: "faltante" | "entrega_fallida" | "reclamo_familia" | "cobro_sin_respuesta" | "devolucion_pendiente" | "otro";
             /**
              * Descripcion
-             * @description Hasta 500 caracteres. No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota
+             * @description Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo o de teléfono responde 422 nota-con-contacto
              */
             descripcion: string;
             /**
@@ -6949,6 +6969,55 @@ export interface components {
             plazo_hasta: string | null;
             /** Plazo Correo Hasta */
             plazo_correo_hasta: string | null;
+        };
+        /**
+         * CosaAnotadaVista
+         * @description Una cosa que el equipo de MATU anotó del pedido y cómo se resolvió. Los mismos siete campos de LoQuePasoCopia
+         *     («Datos de»). Nunca el id de la incidencia, quién del equipo la anotó, a quién se asignó ni su versión.
+         */
+        CosaAnotadaVista: {
+            /**
+             * Anotado En
+             * Format: date-time
+             */
+            anotado_en: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "abierta" | "en_gestion" | "resuelta";
+            /**
+             * Nota
+             * @description Lo anotado; null si nota_disponible es false
+             */
+            nota: string | null;
+            /**
+             * Nota Disponible
+             * @description false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la resolución vienen null y ya no se pueden leer
+             */
+            nota_disponible: boolean;
+            /**
+             * Resolucion
+             * @description Cómo se resolvió; null si no se resolvió o si nota_disponible es false
+             */
+            resolucion: string | null;
+            /** Resuelto En */
+            resuelto_en: string | null;
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "faltante" | "entrega_fallida" | "reclamo_familia" | "cobro_sin_respuesta" | "devolucion_pendiente" | "otro";
+        };
+        /**
+         * LoQuePasoDelPedido
+         * @description GET /v1/pedidos/{pedido_id}/lo-que-paso (MATU-128, C5): lo que el equipo de MATU anotó de un pedido que pagó
+         *     quien pregunta, del más antiguo al más reciente según anotado_en (E5). Vacía si no hay nada
+         *     anotado (E4).
+         */
+        LoQuePasoDelPedido: {
+            /** Lo Que Paso */
+            lo_que_paso: components["schemas"]["CosaAnotadaVista"][];
         };
     };
     responses: never;
@@ -14834,7 +14903,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido */
+            /** @description falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido; o /errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo o de teléfono */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14905,7 +14974,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres */
+            /** @description Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres; o /errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo o de teléfono */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15036,6 +15105,66 @@ export interface operations {
             };
             /** @description falta-version: el PATCH exige If-Match */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_lo_que_paso_v1_pedidos__pedido_id__lo_que_paso_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoQuePasoDelPedido"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Quien pregunta no pagó este pedido (en cualquier rol, también admin, cuidador o pagador), salió del grupo, o el pedido no es del grupo de X-Grupo-Id, no está pagado, es de una persona eliminada o venció */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Hay algo anotado y la clave de las notas no se puede abrir (sin la KEK). El resto del detalle del pedido sigue funcionando. Sin nada anotado, la ruta responde 200 con la lista vacía */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
