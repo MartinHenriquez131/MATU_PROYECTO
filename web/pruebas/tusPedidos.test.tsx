@@ -663,7 +663,7 @@ describe('Arrepentirme de la compra (5)', () => {
       },
       ...rutasDelEntregado({ 'GET /retractos$': () => ({ status: 200, cuerpo: retractos() }) }),
     })
-    abrir('pagador', ARREPENTIRME, ELEGIDO_2)
+    const { amable } = abrir('pagador', ARREPENTIRME, ELEGIDO_2)
     await userEvent.click(await screen.findByRole('button', { name: 'Uno más: Suplemento vainilla x12' }))
     await userEvent.click(screen.getByRole('button', { name: 'Devolver estos productos' }))
     await waitFor(() => expect(window.location.pathname).toBe(DETALLE))
@@ -673,6 +673,8 @@ describe('Arrepentirme de la compra (5)', () => {
     expect(post.cuerpo).not.toHaveProperty('motivo')
     // MATU-119: la nota que se ve, no su copia en la región viva, que llega 50 ms después.
     expect(await screen.findByText('Recibimos tu pedido de devolución. Te escribimos para coordinar el retiro.', fueraDeRegiones)).toBeVisible()
+    // MATU-121: y se anuncia en la región amable, para quien usa lector de pantalla.
+    await waitFor(() => expect(amable).toHaveTextContent('Recibimos tu pedido de devolución. Te escribimos para coordinar el retiro.'))
     const s = within((await screen.findByRole('heading', { level: 2, name: 'Productos para devolver' })).closest('section')!)
     expect(s.getByText(/^Te devolvemos/)).toHaveTextContent('Te devolvemos $26.000 cuando')
     expect(escrituras).toEqual([])
@@ -825,7 +827,7 @@ describe('Cancelar el pedido pagado (6)', () => {
         { cancelado: () => cancelado },
       ),
     )
-    abrir('admin', DETALLE, ELEGIDO_1)
+    const { amable } = abrir('admin', DETALLE, ELEGIDO_1)
     const abrirDialogo = await screen.findByRole('button', { name: 'Cancelar el pedido' })
     expect(abrirDialogo.className).not.toMatch(/\bbg-turquesa\b/)
     await userEvent.click(abrirDialogo)
@@ -841,6 +843,8 @@ describe('Cancelar el pedido pagado (6)', () => {
     await act(async () => soltar({ status: 200, cuerpo: { pedido_id: PEDIDO_ID, estado: 'cancelado_con_devolucion' } }))
     // MATU-119: la nota que se ve, no su copia en la región amable, que llega 50 ms después.
     const nota = (await screen.findByText(/^Cancelamos el pedido/, fueraDeRegiones)).closest('[data-aviso]')!
+    // MATU-121: y se anuncia en la región amable, para quien usa lector de pantalla.
+    await waitFor(() => expect(amable).toHaveTextContent('Cancelamos el pedido. Estamos devolviendo $57.460 a la tarjeta con que se pagó.'))
     expect(nota).toHaveTextContent('Cancelamos el pedido. Estamos devolviendo $57.460 a la tarjeta con que se pagó.')
     expect(nota).toHaveAttribute('data-aviso', 'status')
     await waitFor(() => expect(nota).toHaveFocus())
@@ -883,7 +887,7 @@ describe('Cancelar el pedido pagado (6)', () => {
   it('red: vuelve a leer antes de decir «Todo sigue como estaba»; el reintento usa la misma clave', async () => {
     let n = 0
     const a = api(rutasParaCancelar(() => (n++ === 0 ? { status: 503 } : { status: 200, cuerpo: { pedido_id: PEDIDO_ID, estado: 'cancelado_con_devolucion' } }), { cancelado: () => n > 1 }))
-    abrir('admin', DETALLE, ELEGIDO_1)
+    const { amable } = abrir('admin', DETALLE, ELEGIDO_1)
     await userEvent.click(await screen.findByRole('button', { name: 'Cancelar el pedido' }))
     const confirmar = within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar el pedido' })
     await userEvent.click(confirmar)
@@ -894,6 +898,8 @@ describe('Cancelar el pedido pagado (6)', () => {
     expect(orden.slice(orden.indexOf('POST cancelar-con-devolucion'))).toContain('GET seguimiento')
     await userEvent.click(confirmar)
     expect(await screen.findByText(/^Cancelamos el pedido/, fueraDeRegiones)).toBeVisible()
+    // MATU-121: y se anuncia en la región amable, para quien usa lector de pantalla.
+    await waitFor(() => expect(amable).toHaveTextContent('Cancelamos el pedido. Estamos devolviendo $57.460 a la tarjeta con que se pagó.'))
     const [k1, k2] = claves(a.pedidas, '/cancelar-con-devolucion')
     expect(k1).toBeTruthy()
     expect(k2).toBe(k1)
@@ -910,10 +916,12 @@ describe('Cancelar el pedido pagado (6)', () => {
         { cancelado: () => enviado },
       ),
     )
-    abrir('admin', DETALLE, ELEGIDO_1)
+    const { amable } = abrir('admin', DETALLE, ELEGIDO_1)
     await userEvent.click(await screen.findByRole('button', { name: 'Cancelar el pedido' }))
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar el pedido' }))
     expect(await screen.findByText(/^Cancelamos el pedido/, fueraDeRegiones)).toBeVisible()
+    // MATU-121: y se anuncia en la región amable, para quien usa lector de pantalla.
+    await waitFor(() => expect(amable).toHaveTextContent('Cancelamos el pedido. Estamos devolviendo $57.460 a la tarjeta con que se pagó.'))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 

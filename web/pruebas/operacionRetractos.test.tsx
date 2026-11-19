@@ -177,11 +177,12 @@ describe('El retracto que llegó por correo', () => {
   /**
    * MATU-114 (revisión visual, P2 y P3): la nota con `iconoEnLinea`, como MATU-44 y MATU-54, para que a 320 px
    * y 200 % no parta palabras, y con aire arriba al recibir el foco. jsdom no mide: se afirma la estructura.
+   * MATU-121: sin título, el ícono flota al comienzo del texto (`float-start`) en vez de ir `inline-flex`.
    */
   const conIconoEnLinea = () => {
     const nota = notaDelCorreo()!
     expect(nota.querySelector(':scope > span.contents')).toHaveClass('angosto:hidden')
-    expect(nota.querySelector('span[class*="angosto:inline-flex"] svg')).not.toBeNull()
+    expect(nota.querySelector('.leading-relaxed > span.angosto\\:float-start > svg')).not.toBeNull()
     expect(nota).toHaveClass('scroll-mt-4')
   }
 
@@ -472,9 +473,39 @@ describe('Incidencias', () => {
     expect(within(nota).getByText('La nota ya no está disponible: se borró con los datos de la persona.')).toBeVisible()
     expect(screen.queryByText('La familia escribió que la caja llegó abierta.')).toBeNull()
     expect(screen.queryByText('Se revisó con el comercio: los productos estaban completos.')).toBeNull()
-    expect(screen.getByRole('heading', { level: 2, name: 'Cómo se resolvió' })).toBeVisible()
+    // MATU-115 (P3 de Martín): sin resolución que mostrar, el título no queda vacío; sí cuándo se resolvió.
+    expect(screen.queryByRole('heading', { level: 2, name: 'Cómo se resolvió' })).toBeNull()
     expect(screen.getByText(/^Resuelta el \d{2}\/\d{2}\/\d{4} a las \d{2}:\d{2}\.$/)).toBeVisible()
     expect(escrito).toEqual([])
     expect(window.location.href).not.toMatch(/nota|borr/i)
+  })
+
+  it.each([
+    ['con resolución', (x: { resolucion: string | null }) => x, true],
+    ['con la resolución vacía', (x: { resolucion: string | null }) => Object.assign(x, { resolucion: '   ' }), false],
+  ] as const)('MATU-115 (P3 de Martín): «Cómo se resolvió» %s', async (_, cambiar, conTitulo) => {
+    const { api, usuario } = await abrir('/operacion/incidencias')
+    cambiar(api.consola.estado.incidencias.find((x) => x.id === ID.incidenciaResuelta)!)
+    await usuario.click(await screen.findByRole('radio', { name: 'Resueltas' }))
+    await usuario.click(await screen.findByRole('button', { name: /^Reclamo de la familia, Resueltas/ }))
+    await screen.findByRole('heading', { level: 1, name: 'Reclamo de la familia' })
+    const titulo = screen.queryByRole('heading', { level: 2, name: 'Cómo se resolvió' })
+    if (conTitulo) {
+      expect(titulo).toBeVisible()
+      expect(within(titulo!.closest('section')!).getByText('Se revisó con el comercio: los productos estaban completos.')).toBeVisible()
+    } else {
+      expect(titulo).toBeNull()
+    }
+    expect(screen.getByText(/^Resuelta el \d{2}\/\d{2}\/\d{4} a las \d{2}:\d{2}\.$/)).toBeVisible()
+  })
+
+  it('MATU-115 (P3 de Martín): el doble trae una resuelta con la nota borrada, sin título vacío', async () => {
+    const { usuario } = await abrir('/operacion/incidencias')
+    await usuario.click(await screen.findByRole('radio', { name: 'Resueltas' }))
+    await usuario.click(await screen.findByRole('button', { name: /^No se pudo entregar, Resueltas, Pedido 4828/ }))
+    await screen.findByRole('heading', { level: 1, name: 'No se pudo entregar' })
+    expect(within(screen.getByRole('region', { name: 'Nota' })).getByText('La nota ya no está disponible: se borró con los datos de la persona.')).toBeVisible()
+    expect(screen.queryByText(/sintética/)).toBeNull()
+    expect(screen.queryByRole('heading', { level: 2, name: 'Cómo se resolvió' })).toBeNull()
   })
 })

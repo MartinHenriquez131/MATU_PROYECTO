@@ -91,7 +91,8 @@ describe('Grupo familiar sin persona registrada', () => {
 
   it('salir funciona: sin el punto de la ficha (5.10), y sin grupos lleva a crear uno con el aviso', async () => {
     const pedidas = apiSinPersona('pagador')
-    abrirApp('/grupo')
+    const { container } = abrirApp('/grupo')
+    const amable = container.querySelector<HTMLElement>(':scope > [aria-live="polite"][aria-atomic="true"]')!
     await userEvent.click(await within(await salirDelGrupo()).findByRole('button', { name: 'Salir del grupo' }))
     const d = within(screen.getByRole('dialog'))
     expect(d.queryByText(/Lo que escribiste en la ficha/)).toBeNull()
@@ -99,6 +100,8 @@ describe('Grupo familiar sin persona registrada', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/empezar/grupo'))
     // MATU-119: el aviso que se ve, no su copia en la región amable, que llega 50 ms después.
     expect(await screen.findByText('Saliste de Familia Soto.', fueraDeRegiones)).toBeVisible()
+    // MATU-121: y se anuncia en la región amable, para quien usa lector de pantalla.
+    await waitFor(() => expect(amable).toHaveTextContent('Saliste de Familia Soto.'))
     expect(pedidas).toContain(`POST /v1/grupos/${GRUPO_ID}/salida`)
   })
 

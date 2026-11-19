@@ -5,7 +5,7 @@ La prueba de carga de la estrategia de pruebas, sección 2: **50 usuarios concur
 | Archivo | Qué hace |
 |---|---|
 | `preparar_carga.py` | Deja en la base **local** las 50 familias de carga (`carga01@example.com` a `carga50@example.com`), cada una con su persona cuidada, su dirección y la autorización de pedidos, y un comercio ficticio propio, «Comercio de Carga», con el pañal de la demo y el stock al tope (9999). Usa los casos de uso de la semilla de la demo, como `matu_app`. Es idempotente: cada corrida vuelve a dejar el stock al tope |
-| `pedido.js` | El script de k6. Umbrales: `http_req_duration` p(95) < 800 ms, `checks` > 99% y `http_req_failed` < 1% |
+| `pedido.js` | El script de k6. Umbrales: `http_req_duration` p(95) < 800 ms en total y en cada paso del flujo, `checks` > 99% y `http_req_failed` < 1%. Al final muestra los tiempos por paso |
 
 ## Dónde se corre, y dónde nunca
 
@@ -52,9 +52,44 @@ export CARGA_CONTRASENA="$SEMILLA_CONTRASENA"
 k6 run infra/carga/pedido.js
 ```
 
-El resumen de k6 dice si se cumplió cada umbral (`✓` o `✗`) y separa los tiempos por paso con la etiqueta `paso` (`entrar`, `catalogo`, `pedido`, `confirmar`, `pagar` y `retorno`). Si un umbral falla, k6 termina con un código distinto de 0.
+Si un umbral falla, k6 termina con un código distinto de 0.
 
 Antes de correrla por primera vez, `k6 inspect infra/carga/pedido.js` revisa la sintaxis y las opciones sin enviar nada.
+
+## Cómo leer el resultado
+
+Cada petición lleva la etiqueta `paso`, y cada paso tiene su umbral. RNF-05 (arquitectura, sección 2.2) pide el flujo de catálogo a pedido a pago bajo 800 ms en el percentil 95 con 50 usuarios concurrentes:
+
+| Paso | Qué peticiones | Umbral | Por qué |
+|---|---|---|---|
+| `catalogo` | `GET /v1/catalogo` | p(95) < 800 ms | Parte del flujo de RNF-05 |
+| `pedido` | `POST .../pedidos` y, si quedó uno sin pagar de otra corrida, `GET .../pedido-en-curso` y `POST .../cancelar` | p(95) < 800 ms | Parte del flujo de RNF-05 |
+| `confirmar` | `POST /v1/pedidos/{id}/confirmar` | p(95) < 800 ms | Parte del flujo de RNF-05 |
+| `pagar` | `POST /v1/pedidos/{id}/pagar` | p(95) < 800 ms | Parte del flujo de RNF-05 |
+| `retorno` | `POST /v1/pagos/retorno` | p(95) < 800 ms | Con la pasarela falsa la venta se aprueba en memoria, sin red: mide solo el trabajo de MATU al cerrar el pago. La latencia de Transbank no se mide aquí |
+| `entrar` | `POST /v1/sesiones`, `GET /v1/grupos` y `GET .../personas-cuidadas` | Ninguno (`max>=0`, que siempre se cumple) | No es parte de RNF-05: ocurre una vez por usuario, y argon2id es lento a propósito. Los 50 usuarios entran a la vez al partir. Se mide para verlo, sin exigirle la meta |
+| total | Todas | p(95) < 800 ms | El umbral de la estrategia de pruebas. Incluye `entrar`, así que es más exigente que RNF-05 |
+
+Al terminar, en vez del resumen de siempre, k6 muestra una tabla con la mediana (p50), el p95 y el p99 de cada paso y del total, y si cumple su umbral, más `checks`, `http_req_failed` y las iteraciones completas. Usa solo métricas agregadas: no muestra correos, tokens, ids ni cuerpos.
+
+```
+paso       meta p95  p50      p95       p99       umbral
+---------  --------  -------  --------  --------  -----------
+entrar     se mide   ...                          no se exige
+catalogo   < 800 ms  ...                          cumple
+pedido     < 800 ms  ...                          NO CUMPLE
+...
+total      < 800 ms  ...                          NO CUMPLE
+```
+
+**Qué significa que falle uno:**
+
+- **Falla un paso del flujo** (`NO CUMPLE` en `catalogo`, `pedido`, `confirmar`, `pagar` o `retorno`): ese paso es el lento. Es por donde se empieza a buscar (consultas, bloqueos, trabajo por petición).
+- **Fallan todos los pasos a la vez y con tiempos parecidos:** lo más probable es que la API esté encolando las peticiones (un solo proceso con 50 usuarios) o que la máquina sume latencia (Docker sobre WSL), más que un paso en particular. Conviene repetir con otra máquina antes de optimizar.
+- **Falla solo el total y pasan los pasos:** lo que lo empuja es `entrar`, que no es parte de RNF-05.
+- **Fallan `checks` o `http_req_failed`:** el flujo no funcionó (cuentas sin preparar, stock agotado, la capa 3 apagada). Los tiempos de esa corrida no sirven.
+
+**Dónde se anota y qué se decide:** el resultado se anota en `TESTER/` del repositorio MATU, en el informe de la corrida, con la tabla por paso, la máquina y cuántos procesos tenía la API. Con la medida por paso se decide una de dos cosas: optimizar el paso que falla, o, si la meta no es realista para el piloto, ajustar la meta de RNF-05 en la arquitectura. Esa decisión la toman Jorge y Martín, no el script.
 
 ## Qué queda en la base
 

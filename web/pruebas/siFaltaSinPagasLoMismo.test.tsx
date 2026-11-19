@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fijarGrupo } from '../src/compartido/api/sesion'
 import { PantallaPedido } from '../src/familia/Pedido'
 import { familiaFalsa } from './familiaFalsa'
-import { apiPedido, confirmado, conRegionesGlobales, persona, PERSONA_ID } from './pedidoFalso'
+import { PEDIDO } from '../src/familia/textosPedido'
+import { ALMACEN, apiPedido, BODEGA, confirmado, conRegionesGlobales, linea, PANAL, persona, PERSONA_ID, TOALLITAS } from './pedidoFalso'
 
 let contexto = familiaFalsa()
 vi.mock('../src/familia/estado', async (original) => ({
@@ -55,5 +56,32 @@ describe('MATU-112: «Si falta» sin «Pagas lo mismo»', () => {
     ).toBeVisible()
     const texto = document.body.textContent ?? ''
     for (const vieja of PROMESAS_VIEJAS) expect(texto).not.toMatch(vieja)
+  })
+})
+
+// MATU-115 (2, decisión de Jorge del 17-11): buscar en otro comercio solo vale antes de pagar. Sacar el
+// producto y devolver su precio vale antes y después, y no cambia.
+describe('MATU-115: «Si falta antes de pagar»', () => {
+  const lineas = [linea(PANAL, ALMACEN, 2, 12990), linea(TOALLITAS, BODEGA, 1, 4290, { regla_faltante: 'quitar' })]
+  const VIEJO = 'Si falta: lo buscamos en otro comercio.'
+  const NUEVO = 'Si falta antes de pagar: lo buscamos en otro comercio.'
+
+  it('el texto, y los de «Sacarlo del pedido» sin cambios', () => {
+    expect(PEDIDO.siFaltaOtro).toBe(NUEVO)
+    expect(PEDIDO.siFaltaQuitar).toBe('Si falta: lo sacamos y te devolvemos su precio.')
+    expect(PEDIDO.siFaltaQuitarSeInforma).toBe('Si falta: lo sacamos del pedido.')
+  })
+
+  it.each([
+    ['el carrito con el total confirmado', '/insumos/pedido', 2, 'Pedido'],
+    ['el resumen antes de pagar', '/insumos/pedido/resumen', 1, 'Antes de pagar'],
+  ] as const)('%s: cada línea con «Buscarlo en otro comercio» lo dice; ninguna dice el texto viejo', async (_, ruta, nivel, titulo) => {
+    apiPedido({}, { pedido: confirmado({ lineas }) })
+    abrir(ruta)
+    if (nivel === 1) await screen.findByRole('heading', { level: 1, name: titulo })
+    else await screen.findByRole('heading', { level: 2, name: 'Pañal adulto M x30' })
+    expect(screen.getAllByText(NUEVO)).toHaveLength(1)
+    expect(screen.getAllByText('Si falta: lo sacamos y te devolvemos su precio.')).toHaveLength(1)
+    expect(document.body.textContent).not.toContain(VIEJO)
   })
 })

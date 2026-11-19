@@ -88,8 +88,8 @@ No levanté la pantalla para esta especificación: la vista del observador cambi
 │ │ ficticio)                           │ │
 │ │ 2 envases de 30 unidades            │ │  p text-lg, la cifra en cifras
 │ │ ─────────────────────────────────── │ │  border-t border-linea pt-3
-│ │ Si falta: lo buscamos en otro       │ │  p text-base
-│ │ comercio.                           │ │
+│ │ Si falta antes de pagar: lo buscamos│ │  p text-base (MATU-115)
+│ │ en otro comercio.                   │ │
 │ └─────────────────────────────────────┘ │
 │ ┌─────────────────────────────────────┐ │
 │ │ Suplemento vainilla                 │ │
@@ -159,7 +159,7 @@ Va en un `p` propio, debajo de la bajada y antes de «Nunca lo cambiamos…». E
 | Presentación | `p text-base text-tenue`, solo si es distinta del nombre | `{presentacion}` | — |
 | Comercio | `p text-base break-words` | De `{comercio}` (comercio ficticio) | [L 31] |
 | Cantidad | `p text-lg tabular-nums`, la cifra en `cifras` | `{n}` + el sufijo de la sección 21, por ejemplo «2 envases de 30 unidades» | [L 31] |
-| Si falta | `p text-base`, dentro de `border-t border-linea pt-3` | Si falta: lo buscamos en otro comercio. · Si falta: lo sacamos del pedido. | [L 31] · **[NUEVO]** (O5) |
+| Si falta | `p text-base`, dentro de `border-t border-linea pt-3` | Si falta antes de pagar: lo buscamos en otro comercio. · Si falta: lo sacamos del pedido. | [L 31], con «antes de pagar» desde MATU-115 · **[NUEVO]** (O5) |
 
 **No van:** el precio, «cada uno», «IVA incluido», «Precio de ejemplo · IVA incluido», «Subtotal:», «En tu lista:», el retracto (O2), `Stepper`, las opciones de «Si falta» ni «Sacar del pedido».
 
@@ -249,7 +249,7 @@ N1 es la única que no venía en D4. La de hoy («Revisa los productos y cuánto
 
 - De `{comercio}` (comercio ficticio) [L 31]
 - Nunca lo cambiamos por otra marca ni por otro producto. [L 31]
-- Si falta: lo buscamos en otro comercio. [L 31]
+- Si falta antes de pagar: lo buscamos en otro comercio. [L 31, MATU-115]
 - Todavía no hay un pedido para `{pila}`. [L 31]
 - Pagado y los demás estados de MATU-92 4.2 [L 38]
 - Quien administra el grupo, quien cuida a `{pila}` y quien paga ven el detalle. [L 38]
@@ -280,7 +280,7 @@ Para quien «Se informa», salvo que se diga otro rol. Se revisa a 360, 1280 y 1
 2. No hay ningún `NaN` ni ningún renglón vacío donde estaba un monto.
 3. No se ve el aviso «Precios de ejemplo.» del piloto (O3) ni el «Derecho a retracto» (O2). Cada línea sigue diciendo «(comercio ficticio)».
 4. Cada línea muestra, en este orden, nombre, presentación (si es distinta), «De {comercio} (comercio ficticio)», la cantidad con su sufijo y «Si falta: …». Entre ellos, el mismo espacio.
-5. Con la regla `quitar`, la línea dice «Si falta: lo sacamos del pedido.». Con `otro_comercio`, «Si falta: lo buscamos en otro comercio.».
+5. Con la regla `quitar`, la línea dice «Si falta: lo sacamos del pedido.». Con `otro_comercio`, «Si falta antes de pagar: lo buscamos en otro comercio.» (MATU-115).
 6. Debajo de la bajada hay **una sola** `Etiqueta`, con ícono y palabra: «Sin confirmar», «Falta pagarlo» o «Hay que confirmarlo de nuevo», según el estado. Solo «Hay que confirmarlo de nuevo» va en `atenta`.
 7. A 360 px, la etiqueta se ve sin desplazarse, en la primera pantalla.
 8. El pie dice «Los precios y el total los ven quien administra el grupo, quien cuida a {pila} y quien paga.», y nada más. No dice «puede cambiar el pedido y ver el total».

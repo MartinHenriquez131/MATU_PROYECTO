@@ -8,7 +8,8 @@ D-63-9 y D-63-10). Decisiones 422 a 424 y 436 en adelante.
     POST /v1/pedidos/{pedido_id}/retractos                admin o quien pagó, en cualquier rol. Idempotency-Key. 201
 
 Viven en backoffice porque orquestan el despacho (fulfillment) y la devolución (payments). Un rol que no alcanza, un
-pedido o una persona de otro grupo, una persona eliminada, un pedido vencido (2 años desde el cierre) o un id que no
+pedido o una persona de otro grupo, una persona eliminada, un pedido vencido (2 años desde la entrega o la
+cancelación con devolución) o un id que no
 es UUID: 404, nunca 403. No piden la autorización despacho (C1). Cache-Control: no-store (prefijos /v1/pedidos y
 /v1/personas-cuidadas/ en app.main). Nada del pedido, los montos ni la Idempotency-Key van a los logs (C23).
 
@@ -125,7 +126,8 @@ def _actor(request: Request, contexto: SesionDeGrupo) -> Actor:
         " ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos,"
         " sin ningún monto (C3; MATU-113, decisión 472), con vista = se_informa; y en los pedidos que pagó, la fila de"
         " quien paga con puede_cancelar en false, con vista = pagaste (MATU-116, C5). Del más reciente al más antiguo;"
-        " sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita."
+        " sin los que cumplieron 2 años desde la entrega o la cancelación con devolución. Paginada con cursor opaco."
+        " No se audita."
         " Capa 3"
     ),
 )
