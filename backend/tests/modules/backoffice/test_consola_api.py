@@ -367,6 +367,10 @@ def test_una_incidencia_solo_va_sobre_un_pedido_pagado(despacho: Despacho) -> No
     assert r.status_code == 404
 
 
+# RF-32, en parte: la operación gestiona el catálogo de los comercios ficticios (D-81-7, GET /v1/operacion/catalogo y
+# PATCH /v1/operacion/ofertas/{oferta_id}). Los convenios, las incidencias como gestión de RF-32 y los indicadores
+# no los cubre esta prueba
+@pytest.mark.rf("RF-32")
 def test_el_catalogo_se_edita_solo_en_los_comercios_ficticios_y_no_cambia_lo_confirmado(despacho: Despacho) -> None:
     from tests.modules.payments.conftest import pagar, pedido_confirmado
 

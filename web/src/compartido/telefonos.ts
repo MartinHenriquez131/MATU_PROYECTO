@@ -10,7 +10,7 @@ export const TELEFONO =
 export const PARTES = /^(\+?56[ -]?(?:[29]|[3-8]\d)|9)([ -]?)(.+)$/
 
 /** 3.11.4 v1.3: un signo de apertura pegado antes del número va con él («(+56 9»). */
-export const ABRE = /[(\[«"“¿¡]$/
+export const ABRE = /[([«"“¿¡]$/
 
 /** 3.11.4 v1.3: un signo de cierre y uno de puntuación pegados después van con él («0163).»). */
 export const CIERRA = /^[)\]»"”]?[.,;:!?]?/

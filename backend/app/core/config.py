@@ -145,13 +145,16 @@ class Configuracion(BaseSettings):
     log_nivel: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
     # Conexión de la API como matu_app. Vacía solo en pruebas que no tocan la base.
-    database_url: str = ""
+    # MATU-79: las cadenas de conexión llevan la contraseña del rol. repr=False las saca del repr y del str de la
+    # configuración (un log o una traza que la imprima). Siguen siendo str, y no SecretStr, para no cambiar ningún uso:
+    # el motor, las tareas y las pruebas las leen tal cual
+    database_url: str = Field(default="", repr=False)
 
     # MATU-74 (H2): las conexiones de las tareas, nunca de la API. SCHEDULER_DATABASE_URL como matu_scheduler, para
     # enumerar los grupos y llamar a las funciones de borrado y conservación; PUBLISHER_DATABASE_URL como
     # matu_publisher, para las funciones del outbox. El trabajo por grupo sigue con DATABASE_URL (matu_app y RLS)
-    scheduler_database_url: str = ""
-    publisher_database_url: str = ""
+    scheduler_database_url: str = Field(default="", repr=False)
+    publisher_database_url: str = Field(default="", repr=False)
 
     # Versión vigente de la política de privacidad (docs/legal/politica-privacidad.md del
     # repositorio MATU), en formato MAYOR.MENOR. Un valor con otro formato impide cargar la
@@ -234,7 +237,8 @@ class Configuracion(BaseSettings):
     origen_web: str = Field(default="https://localhost", pattern=r"^https://[^/#?]+$")
 
     # Redis de las sesiones de relevo (MATU-19). Local por omisión; en otro entorno, desde .env
-    redis_url: str = "redis://127.0.0.1:6379/0"
+    # MATU-79: repr=False, como las de la base: en Railway la URL de Redis lleva la contraseña
+    redis_url: str = Field(default="redis://127.0.0.1:6379/0", repr=False)
 
     # Build de la aplicación web (MATU-23, ADR-026): la API sirve index.html en /r y en las rutas de la
     # app de familia (MATU-58), y los archivos de /assets, en el mismo origen. Sin la carpeta, /r y las
@@ -258,7 +262,8 @@ class Configuracion(BaseSettings):
     # MATU-62 (ADR-027, decisión 228): la pasarela del pago. Ver la cabecera de este archivo. Las credenciales de
     # producción viven solo en el entorno (Railway): nunca en el código, el repositorio ni los logs
     pasarela_pago: Literal["integracion", "produccion", "falsa"] | None = None
-    webpay_codigo_comercio: str | None = Field(default=None, pattern=r"^[0-9]{6,12}$")
+    # MATU-79: el código de comercio de producción no es una clave, pero identifica la cuenta de Transbank: repr=False
+    webpay_codigo_comercio: str | None = Field(default=None, pattern=r"^[0-9]{6,12}$", repr=False)
     webpay_llave: SecretStr | None = Field(default=None, min_length=16)
     # Decisión 230 (P-62-6): una venta iniciada cuenta como pago en curso durante estos minutos. Martín midió en
     # integración que la venta de Webpay vence a los 7 minutos; 8 deja 1 minuto de margen (Jorge, 12-11, MATU-94)

@@ -17,6 +17,9 @@ from sqlalchemy.exc import DBAPIError
 from app.core.db import obtener_engine
 from tests.base_datos import requiere_base
 
+# MATU-79: todo el archivo prueba el aislamiento entre familias (RNF-07): la app se conecta como matu_app
+pytestmark = pytest.mark.rf("RNF-07")
+
 # MATU-105: sin la base, falla en CI y se salta a la vista en local (tests/base_datos.py)
 
 
