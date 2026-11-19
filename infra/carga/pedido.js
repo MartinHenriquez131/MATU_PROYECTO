@@ -29,13 +29,40 @@ if (!['localhost', '127.0.0.1'].includes(HOST)) {
   throw new Error('BASE_URL debe ser una API local (localhost o 127.0.0.1): la carga nunca va a staging ni a la demo')
 }
 
+// Los pasos del flujo, con la etiqueta `paso` que lleva cada petición. Los de PASOS_RNF05 son el flujo de RNF-05
+// (arquitectura, sección 2.2: catálogo a pedido a pago bajo 800 ms en p95 con 50 usuarios), y cada uno tiene su umbral
+// propio para saber cuál es el lento (hallazgo H4 de Martín, 17-11). `entrar` no es parte de RNF-05: se mide, pero no
+// se exige (ver el umbral más abajo).
+//
+// `retorno` lleva la misma meta de 800 ms aunque sea la vuelta de Webpay: con PASARELA_PAGO=falsa la venta se aprueba
+// en memoria (payments/infrastructure/pasarela_falsa.py, sin esperas ni red), así que el paso mide solo el trabajo de
+// MATU al cerrar el pago. Con Transbank de verdad se sumaría la latencia de su API, que esta carga no mide ni puede
+// medir (nunca va contra Transbank)
+const PASOS_RNF05 = ['catalogo', 'pedido', 'confirmar', 'pagar', 'retorno']
+const PASOS = ['entrar', ...PASOS_RNF05]
+const META_P95_MS = 800
+
+function umbralesPorPaso() {
+  const umbrales = {}
+  for (const paso of PASOS_RNF05) umbrales[`http_req_duration{paso:${paso}}`] = [`p(95)<${META_P95_MS}`]
+  // `entrar` es el inicio de sesión: argon2id gasta CPU a propósito para que adivinar contraseñas cueste, y los 50
+  // usuarios entran a la vez al partir, así que su tiempo es alto por diseño. Además ocurre una vez por usuario, no en
+  // cada pedido. Un umbral de 800 ms mentiría sobre RNF-05 y uno holgado mentiría sobre la meta: `max>=0` siempre se
+  // cumple, y solo está para que k6 calcule la submétrica del paso y salga en el resumen
+  umbrales['http_req_duration{paso:entrar}'] = ['max>=0']
+  return umbrales
+}
+
 export const options = {
   scenarios: {
     pedido: { executor: 'constant-vus', vus: USUARIOS, duration: DURACION, gracefulStop: '30s' },
   },
   thresholds: {
-    // El umbral de la estrategia de pruebas: p95 bajo 800 ms en todas las peticiones del flujo
-    http_req_duration: ['p(95)<800'],
+    // El umbral de la estrategia de pruebas: p95 bajo 800 ms en todas las peticiones del script. Incluye `entrar`, así
+    // que es más exigente que RNF-05: si falla solo este y pasan los de cada paso, el culpable es el inicio de sesión
+    http_req_duration: [`p(95)<${META_P95_MS}`],
+    // El mismo umbral por paso: dice cuál de los pasos del flujo es el lento
+    ...umbralesPorPaso(),
     // El flujo de punta a punta tiene que funcionar, no solo responder rápido
     checks: ['rate>0.99'],
     http_req_failed: ['rate<0.01'],
@@ -43,7 +70,7 @@ export const options = {
   // Se guardan los cuerpos porque el flujo los lee con .json() (ids, etag y token de la venta). k6 no los muestra
   // en el resumen, y el script nunca los imprime
   discardResponseBodies: false,
-  summaryTrendStats: ['avg', 'med', 'p(90)', 'p(95)', 'max'],
+  summaryTrendStats: ['avg', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
 }
 
 const JSON_CT = { 'Content-Type': 'application/json' }
@@ -164,4 +191,53 @@ export default function (datos) {
 
   // El tiempo de una persona entre un pedido y el siguiente
   sleep(1)
+}
+
+// --- El resumen por paso --------------------------------------------------------------------------------------
+// Reemplaza el resumen de k6 en la terminal por uno que muestra p50, p95 y p99 de cada paso y si cumple su umbral.
+// Solo usa métricas agregadas: ningún correo, token, id ni cuerpo de respuesta llega a `datos.metrics`. El código de
+// salida de k6 no cambia: sigue siendo distinto de 0 si un umbral falla
+
+function ms(valor) {
+  return typeof valor === 'number' ? `${Math.round(valor)} ms` : '-'
+}
+
+function cumple(metrica) {
+  const umbrales = Object.values((metrica && metrica.thresholds) || {})
+  if (umbrales.length === 0) return '-'
+  return umbrales.every((u) => u.ok) ? 'cumple' : 'NO CUMPLE'
+}
+
+function resumenPorPaso(datos) {
+  const filas = [['paso', 'meta p95', 'p50', 'p95', 'p99', 'umbral']]
+  for (const paso of PASOS) {
+    const exigido = PASOS_RNF05.includes(paso)
+    const m = datos.metrics[`http_req_duration{paso:${paso}}`]
+    const v = (m && m.values) || {}
+    const estado = !m ? 'sin datos' : exigido ? cumple(m) : 'no se exige'
+    const meta = exigido ? `< ${META_P95_MS} ms` : 'se mide'
+    filas.push([paso, meta, ms(v.med), ms(v['p(95)']), ms(v['p(99)']), estado])
+  }
+  const total = datos.metrics.http_req_duration
+  const vt = (total && total.values) || {}
+  filas.push(['total', `< ${META_P95_MS} ms`, ms(vt.med), ms(vt['p(95)']), ms(vt['p(99)']), cumple(total)])
+
+  const anchos = filas[0].map((_, i) => Math.max(...filas.map((f) => f[i].length)))
+  const linea = (f) => f.map((celda, i) => celda.padEnd(anchos[i])).join('  ')
+  const tabla = filas.map(linea)
+  tabla.splice(1, 0, anchos.map((a) => '-'.repeat(a)).join('  '))
+
+  const chequeos = datos.metrics.checks
+  const fallidas = datos.metrics.http_req_failed
+  const iteraciones = datos.metrics.iterations
+  const pie = [
+    `checks: ${chequeos ? (chequeos.values.rate * 100).toFixed(2) : '-'} % (meta > 99 %), ${cumple(chequeos)}`,
+    `http_req_failed: ${fallidas ? (fallidas.values.rate * 100).toFixed(2) : '-'} % (meta < 1 %), ${cumple(fallidas)}`,
+    `iteraciones completas: ${iteraciones ? iteraciones.values.count : 0}`,
+  ]
+  return ['', 'MATU-80 · Tiempos por paso (RNF-05)', '', ...tabla, '', ...pie, ''].join('\n')
+}
+
+export function handleSummary(datos) {
+  return { stdout: resumenPorPaso(datos) }
 }
