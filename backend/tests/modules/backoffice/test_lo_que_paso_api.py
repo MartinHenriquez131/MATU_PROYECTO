@@ -1,5 +1,5 @@
 """MATU-128 · «Lo que pasó con tu pedido» para quien lo pagó, contra PostgreSQL: GET
-/v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso (C5, R2, R3, E4 y E5) y el filtro de correos y teléfonos de
+/v1/pedidos/{pedido_id}/lo-que-paso (C5, R2, R3, E4 y E5) y el filtro de correos y teléfonos de
 la consola (R5, C9). Solo datos sintéticos.
 """
 
@@ -27,12 +27,12 @@ CAMPOS = {"tipo", "estado", "anotado_en", "resuelto_en", "nota", "resolucion", "
 DETALLE_503 = "Lo anotado no se puede revisar en este momento. Cita el request_id si lo reportas"
 
 
-def _ruta(familia: FamiliaCreada, pedido: dict[str, Any], grupo: uuid.UUID | None = None) -> str:
-    return f"/v1/grupos/{grupo or familia.grupo.id}/pedidos/{pedido['id']}/lo-que-paso"
+def _ruta(pedido: dict[str, Any]) -> str:
+    return f"/v1/pedidos/{pedido['id']}/lo-que-paso"
 
 
 def _pedir(d: Despacho, familia: FamiliaCreada, usuario: UsuarioCreado, pedido: dict[str, Any]) -> Any:
-    return d.e.pedir("GET", _ruta(familia, pedido), usuario, familia)
+    return d.e.pedir("GET", _ruta(pedido), usuario, familia)
 
 
 def _anotar(d: Despacho, pedido: dict[str, Any], nota: str = NOTA, tipo: str = "faltante") -> dict[str, Any]:
@@ -97,8 +97,8 @@ def test_quien_pago_ve_lo_que_paso_aunque_pase_a_se_informa(despacho: Despacho) 
 @pytest.mark.rf("RNF-07")
 def test_404_a_quien_no_pago_ese_pedido_nunca_403(despacho: Despacho) -> None:
     """C5 y A3 a A6 por la API: el admin y el cuidador (que siguen viendo lo anotado en «Datos de»), quien se informa
-    sin pagar, quien pagó otro pedido del grupo, otro grupo, el grupo de la ruta distinto del de X-Grupo-Id, un id que
-    no es UUID y quien pagó y salió del grupo: 404 RFC 7807, sin la nota."""
+    sin pagar, quien pagó otro pedido del grupo, otro grupo (con su X-Grupo-Id o con el de A), un id que no es UUID
+    y quien pagó y salió del grupo: 404 RFC 7807, sin la nota."""
     d = despacho
     familia, pedido = _pagado_por_el_pagador(d)
     _anotar(d, pedido)
@@ -121,16 +121,13 @@ def test_404_a_quien_no_pago_ese_pedido_nunca_403(despacho: Despacho) -> None:
     _anotar(d, ajeno)
     _es_404(_pedir(d, familia, pagador, ajeno), "otro pedido")
     assert _pedir(d, familia, familia.admin, ajeno).status_code == 200
-    # A5: otro grupo, con su X-Grupo-Id y la ruta de A, o con la ruta y la cabecera de B
+    # A5: otro grupo, con su X-Grupo-Id o con el de A (del que no es miembro)
     otra = d.e.fabrica.familia()
-    _es_404(d.e.pedir("GET", _ruta(familia, pedido), otra.admin, otra), "otro grupo, ruta de A")
-    _es_404(d.e.pedir("GET", _ruta(otra, pedido), otra.admin, otra), "otro grupo, ruta de B")
-    # El grupo de la ruta tiene que ser el de X-Grupo-Id
-    _es_404(d.e.pedir("GET", _ruta(familia, pedido, otra.grupo.id), pagador, familia), "grupo de la ruta")
-    _es_404(d.e.pedir("GET", f"/v1/grupos/{familia.grupo.id}/pedidos/no-es-uuid/lo-que-paso", pagador, familia),
-            "pedido sin UUID")
-    _es_404(d.e.pedir("GET", f"/v1/grupos/no-es-uuid/pedidos/{pedido['id']}/lo-que-paso", pagador, familia),
-            "grupo sin UUID")
+    _es_404(d.e.pedir("GET", _ruta(pedido), otra.admin, otra), "otro grupo, su cabecera")
+    _es_404(d.e.pedir("GET", _ruta(pedido), otra.admin, familia), "otro grupo, la cabecera de A")
+    # Quien pagó, con el X-Grupo-Id de otro grupo: no es miembro
+    _es_404(d.e.pedir("GET", _ruta(pedido), pagador, otra), "quien pagó con la cabecera de B")
+    _es_404(d.e.pedir("GET", "/v1/pedidos/no-es-uuid/lo-que-paso", pagador, familia), "pedido sin UUID")
     # A6: quien pagó y salió del grupo
     d.sql("UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s", pagador.id,
           familia.grupo.id)

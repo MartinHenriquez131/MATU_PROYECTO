@@ -21,7 +21,7 @@ RUTAS = (
     "/v1/pedidos/{pedido_id}/pago",
     "/v1/pedidos/{pedido_id}",
     # MATU-128 (C5)
-    "/v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso",
+    "/v1/pedidos/{pedido_id}/lo-que-paso",
 )
 # Las respuestas de la familia sobre un pedido pagado
 VISTAS_DE_LA_FAMILIA = (
@@ -179,7 +179,7 @@ def test_128_lo_que_paso_tiene_siete_campos_estrictos_y_sus_codigos(esquema: dic
     assert not _propiedades(esquema, "LoQuePasoDelPedido") & {
         "id", "incidencia_id", "creada_por", "asignada_a", "asignada", "version", "clave_notas_id", "pedido_id"}
     assert schemas["CosaAnotadaVista"]["properties"]["tipo"] == schemas["LoQuePasoCopia"]["properties"]["tipo"]
-    ruta = esquema["paths"]["/v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso"]
+    ruta = esquema["paths"]["/v1/pedidos/{pedido_id}/lo-que-paso"]
     assert set(ruta) == {"get"}
     assert set(ruta["get"]["responses"]) == {"200", "401", "404", "422", "503"}
     assert "LoQuePasoDelPedido" in json.dumps(ruta["get"]["responses"]["200"])

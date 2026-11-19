@@ -41,8 +41,8 @@ Lo que no cambia (C4)
 Recorrido: quién lee incidencia y clave_notas después de la 0036
 - operación: incidencia_operacion_* y clave_notas_operacion_*, sin cambios (la consola).
 - admin y cuidador activos: incidencia_familia y clave_notas_familia_leer, sin cambios («Datos de»).
-- quien pagó, activo en el grupo: solo por pedido_lo_que_paso, con (c) y (d). GET
-  /v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso decide además con pagados_por, nunca con el rol (C5).
+- quien pagó, activo en el grupo: solo por pedido_lo_que_paso, con (c) y (d). GET /v1/pedidos/{pedido_id}/lo-que-paso
+  decide además con pagados_por, nunca con el rol (C5).
 - clave_notas_destruir (0030), con su marcador 'clave_notas_destruir', sin cambios.
 - El comercio, el repartidor, el relevo, sistema y los roles de las tareas: nada.
 

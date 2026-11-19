@@ -513,8 +513,8 @@ class CosaAnotadaVista(_Estricto):
 
 
 class LoQuePasoDelPedido(_Estricto):
-    """GET /v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso (MATU-128, C5): lo que el equipo de MATU anotó de un
-    pedido que pagó quien pregunta, del más antiguo al más reciente según anotado_en (E5). Vacía si no hay nada
+    """GET /v1/pedidos/{pedido_id}/lo-que-paso (MATU-128, C5): lo que el equipo de MATU anotó de un pedido que pagó
+    quien pregunta, del más antiguo al más reciente según anotado_en (E5). Vacía si no hay nada
     anotado (E4)."""
 
     lo_que_paso: list[CosaAnotadaVista]

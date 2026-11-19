@@ -6,7 +6,7 @@ D-63-9 y D-63-10). Decisiones 422 a 424 y 436 en adelante.
     POST /v1/pedidos/{pedido_id}/cancelar-con-devolucion  admin. Idempotency-Key. 200
     GET  /v1/pedidos/{pedido_id}/retractos                admin, cuidador, pagador y el observador que pagó. 200
     POST /v1/pedidos/{pedido_id}/retractos                admin o quien pagó, en cualquier rol. Idempotency-Key. 201
-    GET  /v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso   solo quien pagó ese pedido, en cualquier rol. 200
+    GET  /v1/pedidos/{pedido_id}/lo-que-paso              solo quien pagó ese pedido, en cualquier rol. 200
 
 Viven en backoffice porque orquestan el despacho (fulfillment) y la devolución (payments). Un rol que no alcanza, un
 pedido o una persona de otro grupo, una persona eliminada, un pedido vencido (2 años desde la entrega o la
@@ -24,8 +24,8 @@ es UUID: 404, nunca 403. No piden la autorización despacho (C1). Cache-Control:
   detalle (puede_cancelar siempre false, con su motivo) y puede arrepentirse. De los pedidos que no pagó, la fila
   «se_informa» y 404 en el resto.
 - MATU-128 (R2, R3 y C5; decisión 484): lo-que-paso responde solo a quien pagó ese pedido (pagados_por, y en la base
-  pedido_lo_que_paso de la 0036), nunca según el rol: a los demás, 404. El grupo de la ruta tiene que ser el de
-  X-Grupo-Id. Sin nada anotado, 200 con la lista vacía aunque falte la KEK (E4); con algo que descifrar y sin ella,
+  pedido_lo_que_paso de la 0036), nunca según el rol: a los demás, 404. Como el detalle, el grupo va en X-Grupo-Id.
+  Sin nada anotado, 200 con la lista vacía aunque falte la KEK (E4); con algo que descifrar y sin ella,
   503. No se audita (C7). La nota y la resolución nunca van a logs, errores, eventos ni auditoría.
 """
 
@@ -425,13 +425,13 @@ def pedir_retracto(
 
 
 @router.get(
-    "/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso",
+    "/pedidos/{pedido_id}/lo-que-paso",
     response_model=LoQuePasoDelPedido,
     responses={
         401: _RESPUESTAS[401],
         404: {
             "description": "Quien pregunta no pagó este pedido (en cualquier rol, también admin, cuidador o pagador),"
-            " salió del grupo, el grupo de la ruta no es el de X-Grupo-Id, o el pedido es de otro grupo, no está"
+            " salió del grupo, o el pedido no es del grupo de X-Grupo-Id, no está"
             " pagado, es de una persona eliminada o venció",
             **_PROBLEMA,
         },
@@ -455,14 +455,11 @@ def pedir_retracto(
 )
 def ver_lo_que_paso(
     response: Response,
-    grupo_id: _ID,
     pedido_id: _ID,
     contexto: SesionDeGrupo,
     reloj: RelojDep,
     custodia: CustodiaNotasDep,
 ) -> LoQuePasoDelPedido:
-    if _uuid(grupo_id) != contexto.grupo_id:
-        raise ErrorMATU(404)
     try:
         cosas = tus_pedidos.lo_que_paso(
             _lectura(contexto),

@@ -124,7 +124,7 @@ RECURSO_DE_GRUPO: frozenset[tuple[str, str]] = frozenset({
     ("GET", "/v1/pedidos/{pedido_id}/retractos"),
     ("POST", "/v1/pedidos/{pedido_id}/retractos"),
     # MATU-128: «Lo que pasó con tu pedido», para quien lo pagó (el admin de A pagó el pedido sembrado)
-    ("GET", "/v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso"),
+    ("GET", "/v1/pedidos/{pedido_id}/lo-que-paso"),
 })
 
 # Por qué la vista del comercio y la consola de operación no son de un grupo, y dónde se prueba su aislamiento
@@ -180,7 +180,7 @@ DEL_PEDIDO_PAGADO: frozenset[str] = frozenset({
     "/v1/pedidos/{pedido_id}/seguimiento",
     "/v1/pedidos/{pedido_id}/cancelar-con-devolucion",
     "/v1/pedidos/{pedido_id}/retractos",
-    "/v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso",
+    "/v1/pedidos/{pedido_id}/lo-que-paso",
 })
 
 PARAMETRO = re.compile(r"\{([a-z_]+)\}")

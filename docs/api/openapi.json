@@ -12170,21 +12170,11 @@
         }
       }
     },
-    "/v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso": {
+    "/v1/pedidos/{pedido_id}/lo-que-paso": {
       "get": {
         "description": "MATU-128 (R2, R3 y C5; decisión 484). Solo quien pagó este pedido, en cualquier rol (también «Se informa»), mientras siga activo en el grupo: lo decide el servidor con lo que pagó cada cuenta, nunca con el rol, y la pantalla muestra el bloque solo si la ruta responde 200 con algo. El admin y el cuidador que no pagaron reciben 404 y lo siguen viendo en la copia de los datos («Datos de»). Por cada cosa anotada: tipo, estado, anotado_en, resuelto_en, la nota y la resolución descifradas y nota_disponible (decisión 471). Nunca quién del equipo la anotó, a quién se asignó ni su id. Ordenadas por anotado_en, de la más antigua a la más reciente; vacía si no hay nada anotado (aunque falte la KEK). Cache-Control: no-store. No se audita. La nota y la resolución nunca van a logs, errores, eventos ni auditoría. Capa 3",
-        "operationId": "ver_lo_que_paso_v1_grupos__grupo_id__pedidos__pedido_id__lo_que_paso_get",
+        "operationId": "ver_lo_que_paso_v1_pedidos__pedido_id__lo_que_paso_get",
         "parameters": [
-          {
-            "in": "path",
-            "name": "grupo_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Grupo Id",
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "pedido_id",
@@ -12233,7 +12223,7 @@
             "content": {
               "application/problem+json": {}
             },
-            "description": "Quien pregunta no pagó este pedido (en cualquier rol, también admin, cuidador o pagador), salió del grupo, el grupo de la ruta no es el de X-Grupo-Id, o el pedido es de otro grupo, no está pagado, es de una persona eliminada o venció"
+            "description": "Quien pregunta no pagó este pedido (en cualquier rol, también admin, cuidador o pagador), salió del grupo, o el pedido no es del grupo de X-Grupo-Id, no está pagado, es de una persona eliminada o venció"
           },
           "422": {
             "content": {
@@ -24515,7 +24505,7 @@
       },
       "LoQuePasoDelPedido": {
         "additionalProperties": false,
-        "description": "GET /v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso (MATU-128, C5): lo que el equipo de MATU anotó de un\npedido que pagó quien pregunta, del más antiguo al más reciente según anotado_en (E5). Vacía si no hay nada\nanotado (E4).",
+        "description": "GET /v1/pedidos/{pedido_id}/lo-que-paso (MATU-128, C5): lo que el equipo de MATU anotó de un pedido que pagó\nquien pregunta, del más antiguo al más reciente según anotado_en (E5). Vacía si no hay nada\nanotado (E4).",
         "properties": {
           "lo_que_paso": {
             "items": {
