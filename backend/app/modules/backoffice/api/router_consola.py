@@ -62,10 +62,12 @@ from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, E
 from app.shared.auditoria_sql import RegistroAuditoriaSql
 from app.shared.notas_operacion import (
     CustodiaNotas,
+    NotaConContacto,
     NotasNoDisponibles,
     cifrar_nota,
     descifrar_nota,
     obtener_custodia_notas,
+    validar_nota,
 )
 from app.shared.notas_operacion_sql import clave_para_cifrar, deks
 
@@ -375,6 +377,23 @@ def _custodia(custodia: CustodiaNotas | None) -> CustodiaNotas:
     return custodia
 
 
+# MATU-128 (R5, C9): el 422 de una nota con forma de correo o de teléfono. Mensaje fijo: nunca repite el texto
+_NOTA_CON_CONTACTO = "/errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo o de teléfono"
+
+
+def _sin_contacto(campo: str, texto: str | None) -> None:
+    """422 nota-con-contacto antes de abrir la base, como un cuerpo inválido. El largo ya lo validó el esquema."""
+    if texto is None:
+        return
+    try:
+        validar_nota(texto)
+    except NotaConContacto:
+        raise ErrorMATU(
+            422, tipo="nota-con-contacto", detalle="La nota no puede llevar correos ni teléfonos",
+            errores=[{"campo": campo, "mensaje": "sin correos ni teléfonos", "tipo": "nota_con_contacto"}],
+        ) from None
+
+
 def _vistas(sesion: Session, custodia: CustodiaNotas, filas: list[Any], operador: uuid.UUID) -> list[IncidenciaVista]:
     """Las incidencias con la nota y la resolución descifradas. Con la clave destruida, nota_disponible es false."""
     claves = deks(sesion, custodia, [x for f in filas for x in (f.clave_notas_id, f.resolucion_clave_id)])
@@ -442,17 +461,21 @@ def ver_incidencia(incidencia_id: _ID, operador: Operador, fabrica: Fabrica, res
     response_model=IncidenciaVista,
     status_code=status.HTTP_201_CREATED,
     responses={**_BASE, **_SIN_NOTAS,
-               422: {"description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres", **_PROBLEMA}},
+               422: {"description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres; o "
+                     + _NOTA_CON_CONTACTO, **_PROBLEMA}},
     description=(
-        "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la puede leer la familia en la"
-        " copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se guarda cifrada con la clave de las"
-        " notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a"
-        " logs, errores, eventos ni auditoría."
+        "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la leen quien pagó el pedido, en"
+        " «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, teléfonos,"
+        " correos, datos de salud, la dirección ni quién de la familia reclamó (D5, ampliada por MATU-128). Un texto"
+        " con forma de correo o de teléfono chileno responde 422 nota-con-contacto, sin guardar nada. Se guarda"
+        " cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin"
+        " el texto. El texto nunca va a logs, errores, eventos ni auditoría."
     ),
 )
 def crear_incidencia(pedido_id: _ID, solicitud: SolicitudIncidencia, request: Request, operador: Operador,
                      fabrica: Fabrica, reloj: RelojDep, respuesta: Response,
                      custodia: CustodiaNotasDep) -> IncidenciaVista:
+    _sin_contacto("descripcion", solicitud.descripcion)
     con_kek = _custodia(custodia)
     identificador = _uuid(pedido_id)
     base = _grupo_del_pedido(fabrica, identificador)
@@ -490,8 +513,8 @@ def _version_de(if_match: str | None, prefijo: str) -> str:
     responses={
         **_BASE, **_CON_VERSION, **_SIN_NOTAS,
         409: {"description": "incidencia-resuelta: una incidencia resuelta ya no cambia", **_PROBLEMA},
-        422: {"description": "falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido",
-              **_PROBLEMA},
+        422: {"description": "falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido; o "
+              + _NOTA_CON_CONTACTO, **_PROBLEMA},
     },
     description=(
         "Cambia el estado, la asignación (`a_mi` o `sin_asignar`) o la resolución (C13). Exige If-Match con el ETag"
@@ -502,6 +525,7 @@ def _version_de(if_match: str | None, prefijo: str) -> str:
 def editar_incidencia(incidencia_id: _ID, solicitud: SolicitudEditarIncidencia, request: Request,
                       operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response,
                       custodia: CustodiaNotasDep, if_match: IfMatch = None) -> IncidenciaVista:
+    _sin_contacto("resolucion", solicitud.resolucion)
     con_kek = _custodia(custodia)
     identificador = _uuid(incidencia_id)
     with sesion_tenant(fabrica, rol="operacion") as sesion:

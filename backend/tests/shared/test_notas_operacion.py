@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.shared.notas_operacion import (
     LARGO_MAXIMO_NOTA,
     CustodiaNotas,
+    NotaConContacto,
     NotaInvalida,
     NotasNoDisponibles,
     aad_nota,
@@ -22,7 +23,7 @@ from app.shared.notas_operacion import (
     descifrar_nota,
     validar_nota,
 )
-from app.shared.notas_operacion_sql import deks
+from app.shared.notas_operacion_sql import abrir_clave, deks
 
 pytestmark = [pytest.mark.rf("RF-40"), pytest.mark.rf("Ley-21.719")]
 
@@ -165,3 +166,68 @@ def test_deks_falla_cerrada_con_una_clave_vigente_que_no_se_abre(caso: str) -> N
     with pytest.raises(NotasNoDisponibles) as error:
         _deks(filas, usada, [clave])
     assert str(error.value) == "las notas de operación no se pueden cifrar"
+
+
+# --- MATU-128 (R5, C9): sin correos ni teléfonos -------------------------------------------------------------------
+
+CON_CONTACTO = [
+    "Escribir a contacto.familia@correo.ejemplo",
+    "correo:a@b.cl",
+    "Llamar al +56 9 1234 5678",
+    "Llamar al +56912345678",
+    "Llamar al 56 9 1234 5678",
+    "Celular 912345678",
+    "Celular 9 8765 4321 de la vecina",
+    "Celular 9-8765-4321",
+    "Fijo (2) 2345 6789",
+    "Fijo 2 2345 6789",
+    "Fijo +56 2 2345 6789",
+    "Fijo 32 234 5678",
+    "Faltaron 2 912345678",
+    "Llamar al 09 8765 4321",
+]
+SIN_CONTACTO = [
+    "Faltaron 2 de 10 unidades",
+    "Se devolvieron $25.980 a la tarjeta",
+    "Se devolvió $1.290.000",
+    "Pedido 4790, entregado el 19/11/2026 a las 14:30",
+    "Fecha 19-11-2026",
+    "La farmacia no tenía una de las bolsas",
+    "Referencia ABCD22 de la parte",
+    "Código interno a1b2c3912345678d4",
+    "Se usó el RUT 76000000-1 del comercio",
+    "123 456 789 unidades",
+    "x" * LARGO_MAXIMO_NOTA,
+]
+
+
+@pytest.mark.parametrize("texto", CON_CONTACTO)
+def test_r5_una_nota_con_forma_de_correo_o_telefono_no_pasa_y_el_error_no_la_repite(dek: bytes, texto: str) -> None:
+    with pytest.raises(NotaConContacto) as error:
+        validar_nota(texto)
+    assert str(error.value) == "la nota no puede llevar correos ni teléfonos"
+    assert texto not in repr(error.value)
+    # Es una nota inválida, y cifrar_nota tampoco la cifra
+    assert isinstance(error.value, NotaInvalida)
+    with pytest.raises(NotaConContacto):
+        cifrar_nota(dek, uuid.uuid4(), "resolucion", texto)
+
+
+@pytest.mark.parametrize("texto", SIN_CONTACTO)
+def test_r5_montos_fechas_cantidades_y_referencias_si_pasan(texto: str) -> None:
+    assert validar_nota(texto) == texto
+
+
+def test_abrir_clave_sigue_las_reglas_de_deks() -> None:
+    """MATU-128: la clave que entrega pedido_lo_que_paso se abre como en deks(): destruida, None; sin versión (no se
+    vio), sin la custodia, con otra KEK u otra versión, NotasNoDisponibles."""
+    custodia = CustodiaNotas(secrets.token_bytes(32), 1)
+    dek, envuelta = custodia.nueva_dek()
+    assert abrir_clave(custodia, envuelta, 1) == dek
+    assert abrir_clave(custodia, None, 1) is None
+    assert abrir_clave(None, None, 1) is None
+    for usada, envoltura, version in ((custodia, envuelta, None), (custodia, None, None), (None, envuelta, 1),
+                                      (CustodiaNotas(secrets.token_bytes(32), 1), envuelta, 1),
+                                      (custodia, envuelta, 2)):
+        with pytest.raises(NotasNoDisponibles):
+            abrir_clave(usada, envoltura, version)
