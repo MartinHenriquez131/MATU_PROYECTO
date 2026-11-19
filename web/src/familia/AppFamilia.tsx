@@ -1,6 +1,6 @@
 // La app de la familia: decide qué pantalla va en cada ruta según la entrada, el grupo, la persona
 // y el rol (especificación 1, 2 y 5). El foco va al título y el <title> nunca lleva nombres.
-import { useEffect, useLayoutEffect } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect } from 'react'
 import { AQuien, Autorizacion, CrearCuenta, CrearGrupo, Entrar } from './Alta'
 import { ConfirmarCelular, TuCuenta } from './Cuenta'
 import { DondeEntraste } from './DondeEntraste'
@@ -135,15 +135,20 @@ function Rutas() {
     const propia = ruta === '/insumos/catalogo' || (ruta.startsWith('/insumos/pedido') && ruta !== '/insumos/pedido/direccion' && ruta !== RUTA_PAGO)
     if (fase === 'dentro' && capa3 === null && ruta.startsWith('/insumos') && !propia) conocerCapa3()
   }, [fase, capa3, conocerCapa3, ruta])
+  // MATU-54 (2 y 4): al volver de «Datos de…» o de «Tus datos», la pantalla devuelve el foco al botón
+  // que la abrió cuando ya lo pintó; aquí no se lleva al `h1`. Si se fue a otra ruta antes de que
+  // esa pantalla cargara, el foco pendiente se olvida y vale la regla de siempre.
+  // MATU-79: es un evento de efecto: el foco pendiente se lee al cambiar de pantalla, y que cambie no
+  // vuelve a mover el foco.
+  const loDevuelveLaPantalla = useEffectEvent((): boolean => {
+    if (!s.focoAlVolver) return false
+    if (ruta === '/grupo' || ruta === '/cuenta') return true
+    s.fijar({ focoAlVolver: null })
+    return false
+  })
   useEffect(() => {
     if (s.fase === 'cargando') return
-    // MATU-54 (2 y 4): al volver de «Datos de…» o de «Tus datos», la pantalla devuelve el foco al botón
-    // que la abrió cuando ya lo pintó; aquí no se lleva al `h1`. Si se fue a otra ruta antes de que
-    // esa pantalla cargara, el foco pendiente se olvida y vale la regla de siempre.
-    if (s.focoAlVolver) {
-      if (ruta === '/grupo' || ruta === '/cuenta') return
-      s.fijar({ focoAlVolver: null })
-    }
+    if (loDevuelveLaPantalla()) return
     const t = window.setTimeout(() => (document.getElementById(ID_AVISO_LLEGADA) ?? document.getElementById('titulo-pagina'))?.focus({ preventScroll: false }), 0)
     return () => window.clearTimeout(t)
   }, [ruta, s.fase, s.personaId])

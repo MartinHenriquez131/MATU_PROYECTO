@@ -11,7 +11,7 @@
 // Igual para los cuatro roles: no depende del grupo ni de la persona, y no se cruza con lo que
 // anotó la familia. Se pide cada vez que se abre la pantalla. Nada se guarda en el navegador ni
 // va en la URL; si falla, nunca se muestra un catálogo viejo.
-import { useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import { CircleCheck, CircleMinus, CloudOff, Info, Plus, Store } from 'lucide-react'
 import { verCatalogo, type Catalogo as CatalogoApi, type CategoriaCatalogo, type OfertaCatalogo, type ProductoCatalogo } from '../compartido/api/catalogo'
 import { leerFallo } from '../compartido/api/cliente'
@@ -117,8 +117,10 @@ export function Catalogo() {
   const accion: Agregar | null = editor && personaId ? { enPedido, agregando, error: errAgregar, onAgregar: (p, o) => void agregar(p, o) } : null
 
   // 3.2: una vez al llegar, y otra cada vez que se vuelve a entrar (la pantalla se monta de nuevo).
+  // MATU-79: `cargar` cambia en cada render; el evento de efecto la llama sin volver a correr el efecto.
+  const cargarAlLlegar = useEffectEvent(() => void cargar())
   useEffect(() => {
-    void cargar()
+    cargarAlLlegar()
   }, [])
 
   const cuerpo = () => {

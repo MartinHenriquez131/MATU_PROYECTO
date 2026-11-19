@@ -33,9 +33,12 @@ type Carga<T> = { estado: 'cargando' } | { estado: 'error' } | { estado: 'lista'
 function useLectura<T>(leer: () => Promise<T>, valida: (t: T) => boolean = () => true) {
   const [carga, setCarga] = useState<Carga<T>>({ estado: 'cargando' })
   const vivo = useRef(true)
+  // `leer` y `valida` no cambian entre renders: se guardan una vez, al montar (MATU-79).
+  const fuente = useRef({ leer, valida })
   const recargar = useCallback(
     async (silencio = false) => {
       if (!silencio) setCarga({ estado: 'cargando' })
+      const { leer, valida } = fuente.current
       try {
         const datos = await leer()
         if (!vivo.current) return
@@ -47,7 +50,6 @@ function useLectura<T>(leer: () => Promise<T>, valida: (t: T) => boolean = () =>
         if (!silencio) setCarga({ estado: 'error' })
       }
     },
-    // `leer` y `valida` no cambian entre renders: se leen una vez.
     [],
   )
   useEffect(() => {
