@@ -11949,7 +11949,7 @@
             }
           },
           "422": {
-            "description": "falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido",
+            "description": "falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido; o /errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo o de teléfono",
             "content": {
               "application/problem+json": {}
             }
@@ -11963,7 +11963,7 @@
           "operacion"
         ],
         "summary": "Crear Incidencia",
-        "description": "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la puede leer la familia en la copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.",
+        "description": "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la leen quien pagó el pedido, en «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, teléfonos, correos, datos de salud, la dirección ni quién de la familia reclamó (D5, ampliada por MATU-128). Un texto con forma de correo o de teléfono chileno responde 422 nota-con-contacto, sin guardar nada. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.",
         "operationId": "crear_incidencia_v1_operacion_pedidos__pedido_id__incidencias_post",
         "security": [
           {
@@ -12022,7 +12022,7 @@
             }
           },
           "422": {
-            "description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres",
+            "description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres; o /errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo o de teléfono",
             "content": {
               "application/problem+json": {}
             }
@@ -12168,6 +12168,99 @@
             }
           }
         }
+      }
+    },
+    "/v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso": {
+      "get": {
+        "description": "MATU-128 (R2, R3 y C5; decisión 484). Solo quien pagó este pedido, en cualquier rol (también «Se informa»), mientras siga activo en el grupo: lo decide el servidor con lo que pagó cada cuenta, nunca con el rol, y la pantalla muestra el bloque solo si la ruta responde 200 con algo. El admin y el cuidador que no pagaron reciben 404 y lo siguen viendo en la copia de los datos («Datos de»). Por cada cosa anotada: tipo, estado, anotado_en, resuelto_en, la nota y la resolución descifradas y nota_disponible (decisión 471). Nunca quién del equipo la anotó, a quién se asignó ni su id. Ordenadas por anotado_en, de la más antigua a la más reciente; vacía si no hay nada anotado (aunque falte la KEK). Cache-Control: no-store. No se audita. La nota y la resolución nunca van a logs, errores, eventos ni auditoría. Capa 3",
+        "operationId": "ver_lo_que_paso_v1_grupos__grupo_id__pedidos__pedido_id__lo_que_paso_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grupo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Grupo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "pedido_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pedido Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Grupo-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoQuePasoDelPedido"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "no-autenticado o token-invalido"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "Quien pregunta no pagó este pedido (en cualquier rol, también admin, cuidador o pagador), salió del grupo, el grupo de la ruta no es el de X-Grupo-Id, o el pedido es de otro grupo, no está pagado, es de una persona eliminada o venció"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "Hay algo anotado y la clave de las notas no se puede abrir (sin la KEK). El resto del detalle del pedido sigue funcionando. Sin nada anotado, la ruta responde 200 con la lista vacía"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "«Lo que pasó con tu pedido»: lo que anotó el equipo de MATU, para quien pagó el pedido",
+        "tags": [
+          "pedidos"
+        ]
       }
     }
   },
@@ -23748,7 +23841,7 @@
               }
             ],
             "title": "Resolucion",
-            "description": "Hasta 500 caracteres. No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota"
+            "description": "Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo o de teléfono responde 422 nota-con-contacto"
           },
           "asignacion": {
             "anyOf": [
@@ -23790,7 +23883,7 @@
             "maxLength": 500,
             "minLength": 1,
             "title": "Descripcion",
-            "description": "Hasta 500 caracteres. No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota"
+            "description": "Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo o de teléfono responde 422 nota-con-contacto"
           },
           "asignarme": {
             "type": "boolean",
@@ -24335,6 +24428,108 @@
         ],
         "title": "SeguimientoPedidoPagaste",
         "description": "MATU-116 (J1, C5): el detalle para el observador que pagó el pedido. El de quien paga (SeguimientoPedido), con\npuede_cancelar siempre false. Como SeguimientoPedido, sin la entrega, el teléfono ni las notas del equipo."
+      },
+      "CosaAnotadaVista": {
+        "additionalProperties": false,
+        "description": "Una cosa que el equipo de MATU anotó del pedido y cómo se resolvió. Los mismos siete campos de LoQuePasoCopia\n(«Datos de»). Nunca el id de la incidencia, quién del equipo la anotó, a quién se asignó ni su versión.",
+        "properties": {
+          "anotado_en": {
+            "format": "date-time",
+            "title": "Anotado En",
+            "type": "string"
+          },
+          "estado": {
+            "enum": [
+              "abierta",
+              "en_gestion",
+              "resuelta"
+            ],
+            "title": "Estado",
+            "type": "string"
+          },
+          "nota": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lo anotado; null si nota_disponible es false",
+            "title": "Nota"
+          },
+          "nota_disponible": {
+            "description": "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la resolución vienen null y ya no se pueden leer",
+            "title": "Nota Disponible",
+            "type": "boolean"
+          },
+          "resolucion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cómo se resolvió; null si no se resolvió o si nota_disponible es false",
+            "title": "Resolucion"
+          },
+          "resuelto_en": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resuelto En"
+          },
+          "tipo": {
+            "enum": [
+              "faltante",
+              "entrega_fallida",
+              "reclamo_familia",
+              "cobro_sin_respuesta",
+              "devolucion_pendiente",
+              "otro"
+            ],
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tipo",
+          "estado",
+          "anotado_en",
+          "resuelto_en",
+          "nota",
+          "resolucion",
+          "nota_disponible"
+        ],
+        "title": "CosaAnotadaVista",
+        "type": "object"
+      },
+      "LoQuePasoDelPedido": {
+        "additionalProperties": false,
+        "description": "GET /v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso (MATU-128, C5): lo que el equipo de MATU anotó de un\npedido que pagó quien pregunta, del más antiguo al más reciente según anotado_en (E5). Vacía si no hay nada\nanotado (E4).",
+        "properties": {
+          "lo_que_paso": {
+            "items": {
+              "$ref": "#/components/schemas/CosaAnotadaVista"
+            },
+            "title": "Lo Que Paso",
+            "type": "array"
+          }
+        },
+        "required": [
+          "lo_que_paso"
+        ],
+        "title": "LoQuePasoDelPedido",
+        "type": "object"
       }
     },
     "securitySchemes": {
