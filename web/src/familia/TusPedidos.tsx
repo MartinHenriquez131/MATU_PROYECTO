@@ -999,7 +999,7 @@ function ParaDevolver({ retractos }: { retractos: RetractoFamilia[] }) {
               {r.estado === 'rechazado' && r.motivo_rechazo && <p className="max-w-prose text-base">{T.motivoRechazo[r.motivo_rechazo]}</p>}
               {r.estado === 'rechazado' && (
                 <p className="max-w-prose text-base">
-                  {T.siTienesDudas} <EnlaceEnFrase href={mailto} className="[overflow-wrap:anywhere]">
+                  {T.siTienesDudas} <EnlaceEnFrase href={mailto}>
           {CORREO_CONTACTO}
         </EnlaceEnFrase>.
                 </p>
@@ -1057,7 +1057,7 @@ function BloqueArrepentirme({ seg, retractos }: { seg: Seguimiento; retractos: R
       <p className="max-w-prose text-base">
         {/* C22 (H1 del cierre): el plazo de la app termina en `plazo_hasta`; el del correo, a los 90 días (`plazo_correo_hasta`). */}
         {motivo === 'plazo_app_vencido' ? T.plazoAppAntes : T.plazoAntes} <FechaDelPlazo iso={motivo === 'plazo_app_vencido' ? seg.plazo_hasta : seg.plazo_correo_hasta} />. {motivo === 'plazo_app_vencido' ? T.plazoAppDespues : T.plazoDespues}{' '}
-        <EnlaceEnFrase href={mailto} className="[overflow-wrap:anywhere]">
+        <EnlaceEnFrase href={mailto}>
           {CORREO_CONTACTO}
         </EnlaceEnFrase>.
       </p>

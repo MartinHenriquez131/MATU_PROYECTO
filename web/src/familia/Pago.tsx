@@ -838,7 +838,7 @@ export function Garantias({ c, className = '' }: { c: Comprobante; className?: s
         <li>{PAGO.siNoLlega}</li>
         <li>{PAGO.puedeCancelar}</li>
         <li>
-          {PAGO.algoNoEsta} <EnlaceEnFrase href={`mailto:${c.canal_reclamo}`} className="[overflow-wrap:anywhere]">{c.canal_reclamo}</EnlaceEnFrase>.
+          {PAGO.algoNoEsta} <EnlaceEnFrase href={`mailto:${c.canal_reclamo}`}>{c.canal_reclamo}</EnlaceEnFrase>.
         </li>
       </ul>
     </section>
