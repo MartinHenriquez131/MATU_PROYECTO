@@ -117,6 +117,7 @@ def _registrar_una(sesiones: sessionmaker[Session], grupo: GrupoCreado, reloj: R
 # --- Camino feliz -----------------------------------------------------------------------------
 
 
+@pytest.mark.rf("RNF-02")
 def test_registrar_deja_una_fila_con_los_campos_de_la_entrada(
     sesiones: sessionmaker[Session], grupo: GrupoCreado, reloj_fijo: RelojFijo
 ) -> None:

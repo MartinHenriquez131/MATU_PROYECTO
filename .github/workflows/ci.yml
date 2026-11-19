@@ -76,12 +76,32 @@ jobs:
       - name: Estilo (ruff)
         run: ruff check .
 
+      # MATU-79: preparada sin activar. El 18-11 ruff format --check marca 178 de 574 archivos, y reformatear ahora
+      # chocaría con las ramas apiladas abiertas (#101, #108, #112 y MATU-114). Se reformatea en un PR propio cuando
+      # se fusione la fila, y entonces se quita continue-on-error
+      - name: Formato (ruff format)
+        continue-on-error: true
+        run: ruff format --check .
+
       - name: Tipos (mypy)
         run: mypy .
 
       - name: Secretos (detect-secrets)
         working-directory: .
         run: git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline
+
+      # MATU-79: frena cualquier vulnerabilidad conocida, salvo una ignorada a propósito (decisión del orquestador del
+      # 18-11, por mandato de Jorge). PYSEC-2026-1605 es una denegación de servicio en Schema.load(many=True) de
+      # marshmallow 3.26.1, corregida en 3.26.2. Viene de transbank-sdk 6.1.0, que fija marshmallow<=3.26.1 y es la
+      # versión más nueva. El SDK solo usa marshmallow para leer las respuestas de Transbank, no lo que envía el usuario.
+      # Se revisa cuando salga una versión nueva del SDK: entonces se actualiza y se saca --ignore-vuln
+      - name: Dependencias (pip-audit)
+        run: pip-audit --skip-editable --desc on --ignore-vuln PYSEC-2026-1605
+
+      # MATU-79: la puerta openapi-diff de la estrategia de pruebas (sección 8). Falla si app.openapi() no coincide con
+      # docs/api/openapi.json. Para regenerarlo: cd backend && python scripts/exportar_contrato.py --escribir
+      - name: Contrato (openapi.json)
+        run: python scripts/exportar_contrato.py
 
       - name: Crear roles y base
         run: ROLES_SQL=db/00_roles.sql sh ../infra/postgres/init/10_matu.sh
@@ -93,10 +113,50 @@ jobs:
           alembic upgrade head
 
       - name: Pruebas (pytest)
-        run: pytest -q
+        run: pytest -q --cov=app --cov-report=json:cobertura.json --cov-report=term:skip-covered
 
-  # La app web (web/, ADR-026) corre en paralelo al backend. No tiene lint todavía: se revisan
-  # los tipos, las pruebas de interfaz, que compile y que su contrato siga al openapi.json.
+      # MATU-79: estrategia de pruebas, sección 8. Dominio (modules/*/domain y shared) y casos de uso
+      # (modules/*/application) por separado, cada uno con su piso; ninguna meta en infrastructure/
+      - name: Cobertura por capa
+        run: python scripts/cobertura_por_capa.py cobertura.json
+
+      # MATU-79: los requisitos Debe viven en docs/arquitectura.md del repositorio de documentos, que es público
+      - name: Documentos de MATU
+        uses: actions/checkout@v4
+        with:
+          repository: MartinHenriquez131/MATU
+          path: matu-docs
+          sparse-checkout: docs/arquitectura.md
+          sparse-checkout-cone-mode: false
+
+      # MATU-79: estrategia de pruebas, sección 14. Falla si un RF Debe no tiene ninguna prueba con @pytest.mark.rf y
+      # no está en --pendientes, y también si un pendiente ya tiene prueba: así nadie se olvida de sacarlo. Sin
+      # pendientes desde el 18-11. RF-40 salió cuando se fusionó MATU-81 (PR #101), que trae sus pruebas. RF-32 (la
+      # operación gestiona catálogo, convenios, incidencias e indicadores) salió porque MATU-81 construyó una parte real,
+      # la gestión del catálogo de los comercios ficticios (D-81-7), y su prueba va marcada con RF-32
+      # (test_el_catalogo_se_edita_solo_en_los_comercios_ficticios_y_no_cambia_lo_confirmado): mientras RF-32 siga como
+      # Debe en la arquitectura, un pendiente con prueba hace fallar la puerta. Los convenios y los cuatro indicadores
+      # (GET /v1/backoffice/indicadores) no están construidos; MATU#116 (MATU-123) baja RF-32 a Debería
+      # Los RNF (tabla 2.2): exige una prueba con rf("RNF-xx") a cada Debe con verificación automática (RNF-01, 02, 04,
+      # 07, 08 y 10), con un mínimo de 6. La tabla con ID está en la arquitectura de main de MATU desde MATU#117, así
+      # que la puerta ya no la deja pasar si falta (sin --rnf-opcional)
+      - name: Trazabilidad (RF y RNF Debe con prueba)
+        run: >-
+          python scripts/trazabilidad.py --arquitectura ../matu-docs/docs/arquitectura.md --minimo-rnf 6
+
+  # MATU-79: la imagen de la API que despliega Railway (infra/railway/Dockerfile), construida desde la raíz como en
+  # railway.json. Solo se comprueba que construye: no se sube a ningún registro
+  imagen:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir la imagen (docker build)
+        run: docker build -f infra/railway/Dockerfile -t matu-api:ci .
+
+  # La app web (web/, ADR-026) corre en paralelo al backend. Se revisan el estilo (eslint), los tipos,
+  # las pruebas de interfaz, que compile y que su contrato siga al openapi.json.
   web:
     runs-on: ubuntu-latest
 
@@ -117,6 +177,12 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      # MATU-79: ESLint 9 con las recomendadas de TypeScript, react-hooks y jsx-a11y (web/eslint.config.js). Falla con
+      # cualquier error. Los avisos no lo frenan: el 18-11 quedan 9 de react-hooks/exhaustive-deps, efectos con las
+      # dependencias recortadas a propósito, que se revisan uno por uno cuando se fusione la fila de ramas abiertas
+      - name: Estilo (eslint)
+        run: npm run lint
+
       - name: Tipos (tsc)
         run: npm run typecheck
 
@@ -129,10 +195,18 @@ jobs:
         run: npm run build
 
       # El #37 corrigió un familia.openapi.ts desfasado del contrato. Esto evita que se repita.
-      - name: Contrato de la familia al día
+      # MATU-79: relevo.openapi.ts también estuvo desfasado en main una vez sin que nadie lo notara, y se revisa igual
+      - name: Contratos de la app web al día
         run: |
+          npm run contrato
           npm run contrato:familia
+          falla=0
+          if ! git diff --exit-code -- src/compartido/api/relevo.openapi.ts; then
+            echo "::error file=web/src/compartido/api/relevo.openapi.ts::El contrato del relevo no coincide con docs/api/openapi.json. Corre 'cd web && npm run contrato' y sube el relevo.openapi.ts regenerado."
+            falla=1
+          fi
           if ! git diff --exit-code -- src/compartido/api/familia.openapi.ts; then
             echo "::error file=web/src/compartido/api/familia.openapi.ts::El contrato de la app web no coincide con docs/api/openapi.json. Corre 'cd web && npm run contrato:familia' y sube el familia.openapi.ts regenerado."
-            exit 1
+            falla=1
           fi
+          exit $falla
