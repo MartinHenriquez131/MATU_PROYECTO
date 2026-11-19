@@ -1,16 +1,18 @@
 """MATU-79 · El repr y el str de la configuración no muestran ningún secreto ni cadena de conexión.
 
 Una traza, un log de arranque o un print(config) en una sesión de depuración imprime el repr de Configuracion. Los
-secretos van como SecretStr (se ven como '**********') y las cadenas de conexión, que siguen siendo str, con repr=False.
-Todos los valores son sintéticos y se generan al correr la prueba: ninguno queda escrito en el repositorio.
+secretos van como SecretStr (se ven como '**********'). DATABASE_URL, REDIS_URL y WEBPAY_CODIGO_COMERCIO llevaban
+repr=False desde el 18-11, que no los sacaba de model_dump: ahora también son SecretStr. Todos los valores son
+sintéticos y se generan al correr la prueba: ninguno queda escrito en el repositorio.
 """
 
 import base64
 import secrets
 import uuid
+from collections.abc import Callable
 
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from app.core.config import Configuracion
 from app.core.vapid import generar_clave_privada
@@ -18,6 +20,9 @@ from app.core.vapid import generar_clave_privada
 # Campos que guardan un secreto, una cadena de conexión o un dato que identifica una cuenta. Una variable nueva con
 # uno de estos trozos en el nombre tiene que ser SecretStr o llevar repr=False (última prueba)
 TROZOS_SENSIBLES = ("url", "clave", "pepper", "kek_entorno", "llave", "secreto", "comercio", "cuentas")
+
+# La deuda de MATU-79: los tres campos que pasaron de repr=False a SecretStr
+MIGRADOS_A_SECRETSTR = ("database_url", "redis_url", "webpay_codigo_comercio")
 
 
 @pytest.fixture(autouse=True)
@@ -72,7 +77,7 @@ def test_el_repr_y_el_str_no_muestran_ningun_valor(monkeypatch: pytest.MonkeyPat
     config = Configuracion()
 
     # Los valores sí se cargaron: si no, la prueba pasaría sin probar nada
-    assert config.database_url == valores["database_url"]
+    assert config.database_url.get_secret_value() == valores["database_url"]
     assert config.kek_entorno is not None and config.kek_entorno.get_secret_value() == valores["kek_entorno"]
     assert config.push_cuentas_permitidas == frozenset({uuid.UUID(valores["push_cuentas_permitidas"])})
     for texto in (repr(config), str(config)):
@@ -81,14 +86,68 @@ def test_el_repr_y_el_str_no_muestran_ningun_valor(monkeypatch: pytest.MonkeyPat
                 assert trozo not in texto, f"{campo} aparece en el repr o el str de la configuración"
 
 
-def test_los_usos_siguen_leyendo_la_cadena_de_conexion(monkeypatch: pytest.MonkeyPatch) -> None:
-    # repr=False no cambia el valor: el motor de la API y las tareas lo leen igual que antes
+@pytest.mark.parametrize("volcado", ["repr", "str", "model_dump", "model_dump_json"])
+def test_los_tres_campos_migrados_no_salen_en_ningun_volcado(monkeypatch: pytest.MonkeyPatch, volcado: str) -> None:
+    """Con repr=False el repr y el str ya los ocultaban, pero model_dump los entregaba en claro: esta prueba falla
+    con la versión del 18-11 en model_dump y model_dump_json."""
     valores = _valores_sinteticos()
-    monkeypatch.setenv("DATABASE_URL", valores["database_url"])
-    monkeypatch.setenv("REDIS_URL", valores["redis_url"])
+    for campo in MIGRADOS_A_SECRETSTR:
+        monkeypatch.setenv(campo.upper(), valores[campo])
+    monkeypatch.setenv("PASARELA_PAGO", "integracion")
     config = Configuracion()
-    assert isinstance(config.database_url, str) and config.database_url == valores["database_url"]
-    assert config.redis_url == valores["redis_url"]
+
+    volcados: dict[str, Callable[[Configuracion], str]] = {
+        "repr": repr,
+        "str": str,
+        "model_dump": lambda c: str(c.model_dump()),
+        "model_dump_json": lambda c: c.model_dump_json(),
+    }
+    texto = volcados[volcado](config)
+
+    for campo in MIGRADOS_A_SECRETSTR:
+        for trozo in _a_la_vista(valores[campo]):
+            assert trozo not in texto, f"{campo} aparece en {volcado}"
+
+
+def test_los_tres_campos_migrados_son_secretstr() -> None:
+    for campo in MIGRADOS_A_SECRETSTR:
+        anotacion = Configuracion.model_fields[campo].annotation
+        tipos = getattr(anotacion, "__args__", (anotacion,))
+        assert SecretStr in tipos, f"{campo} no es SecretStr"
+
+
+def test_los_usos_leen_el_valor_con_get_secret_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    # SecretStr no cambia el valor: el motor de la API, Redis y la pasarela lo piden con .get_secret_value()
+    valores = _valores_sinteticos()
+    for campo in MIGRADOS_A_SECRETSTR:
+        monkeypatch.setenv(campo.upper(), valores[campo])
+    config = Configuracion()
+    assert config.database_url.get_secret_value() == valores["database_url"]
+    assert config.redis_url.get_secret_value() == valores["redis_url"]
+    assert config.webpay_codigo_comercio is not None
+    assert config.webpay_codigo_comercio.get_secret_value() == valores["webpay_codigo_comercio"]
+
+
+def test_sin_variables_quedan_los_valores_por_omision() -> None:
+    config = Configuracion()
+    assert config.database_url.get_secret_value() == ""
+    assert config.redis_url.get_secret_value() == "redis://127.0.0.1:6379/0"
+    assert config.webpay_codigo_comercio is None
+
+
+@pytest.mark.parametrize("valor", ["12345", "1234567890123", "12345a", " 123456"])
+def test_un_codigo_de_comercio_mal_formado_no_carga_ni_se_repite(monkeypatch: pytest.MonkeyPatch, valor: str) -> None:
+    # pydantic no aplica pattern a un SecretStr: el formato lo revisa un validador con un mensaje fijo
+    monkeypatch.setenv("WEBPAY_CODIGO_COMERCIO", valor)
+    with pytest.raises(ValidationError) as error:
+        Configuracion()
+    mensaje = str(error.value)
+    assert "WEBPAY_CODIGO_COMERCIO" in mensaje and valor.strip() not in mensaje
+
+
+def test_un_codigo_de_comercio_vacio_cuenta_como_ausente(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WEBPAY_CODIGO_COMERCIO", "")
+    assert Configuracion().webpay_codigo_comercio is None
 
 
 def test_todo_campo_sensible_es_secreto_o_no_sale_en_el_repr() -> None:

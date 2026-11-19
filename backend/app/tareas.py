@@ -284,9 +284,10 @@ def fabrica_tareas(config: Configuracion) -> sessionmaker[Session]:
     """La fábrica de sesiones de matu_app para las tareas: como la de la API (app/core/db.py), con tope de conexión.
 
     Un engine propio para no cambiar el de la API web. No conecta todavía."""
-    if not config.database_url:
+    url = config.database_url.get_secret_value()
+    if not url:
         raise RuntimeError("Falta DATABASE_URL")
-    return _fabrica(config.database_url)
+    return _fabrica(url)
 
 
 def fabrica_de_rol(url: str, rol: str) -> sessionmaker[Session] | None:

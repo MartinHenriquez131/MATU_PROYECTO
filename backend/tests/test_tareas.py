@@ -23,6 +23,7 @@ from typing import Any
 
 import psycopg
 import pytest
+from pydantic import SecretStr
 
 from app import tareas
 from app.core.config import obtener_configuracion
@@ -183,7 +184,7 @@ def test_el_engine_de_las_tareas_lleva_un_tope_de_conexion(monkeypatch: pytest.M
         return None
 
     monkeypatch.setattr(tareas, "create_engine", crear)
-    config = obtener_configuracion().model_copy(update={"database_url": "postgresql+psycopg://u@db.invalid/x"})
+    config = obtener_configuracion().model_copy(update={"database_url": SecretStr("postgresql+psycopg://u@db.invalid/x")})
     tareas.fabrica_tareas(config)
     assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S}
     assert 0 < tareas.TIEMPO_CONEXION_S <= 10
@@ -196,7 +197,7 @@ def test_el_engine_de_las_tareas_lleva_un_tope_de_conexion(monkeypatch: pytest.M
 def test_con_la_base_inalcanzable_la_tarea_falla_pronto(caplog: pytest.LogCaptureFixture) -> None:
     # 10.255.255.1 no se enruta: sin tope, la conexión espera lo que dé el sistema operativo (~130 s)
     url = "postgresql+psycopg://matu_app@10.255.255.1:5432/matu_inalcanzable"
-    config = obtener_configuracion().model_copy(update={"database_url": url})
+    config = obtener_configuracion().model_copy(update={"database_url": SecretStr(url)})
     scheduler = tareas.fabrica_de_rol(url.replace("matu_app@", "matu_scheduler@"), tareas.ROL_SCHEDULER)
     ctx = _contexto(tareas.fabrica_tareas(config), scheduler=scheduler, config=config)
     inicio = time.monotonic()
@@ -408,7 +409,7 @@ def test_main_arma_cada_conexion_con_su_variable(monkeypatch: pytest.MonkeyPatch
     roles = ("matu_app", "matu_scheduler", "matu_publisher")
     urls = {rol: f"postgresql+psycopg://{rol}@db.invalid/matu" for rol in roles}
     config = obtener_configuracion().model_copy(update={
-        "database_url": urls["matu_app"],
+        "database_url": SecretStr(urls["matu_app"]),
         "scheduler_database_url": urls["matu_scheduler"],
         "publisher_database_url": urls["matu_publisher"],
     })

@@ -11,6 +11,7 @@ import logging
 from collections.abc import Iterator
 
 import pytest
+from pydantic import SecretStr
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -36,7 +37,7 @@ def engine_de_la_api_sin_cache() -> Iterator[None]:
 def test_el_engine_de_la_api_oculta_los_parametros(
     monkeypatch: pytest.MonkeyPatch, engine_de_la_api_sin_cache: None
 ) -> None:
-    config = obtener_configuracion().model_copy(update={"database_url": URL_SINTETICA})
+    config = obtener_configuracion().model_copy(update={"database_url": SecretStr(URL_SINTETICA)})
     monkeypatch.setattr(db, "obtener_configuracion", lambda: config)
     assert db.obtener_engine().hide_parameters is True
 

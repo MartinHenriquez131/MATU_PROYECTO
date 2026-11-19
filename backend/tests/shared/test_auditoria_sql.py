@@ -44,7 +44,7 @@ pytestmark = [requiere_base, pytest.mark.rf("RF-08")]
 @pytest.fixture
 def sesiones() -> Iterator[sessionmaker[Session]]:
     """Sesiones como matu_app (DATABASE_URL), nunca como dueño ni superusuario."""
-    url = obtener_configuracion().database_url
+    url = obtener_configuracion().database_url.get_secret_value()
     assert url
     engine = create_engine(url, pool_size=1, max_overflow=0)
     try:

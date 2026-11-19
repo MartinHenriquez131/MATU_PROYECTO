@@ -176,7 +176,7 @@ def test_con_entorno_local_y_base_de_railway_se_detiene_antes_de_conectar(
     configuracion = SimpleNamespace(
         entorno="local",
         pasarela_pago="falsa",
-        database_url=url,
+        database_url=SecretStr(url),
         pepper_email=SecretStr("p" * 32),
         pepper_pin=SecretStr("q" * 32),
         capa3_habilitada=True,

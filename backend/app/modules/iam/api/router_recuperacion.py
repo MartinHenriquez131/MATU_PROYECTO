@@ -70,7 +70,7 @@ def obtener_pepper_recuperacion() -> bytes | None:
 
 @lru_cache
 def _redis() -> "redis.Redis":
-    return redis.Redis.from_url(obtener_configuracion().redis_url, socket_timeout=2)
+    return redis.Redis.from_url(obtener_configuracion().redis_url.get_secret_value(), socket_timeout=2)
 
 
 def obtener_almacen_codigos() -> AlmacenCodigos:
