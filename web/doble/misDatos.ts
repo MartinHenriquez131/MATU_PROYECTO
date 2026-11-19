@@ -311,7 +311,8 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
     ],
   }
   if (modo !== 'datos-pedidos') return [entregado]
-  const base = { lineas: [linea('Guantes desechables', 'caja de 100', 'Farmacia Los Aromos (comercio ficticio)', 1, 6_490, 'otro_comercio')], subtotal_productos: 6_490, costo_envio: 3_990, entrega, precios_de_ejemplo: true, lo_que_paso: [] }
+  // MATU-115 (P2 de Martín): el contrato exige `retractos` en todo pedido; sin pedidos devueltos, la lista vacía.
+  const base = { lineas: [linea('Guantes desechables', 'caja de 100', 'Farmacia Los Aromos (comercio ficticio)', 1, 6_490, 'otro_comercio')], subtotal_productos: 6_490, costo_envio: 3_990, entrega, precios_de_ejemplo: true, lo_que_paso: [], retractos: [] }
   return [
     { ...base, referencia: null, estado: 'borrador', creado_en: chile(hace(30)), total_confirmado_en: null, total: null, pago: null },
     { ...base, referencia: null, estado: 'total_confirmado', creado_en: chile(hace(DIA)), total_confirmado_en: chile(hace(DIA - 5)), total: 10_480, pago: { estado: 'pendiente', pagado_en: null, pagado_por: null, cobrado: 0, devuelto: 0, devoluciones: [], pago_de_prueba: true } },
