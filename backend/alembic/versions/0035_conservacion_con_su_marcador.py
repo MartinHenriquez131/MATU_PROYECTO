@@ -52,7 +52,8 @@ f) C6 (D3): sale direccion_no_operacion (restrictiva, SELECT, TO matu_app). Entr
 g) C7 (H8): VOLATILE en las definer que cambian app.funcion con set_config y eran STABLE: operacion_cuenta_activa,
    cuenta_es_operacion y operacion_buscar_cuenta (0031), y app_pago_el_pedido, cuenta_pagos, cuenta_retractos y
    cuenta_condiciones (0032). Una función STABLE no debe cambiar la configuración. El EXPLAIN de las lecturas de la
-   familia que pasan por app_pago_el_pedido, antes y después, va en el PR.
+   familia que pasan por app_pago_el_pedido, antes y después, va en el PR: los mismos planes y los mismos índices, con
+   los costos entre 0,1 y 0,3 % más altos.
 
 Recorrido (C9): quién usa cada cambio y por qué no se rompe
 - Las tareas (app/tareas.py): como matu_scheduler, con sesion_tenant(rol="operacion") y sin app.funcion, llaman a
