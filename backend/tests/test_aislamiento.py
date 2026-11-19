@@ -3988,6 +3988,8 @@ def test_una_invitacion_vencida_no_se_acepta_con_un_instante_del_pasado(cx):
 MARCAS_0026 = ("invitacion", "membresia_retirar")
 # MATU-63 (0029): las marcas de las funciones del comercio, del apartado, del despacho y de las cuentas
 MARCAS_0029 = ("comercio", "disponible", "despacho", "cuentas", "codigo_retiro")
+# MATU-79 (0034): el marcador de aviso_correo
+MARCAS_0034 = ("aviso_correo",)
 
 
 def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
@@ -3997,7 +3999,7 @@ def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
 
 
 @pytest.mark.rf("RF-38")
-@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029)
+@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034)
 @pytest.mark.parametrize("contexto", [{}, {"usuario_id": U_NUEVO}, {"usuario_id": U_OBS_A, "grupo_id": G_A}])
 def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
     """O2: las políticas del marcador son TO matu_owner. matu_app que fija app.funcion no ve ni escribe más."""
@@ -4013,7 +4015,7 @@ def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
 
 
 @pytest.mark.rf("RF-38")
-@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029)
+@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034)
 def test_el_marcador_puesto_por_matu_app_no_abre_las_otras_funciones_definer(cx, marca):
     """O2: con el marcador puesto, las funciones SECURITY DEFINER que matu_app ejecuta devuelven lo mismo, y las de la
     0026 lo pisan con el suyo y lo limpian al salir."""
