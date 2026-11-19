@@ -104,6 +104,22 @@ describe('MATU-81 en la copia de los datos de la familia', () => {
     expect(document.body.textContent).not.toMatch(/incidente|incidencia/i)
   })
 
+  it('MATU-128 (E1): las fechas van sin la hora, como dice lenguaje.md 39: «Lo anotamos el DD/MM/AAAA.»', async () => {
+    await abrir(conLoQuePaso())
+    const seccion = screen.getByRole('heading', { level: 4, name: 'Lo que pasó con tu pedido' }).closest('section')!
+    const anotados = within(seccion).getAllByText(/^Lo anotamos el/)
+    expect(anotados).toHaveLength(2)
+    for (const a of anotados) {
+      expect(a).toHaveTextContent(/^Lo anotamos el \d{2}\/\d{2}\/\d{4}\.$/)
+      expect(a.querySelector('time span.cifras')).not.toBeNull()
+    }
+    expect(within(seccion).getByText(/^Se resolvió el/)).toHaveTextContent(/^Se resolvió el \d{2}\/\d{2}\/\d{4}\.$/)
+    expect(seccion).not.toHaveTextContent(/a las/)
+    // Lo demás de «Datos de», sin cambios: el tipo en negrita (no un h3) y el ícono de 3,5.
+    expect(within(seccion).queryAllByRole('heading', { level: 3 })).toEqual([])
+    expect(within(seccion).getByText('Resuelto').previousElementSibling).toHaveClass('size-3.5')
+  })
+
   it('decisión 471: sin la clave de las notas, «La nota ya no está disponible…» en vez de la nota y la resolución', async () => {
     await abrir(
       conLoQuePaso([

@@ -24,6 +24,7 @@ import {
 } from '../compartido/api/misDatos'
 import { TITULO_SECCION } from '../compartido/secciones'
 import type { EntradaIndice } from '../compartido/ui/Indice'
+import { CosaAnotada } from './CosaAnotada'
 import { useCorreoPrivacidad } from './Cuenta'
 import { APOYOS, CAMPOS } from './datos'
 import { useFamilia } from './estado'
@@ -790,48 +791,17 @@ function SeLePidioDevolver({ items }: { items: PedidoCopia['retractos'] }) {
 
 /**
  * MATU-81 (D-81-4, C15): lo que el equipo de MATU anotó de este pedido y cómo se resolvió, tal como lo
- * guarda la API. Sin quién lo anotó. El estado lleva ícono y palabra.
+ * guarda la API. Sin quién lo anotó. El estado lleva ícono y palabra. MATU-128: cada cosa anotada la pinta
+ * la pieza que comparte con «Tus pedidos» (`CosaAnotada`), con la fecha sin la hora (E1).
  */
 function LoQuePaso({ items }: { items: PedidoCopia['lo_que_paso'] }) {
-  const L = T.loQuePaso
   return (
     <section className="flex w-full max-w-prose flex-col gap-2 border-t border-linea pt-3">
-      <h4 className="font-bold">{L.titulo}</h4>
+      <h4 className="font-bold">{T.loQuePaso.titulo}</h4>
       <ul className="flex flex-col gap-3">
-        {items.map((x, i) => {
-          const resuelto = x.estado === 'resuelta'
-          return (
-            // MATU-115 (P1 del diseñador): sin `items-start`, que dejaba la nota más ancha que la tarjeta a
-            // 320 px con el texto al 200 % (WCAG 1.4.10); la etiqueta se alinea con `self-start` (MATU-54 3.4).
-            <li key={`${x.anotado_en}-${i}`} className="flex min-w-0 flex-col gap-1">
-              <span className="font-bold break-words">{L.tipo[x.tipo] ?? L.tipo.otro}</span>
-              <Etiqueta className="self-start">
-                {resuelto ? <CircleCheck aria-hidden className="size-3.5 shrink-0" /> : <Hourglass aria-hidden className="size-3.5 shrink-0" />}
-                <span className="min-w-0">{resuelto ? L.resuelto : L.revisando}</span>
-              </Etiqueta>
-              <span className="text-base text-tenue">
-                <ConFechaHora partes={L.anotado} iso={x.anotado_en} />
-              </span>
-              {x.nota_disponible === false ? (
-                <p className="text-base text-tenue">{L.notaNoDisponible}</p>
-              ) : (
-                <>
-                  {x.nota && <p className="text-base whitespace-pre-line break-words">{x.nota}</p>}
-                  {x.resolucion?.trim() && (
-                    <p className="text-base whitespace-pre-line break-words">
-                      <b>{L.comoSeResolvio}</b> {x.resolucion}
-                    </p>
-                  )}
-                </>
-              )}
-              {x.resuelto_en && (
-                <span className="text-base text-tenue">
-                  <ConFechaHora partes={L.resueltoEl} iso={x.resuelto_en} />
-                </span>
-              )}
-            </li>
-          )
-        })}
+        {items.map((x, i) => (
+          <CosaAnotada key={`${x.anotado_en}-${i}`} x={x} variante="copia" />
+        ))}
       </ul>
     </section>
   )
