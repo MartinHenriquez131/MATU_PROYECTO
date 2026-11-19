@@ -547,6 +547,7 @@ def test_crear_un_acceso_primero_el_retiro_espera_y_lo_corta(
 # --- Logs ----------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.rf("RNF-08")
 def test_los_logs_no_llevan_nombres_telefonos_tokens_ni_texto(entorno: EntornoAbrir) -> None:
     familia = entorno.familia_con_ficha()
     _, token, pin = entorno.compartir(familia)

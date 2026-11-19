@@ -217,6 +217,7 @@ def test_pago_en_curso_dura_la_vida_de_la_venta_o_mientras_se_autoriza() -> None
         assert not en_curso(_venta(estado=estado), venta.creado_en, VIDA)
 
 
+@pytest.mark.rf("RNF-01")
 def test_un_commit_sin_respuesta_se_reintenta_cada_10_segundos_como_mucho() -> None:
     assert ESPERA_ENTRE_COMMITS == timedelta(seconds=10)
     assert puede_reintentar_commit(None, CONFIRMADO)

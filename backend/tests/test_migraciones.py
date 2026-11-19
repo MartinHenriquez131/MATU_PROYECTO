@@ -158,7 +158,6 @@ def base_desechable():
         yield
 
 
-@pytest.mark.rf("MATU-79")
 def test_la_base_desechable_es_unica_por_corrida_y_se_borra_aunque_la_prueba_falle():
     """MATU-79: el nombre lleva el pid y un sufijo aleatorio, y la base se borra aunque la prueba lance un error."""
     if not os.environ.get("MATU_BASE_MIGRACIONES"):

@@ -272,7 +272,11 @@ TIEMPO_CONEXION_S = 10
 
 
 def _fabrica(url: str) -> sessionmaker[Session]:
-    engine = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": TIEMPO_CONEXION_S})
+    # MATU-79: hide_parameters, como el engine de la API (app/core/db.py). Vale para matu_app, matu_scheduler y
+    # matu_publisher, que salen todos de aquí
+    engine = create_engine(
+        url, pool_pre_ping=True, hide_parameters=True, connect_args={"connect_timeout": TIEMPO_CONEXION_S}
+    )
     return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

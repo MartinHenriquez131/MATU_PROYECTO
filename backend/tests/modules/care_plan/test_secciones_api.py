@@ -440,6 +440,7 @@ def _auditoria(request_id: str) -> list[tuple[Any, ...]]:
 
 
 @pytest.mark.rf("RF-08")
+@pytest.mark.rf("RNF-02")
 def test_editar_y_quitar_quedan_auditados_con_el_tipo_sin_el_texto(entorno_ficha: EntornoFicha) -> None:
     entorno_ficha.app.dependency_overrides.pop(obtener_auditoria_ficha, None)
     familia = entorno_ficha.familia()
@@ -466,6 +467,7 @@ def test_editar_y_quitar_quedan_auditados_con_el_tipo_sin_el_texto(entorno_ficha
 
 
 @pytest.mark.rf("RF-08")
+@pytest.mark.rf("RNF-08")
 def test_logs_sin_el_texto_de_las_secciones(entorno_ficha: EntornoFicha, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG)
     familia = entorno_ficha.familia()
