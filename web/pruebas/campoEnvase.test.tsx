@@ -11,6 +11,10 @@ import { RegionesVivas } from '../src/compartido/ui/Anuncios'
 import { Insumos } from '../src/familia/Insumos'
 import { problema422 } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
+import { plazosConCarga } from './conCarga'
+
+// MATU-121: con la máquina cargada (la suite completa), «fuera de rango» pasaba los 15 s de tope.
+plazosConCarga()
 
 const PERSONA = { id: '3c9d4e20-0000-4000-8000-0000000000aa', nombre: 'María Soto', nombre_pila: 'María' }
 let contexto = familiaFalsa()
