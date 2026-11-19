@@ -225,7 +225,7 @@ function LoQueNoSeMuestra({ hayMas, correo }: { hayMas: boolean; correo: string 
   return (
     <p className="max-w-prose text-base text-tenue">
       {antes}
-      <EnlaceEnFrase href={`mailto:${correo}`} className="[overflow-wrap:anywhere]">
+      <EnlaceEnFrase href={`mailto:${correo}`}>
         {correo}
       </EnlaceEnFrase>
       {despues}
