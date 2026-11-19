@@ -38,7 +38,7 @@ function EnLinea({ partes }: { partes: Linea[] }) {
                 <EnLinea partes={p.hijos} /> {POLITICA.otraPestana}
               </EnlaceEnFrase>
             ) : (
-              <EnlaceEnFrase key={i} href={p.href} className={p.destino === 'correo' ? '[overflow-wrap:anywhere]' : ''}>
+              <EnlaceEnFrase key={i} href={p.href}>
                 <EnLinea partes={p.hijos} />
               </EnlaceEnFrase>
             )
