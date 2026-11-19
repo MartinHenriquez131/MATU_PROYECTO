@@ -41,10 +41,12 @@ import {
   cancelarConDevolucion,
   esFilaCompleta,
   esFilaPagaste,
+  leerLoQuePaso,
   leerRetractos,
   leerSeguimiento,
   listarPedidos,
   pedirRetracto,
+  type CosaAnotada as Cosa,
   type EstadoFamilia,
   type FilaObservador,
   type FilaPagaste,
@@ -59,6 +61,7 @@ import { CORREO_CONTACTO } from '../compartido/contacto'
 import { anunciar, Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
 import { EnlaceEnFrase } from '../compartido/ui/Enlaces'
+import { CosaAnotada } from './CosaAnotada'
 import { DialogoConfirmar } from './DialogoConfirmar'
 import { puedeEditar, useFamilia, type PedidoElegido } from './estado'
 import { useDemora } from './Estados'
@@ -69,6 +72,7 @@ import { AvisoPiloto, UnaColumna } from './PiezasPedido'
 import { navegar, RUTA_ARREPENTIRME, RUTA_DETALLE_PEDIDO, RUTA_TUS_PEDIDOS, useRuta } from './ruteo'
 import { GENERAL } from './textos'
 import { pesos } from './textosCatalogo'
+import { MIS_DATOS } from './textosMisDatos'
 import { PAGO } from './textosPago'
 import { TUS_PEDIDOS as T } from './textosTusPedidos'
 import { bajarAlDisponible, elegidas, enChile, fueraDeRango, plazoEnChile, vistaPrevia, type Elegidas } from './tusPedidosComun'
@@ -79,6 +83,8 @@ const CADA_MS = 60_000
 const ID_NOTA_DETALLE = 'nota-tus-pedidos'
 const ID_CANCELAR = 'cancelar-con-devolucion'
 const ID_YA_SE_PIDIO = 'ya-se-pidio'
+const ID_LO_QUE_PASO = 'lo-que-paso-t'
+const ID_NADA_ANOTADO = 'nada-anotado'
 const idFila = (pedidoId: string) => `fila-${pedidoId}`
 const idCampo = (lineaId: string) => `devolver-${lineaId}`
 
@@ -534,6 +540,11 @@ export function BloqueTusPedidos({ lista }: { lista: ListaPedidos }) {
 
 type CargaDetalle = 'cargando' | 'listo' | 'red' | 'no-encontrado'
 type NotaDetalle = 'cancelado' | 'ya-cancelado' | 'ya-se-prepara'
+/**
+ * MATU-128 (5): lo que respondió `GET …/lo-que-paso`. `nada` es el 404 o la lista vacía (sin bloque);
+ * `vacia` es la lista vacía después de «Volver a intentar» (N3); `error`, el 503 (N1) o la red (N2).
+ */
+type LoQuePaso = { e: 'esperando' } | { e: 'nada'; por: '404' | 'vacia' } | { e: 'lista'; items: Cosa[] } | { e: 'vacia' } | { e: 'error'; por: 'clave' | 'red' }
 
 function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: RetractoFamilia | null }) {
   const { pedidoId, referencia } = elegido
@@ -548,6 +559,15 @@ function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: Retracto
   const [errCancelar, setErrCancelar] = useState<string>(T.errCancelar)
   /** C8: una clave por intento de cancelar, que se reutiliza si se vuelve a tocar después de un error de red. */
   const claveCancelar = useRef<string | null>(null)
+  // MATU-128: «Lo que pasó con tu pedido». Solo en memoria: nada al navegador ni a la URL.
+  const [loQuePaso, setLoQuePaso] = useState<LoQuePaso>({ e: 'esperando' })
+  const [reintentandoLqp, setReintentandoLqp] = useState(false)
+  /** N4, en la región viva del detalle (7). */
+  const [avisoLqp, setAvisoLqp] = useState('')
+  /** Si el detalle ya se pintó (7): solo entonces el bloque «llega tarde» y se anuncia. */
+  const pintado = useRef(false)
+  /** N4 se anuncia una sola vez por apertura del detalle. */
+  const anunciado = useRef(false)
 
   // 2.1: el `<title>` repite el `h1`.
   useEffect(() => {
@@ -565,10 +585,46 @@ function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: Retracto
     }
   }, [pedidoId])
 
+  /**
+   * MATU-128 (C5): se pide siempre y se pinta lo que responde. La pantalla nunca decide por el rol ni por
+   * `vista`: el 404 (no pagó este pedido) es no mostrar nada. `null` si no hay nada que cambiar.
+   */
+  const leerElLoQuePaso = useCallback(
+    async (silencioso = false): Promise<LoQuePaso | null> => {
+      try {
+        const items = await leerLoQuePaso(pedidoId)
+        return items.length ? { e: 'lista', items } : { e: 'nada', por: 'vacia' }
+      } catch (x) {
+        if (esVencida(x)) return null
+        const status = leerFallo(x).status
+        if (status === 404) return { e: 'nada', por: '404' }
+        // 4.9: al volver a la pestaña, un error no cambia lo que se ve.
+        if (silencioso) return null
+        return { e: 'error', por: status === 503 ? 'clave' : 'red' }
+      }
+    },
+    [pedidoId],
+  )
+
+  /** En paralelo con el seguimiento, sin frenarlo (5). Si el bloque llega con el detalle ya pintado, N4 una vez (7). */
+  const traerLoQuePaso = useCallback(
+    async (silencioso: boolean) => {
+      const r = await leerElLoQuePaso(silencioso)
+      if (!r) return
+      setLoQuePaso(r)
+      if (!silencioso && r.e === 'lista' && pintado.current && !anunciado.current) {
+        anunciado.current = true
+        setAvisoLqp(T.loQuePaso.masAbajo)
+      }
+    },
+    [leerElLoQuePaso],
+  )
+
   /** El seguimiento y el pago a la vez; los productos para devolver, solo de un pedido entregado. */
   const cargar = useCallback(
     async (silencioso = false) => {
       if (!silencioso) setCarga('cargando')
+      void traerLoQuePaso(silencioso)
       const [s] = await Promise.allSettled([leerSeguimiento(pedidoId), leerElPago()])
       if (s.status === 'rejected') {
         if (esVencida(s.reason) || silencioso) return
@@ -587,7 +643,7 @@ function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: Retracto
       setSeg(actual)
       setCarga('listo')
     },
-    [pedidoId, leerElPago],
+    [pedidoId, leerElPago, traerLoQuePaso],
   )
 
   useEffect(() => {
@@ -621,6 +677,28 @@ function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: Retracto
       // «Recibimos tu pedido de devolución…», para que el lector la lea; si no, al `h1`.
       enfocar(recien ? ID_NOTA_DETALLE : 'titulo-pagina', 0)
   }, [carga, recien])
+
+  // 7: desde que se ve el detalle, lo que llegue después «llega tarde».
+  useEffect(() => {
+    if (carga === 'listo' && seg) pintado.current = true
+  }, [carga, seg])
+
+  /** 5 y 7: después de «Volver a intentar», el foco va al `h2` o a N3, para que no se pierda con el botón. */
+  const reintentarLoQuePaso = async () => {
+    if (reintentandoLqp) return
+    setReintentandoLqp(true)
+    const r = await leerElLoQuePaso()
+    setReintentandoLqp(false)
+    if (!r) return
+    if (r.e === 'nada' && r.por === 'vacia') {
+      setLoQuePaso({ e: 'vacia' })
+      enfocar(ID_NADA_ANOTADO, 60)
+      return
+    }
+    setLoQuePaso(r)
+    if (r.e === 'lista') enfocar(ID_LO_QUE_PASO, 60)
+    else if (r.e === 'nada') enfocar('titulo-pagina', 60)
+  }
 
   const reintentarPago = async () => {
     if (reintentandoPago) return
@@ -744,6 +822,7 @@ function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: Retracto
       <div className="mt-4 grid grid-cols-1 gap-x-10 gap-y-10 @3xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-w-0 flex-col gap-10 @3xl/main:col-start-1 @3xl/main:row-start-1">
           <ComoVa seg={seg} />
+          <BloqueLoQuePaso estado={loQuePaso} reintentando={reintentandoLqp} onReintentar={() => void reintentarLoQuePaso()} />
           {devoluciones.length > 0 && <DineroDevuelto devoluciones={devoluciones} seg={seg} />}
           {pedidas.length > 0 && <ParaDevolver retractos={pedidas} />}
           <BloqueArrepentirme seg={seg} retractos={retractos} />
@@ -776,6 +855,11 @@ function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: Retracto
             )
           )}
         </div>
+      </div>
+
+      {/* MATU-128 (7): montada desde que se ve el detalle; recibe N4 si el bloque llega después. */}
+      <div role="status" className="sr-only">
+        {avisoLqp}
       </div>
 
       {dialogo && (
@@ -868,6 +952,46 @@ function ComoVa({ seg }: { seg: Seguimiento }) {
           })}
         </ul>
       )}
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------- MATU-128: lo que pasó con tu pedido
+
+/**
+ * Entre «Cómo va» y «Dinero devuelto» (2). Cargando, el 404 y la lista vacía no muestran nada ni
+ * reservan espacio. El 503 y la red, sin el `h2` (no se sabe si hay algo anotado) y sin rol: no son
+ * urgentes ni culpa de la persona (7). No va en la hoja que se imprime: `HojaComprobante` no lo trae.
+ */
+function BloqueLoQuePaso({ estado, reintentando, onReintentar }: { estado: LoQuePaso; reintentando: boolean; onReintentar: () => void }) {
+  if (estado.e === 'vacia')
+    return (
+      <p id={ID_NADA_ANOTADO} tabIndex={-1} className="max-w-prose text-base text-tenue outline-none">
+        {T.loQuePaso.nadaAnotado}
+      </p>
+    )
+  if (estado.e === 'error') {
+    const Icono = estado.por === 'clave' ? Clock : CloudOff
+    return (
+      <Nota tono="rocio" icono={<Icono aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
+        <p>{estado.por === 'clave' ? T.loQuePaso.sinClave : T.loQuePaso.sinRed}</p>
+        <Boton variante="secundario" className="mt-3" ocupado={reintentando} textoOcupado={GENERAL.cargando} onClick={onReintentar}>
+          {GENERAL.volverAIntentar}
+        </Boton>
+      </Nota>
+    )
+  }
+  if (estado.e !== 'lista') return null
+  return (
+    <section aria-labelledby={ID_LO_QUE_PASO} className="flex min-w-0 flex-col gap-3 animate-aparecer">
+      <h2 id={ID_LO_QUE_PASO} tabIndex={-1} className="titular text-2xl outline-none">
+        {MIS_DATOS.loQuePaso.titulo}
+      </h2>
+      <ul className="flex flex-col gap-3">
+        {estado.items.map((x, i) => (
+          <CosaAnotada key={`${x.anotado_en}-${i}`} x={x} variante="tarjeta" />
+        ))}
+      </ul>
     </section>
   )
 }
