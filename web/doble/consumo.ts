@@ -122,6 +122,8 @@ function errores(b: Record<string, unknown>, parcial: boolean) {
     const n = b.nombre_libre
     if (typeof n !== 'string' || !n.trim()) add('nombre_libre', parcial ? 'null_no_admitido' : 'producto_o_nombre')
     else if (n.length > 60) add('nombre_libre', 'string_too_long')
+    // El doble imita al backend, que rechaza los caracteres de control: aquí la regla se apaga a propósito
+    // eslint-disable-next-line no-control-regex
     else if (/[\u0000-\u001f\u007f]/.test(n)) add('nombre_libre', 'value_error')
   }
   for (const [k, [min, max]] of Object.entries(RANGOS)) {

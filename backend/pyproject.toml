@@ -27,6 +27,8 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "detect-secrets>=1.5",
+    "pytest-cov>=5",  # MATU-79: cobertura por capa (scripts/cobertura_por_capa.py)
+    "pip-audit>=2.7",  # MATU-79: dependencias con vulnerabilidades conocidas
 ]
 # Solo para regenerar la matriz de acceso (backend/db/gen_matriz.py)
 diagramas = [

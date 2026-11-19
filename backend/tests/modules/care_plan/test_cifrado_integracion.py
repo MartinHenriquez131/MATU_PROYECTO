@@ -6,7 +6,7 @@ RLS acota clave_datos y plan_seccion al grupo. Lo que quedó en la base se revis
 
 Las secciones se insertan aquí con SQL: el repositorio de secciones y su endpoint llegan con MATU-12.
 
-Trazan a ADR-014 y ADR-016 (no hay un RF): sin marca rf. Solo textos sintéticos.
+Trazan a ADR-014 y ADR-016 y al RNF-08 (ficha cifrada y fuera de los registros): marca RNF-08. Solo textos sintéticos.
 """
 
 import secrets
@@ -32,7 +32,7 @@ from tests.dobles.custodia_en_memoria import CustodiaEnMemoria
 from tests.fabricas import Fabrica
 from tests.fabricas.fabrica import FamiliaCreada
 
-pytestmark = requiere_base
+pytestmark = [requiere_base, pytest.mark.rf("RNF-08")]
 
 _INSERTAR_SECCION = text(
     "INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version)"

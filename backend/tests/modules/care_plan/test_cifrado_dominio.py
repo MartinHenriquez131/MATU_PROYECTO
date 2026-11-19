@@ -1,6 +1,6 @@
 """MATU-11 · Reglas puras del cifrado de secciones: estados de la clave, AAD y forma de la sección.
 
-Trazan a ADR-014 y ADR-016 (no hay un RF): sin marca rf.
+Trazan a ADR-014 y ADR-016 y al RNF-08 (ficha cifrada y fuera de los registros): marca RNF-08.
 """
 
 import uuid
@@ -24,6 +24,8 @@ from app.modules.care_plan.domain.cifrado import (
     datos_asociados,
     estado_clave,
 )
+
+pytestmark = pytest.mark.rf("RNF-08")
 
 PLAN = uuid.UUID("00000000-0000-0000-0000-0000000011a0")
 VIGENTE = ClaveGuardada(kek_version=1, dek_cifrada=b"\x01" * 48)

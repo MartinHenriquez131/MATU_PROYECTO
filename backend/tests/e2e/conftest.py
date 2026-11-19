@@ -224,7 +224,7 @@ class Recorrido:
             cuerpo_pagar(),
             **{"Idempotency-Key": self.clave(), "If-Match": pedido["etag"]},
         )
-        assert pago.status_code in (200, 201), pago.text
+        assert pago.status_code == 201, pago.text
         token = pago.json()["token"]
         # La persona paga en el formulario (falso) de Webpay, y Webpay la devuelve a MATU, sin la sesión
         self.d.pasarela.pagar(token)

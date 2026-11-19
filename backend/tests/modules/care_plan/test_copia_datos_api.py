@@ -121,6 +121,7 @@ def test_la_copia_del_admin_trae_todo_lo_guardado_sin_lo_que_nunca_sale(entorno_
     assert not _claves(cuerpo) & PROHIBIDOS
 
 
+@pytest.mark.rf("RNF-02")
 def test_la_copia_queda_registrada_con_la_persona_y_sin_detalle(entorno_ficha: EntornoFicha) -> None:
     familia = _completa(entorno_ficha)
 
@@ -391,6 +392,7 @@ def test_con_dos_personas_cada_copia_trae_solo_lo_de_su_persona(entorno_ficha: E
 # --- Logs (C29) ----------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.rf("RNF-08")
 def test_los_logs_no_llevan_la_copia(entorno_ficha: EntornoFicha) -> None:
     familia = _completa(entorno_ficha)
 
