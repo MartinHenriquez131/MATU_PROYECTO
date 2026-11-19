@@ -76,11 +76,8 @@ jobs:
       - name: Estilo (ruff)
         run: ruff check .
 
-      # MATU-79: preparada sin activar. El 18-11 ruff format --check marca 178 de 574 archivos, y reformatear ahora
-      # chocaría con las ramas apiladas abiertas (#101, #108, #112 y MATU-114). Se reformatea en un PR propio cuando
-      # se fusione la fila, y entonces se quita continue-on-error
+      # MATU-79: puerta obligatoria desde el reformateo de todo backend/ (el commit está en .git-blame-ignore-revs)
       - name: Formato (ruff format)
-        continue-on-error: true
         run: ruff format --check .
 
       - name: Tipos (mypy)
