@@ -129,7 +129,7 @@ function ComoPedir({ correo }: { correo: string | null }) {
   return (
     <p className="mt-6 max-w-xl text-base leading-relaxed text-tinta">
       {POLITICA.comoPedirAntes}
-      <EnlaceEnFrase href={`mailto:${correo}`} className="[overflow-wrap:anywhere]">
+      <EnlaceEnFrase href={`mailto:${correo}`}>
         {correo}
       </EnlaceEnFrase>
       {POLITICA.comoPedirDespues}

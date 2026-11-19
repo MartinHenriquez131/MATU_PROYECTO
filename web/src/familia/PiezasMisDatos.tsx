@@ -491,7 +491,7 @@ export function FraseConCorreo({ partes: [antes, despues], correo, sinCorreo = n
   return (
     <>
       {antes}
-      <EnlaceEnFrase href={`mailto:${correo}`} className="[overflow-wrap:anywhere]">
+      <EnlaceEnFrase href={`mailto:${correo}`}>
         {correo}
       </EnlaceEnFrase>
       {despues}
