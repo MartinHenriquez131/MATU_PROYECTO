@@ -5974,7 +5974,9 @@ def test_124_toda_politica_to_matu_owner_mira_su_marcador(cx):
     """Prueba 9 (C1 y D4): toda política de matu_owner exige el marcador de su función. La única excepción es
     consentimiento_autorizacion_relevo: la usa relevo_autorizacion_vigente, que no fija marcador, y exige app.rol =
     'relevo' y el acceso del contexto (app.acceso_relevo_id), con el que solo se ve la autorización de la persona de
-    ese acceso. Nadie mira ya app.conservacion: ni una política ni una función."""
+    ese acceso. Nadie mira ya app.conservacion: ni una política ni una función.
+    Las políticas TO public que alcanzan a matu_owner con operación (pedido_operacion_leer y otras) quedan para
+    MATU-129."""
     filas = cx.execute("SELECT policyname, coalesce(qual, '') || ' ' || coalesce(with_check, '') FROM pg_policies"
                        " WHERE 'matu_owner' = ANY(roles)").fetchall()
     assert len(filas) > 40
