@@ -11,6 +11,7 @@ superusuario solo para sembrar datos. Cada verificación corre con SET ROLE matu
 (o el rol que corresponda), que NO evade RLS.
 """
 import os
+import re
 import uuid
 from datetime import timedelta
 from pathlib import Path
@@ -5404,6 +5405,81 @@ def test_122_operacion_no_cambia_si_un_comercio_es_ficticio(cx):
                       (COMERCIO,)).fetchall() == [(COMERCIO,)]
     cx.execute("RESET ROLE")
     assert cx.execute("SELECT ficticio FROM comercio WHERE id = %s", (COMERCIO,)).fetchone() == (True,)
+
+
+# MATU-124 (H3 del TESTER del 19-11): el trigger comercio_ficticio_fijo (0033) solo frena a matu_app. Esta prueba de
+# catálogo falla si otro camino puede cambiar comercio.ficticio, para que no dependa de que alguien se acuerde.
+QUIENES_CAMBIAN_FICTICIO = {"matu_owner", "matu_app"}  # el dueño, y matu_app, que la frena el trigger
+_UPDATE_FICTICIO = re.compile(
+    r"\bupdate\s+(?:only\s+)?(?:public\.)?comercio\b(?:\s+(?:as\s+)?\w+)?\s+set\b"
+    r"(?:(?!\b(?:where|from|returning)\b)[^;])*\bficticio\b"
+    r"|\binsert\s+into\s+(?:public\.)?comercio\b[^;]*\bon\s+conflict\b[^;]*\bdo\s+update\s+set\b"
+    r"(?:(?!\bwhere\b)[^;])*\bficticio\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _quienes_cambian_ficticio(cx):
+    """Lo que puede cambiar comercio.ficticio sin pasar por el trigger: los permisos de UPDATE sobre la tabla o la
+    columna (concedidos o heredados, también a PUBLIC) de un rol que no es matu_owner ni matu_app, y las funciones
+    SECURITY DEFINER cuyo cuerpo hace UPDATE de comercio tocando ficticio (corren como su dueño, no como matu_app).
+    El SQL dinámico (EXECUTE format(...)) no se ve en el texto: una definer así también se revisa a mano."""
+    otros = set()
+    otros |= {r[0] for r in cx.execute(
+        "SELECT grantee FROM information_schema.role_table_grants"
+        " WHERE table_schema = 'public' AND table_name = 'comercio' AND privilege_type = 'UPDATE'").fetchall()}
+    otros |= {r[0] for r in cx.execute(
+        "SELECT grantee FROM information_schema.column_privileges WHERE table_schema = 'public'"
+        " AND table_name = 'comercio' AND column_name = 'ficticio' AND privilege_type = 'UPDATE'").fetchall()}
+    otros |= {r[0] for r in cx.execute(  # lo heredado: un rol miembro de matu_app, o de pg_write_all_data
+        "SELECT rolname FROM pg_roles WHERE NOT rolsuper AND rolname NOT LIKE 'pg\\_%'"
+        " AND has_column_privilege(oid, 'public.comercio'::regclass, 'ficticio', 'UPDATE')").fetchall()}
+    definer = [f"{esquema}.{nombre}" for esquema, nombre, cuerpo in cx.execute(
+        "SELECT n.nspname, p.proname, p.prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace"
+        " WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema') ORDER BY 1, 2").fetchall()
+        if _UPDATE_FICTICIO.search(cuerpo or "")]
+    return sorted(otros - QUIENES_CAMBIAN_FICTICIO), definer
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_124_solo_matu_app_frenada_por_el_trigger_y_el_dueno_cambian_si_un_comercio_es_ficticio(cx):
+    """H3 (P3): hoy solo matu_owner y matu_app tienen UPDATE sobre comercio.ficticio, y a matu_app la frena el
+    trigger comercio_ficticio_fijo, que sigue activo y sigue nombrando a matu_app. Ninguna definer escribe ficticio."""
+    roles, definer = _quienes_cambian_ficticio(cx)
+    assert roles == [], (
+        f"{roles} pueden cambiar comercio.ficticio y el trigger comercio_ficticio_fijo solo frena a matu_app: amplía"
+        " el trigger en la misma migración que concede el permiso, o no lo concedas")
+    assert definer == [], (
+        f"{definer} son SECURITY DEFINER y escriben comercio.ficticio como su dueño, sin que las frene el trigger"
+        " comercio_ficticio_fijo: amplía el trigger en la misma migración, o saca ficticio de la función")
+    activo, cuerpo = cx.execute(
+        "SELECT t.tgenabled, p.prosrc FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid"
+        " WHERE t.tgrelid = 'public.comercio'::regclass AND t.tgname = 'comercio_ficticio_fijo'").fetchone()
+    assert activo == "O" and "current_user = 'matu_app'" in cuerpo
+    como(cx)
+    assert cx.execute("SELECT has_column_privilege('public.comercio'::regclass, 'ficticio', 'UPDATE')").fetchone()[0]
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_124_la_prueba_de_catalogo_ve_otro_rol_y_una_definer_que_cambian_ficticio(cx):
+    """La prueba anterior falla de verdad: con UPDATE (ficticio) a matu_scheduler, UPDATE de la tabla a PUBLIC y una
+    definer que escribe ficticio (todo en la transacción que se revierte), los encuentra. Las que solo leen ficticio en
+    el WHERE no cuentan."""
+    cx.execute("GRANT UPDATE (ficticio) ON comercio TO matu_scheduler")
+    cx.execute("GRANT UPDATE ON comercio TO PUBLIC")
+    cx.execute("CREATE FUNCTION prueba_124_marca(c uuid) RETURNS void LANGUAGE sql SECURITY DEFINER"
+               " SET search_path = pg_catalog, public AS $$ UPDATE public.comercio SET telefono = telefono,"
+               " ficticio = true WHERE id = c $$")
+    cx.execute("CREATE FUNCTION prueba_124_lee(c uuid) RETURNS void LANGUAGE sql SECURITY DEFINER"
+               " SET search_path = pg_catalog, public AS $$ UPDATE public.comercio SET telefono = telefono"
+               " WHERE id = c AND ficticio $$")
+    roles, definer = _quienes_cambian_ficticio(cx)
+    assert "matu_scheduler" in roles and "PUBLIC" in roles
+    assert definer == ["public.prueba_124_marca"]
+    with pytest.raises(AssertionError, match="amplía el trigger"):
+        test_124_solo_matu_app_frenada_por_el_trigger_y_el_dueno_cambian_si_un_comercio_es_ficticio(cx)
 
 
 @pytest.mark.rf("RNF-07")
