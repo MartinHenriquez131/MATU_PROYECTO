@@ -3993,6 +3993,8 @@ MARCAS_0034 = ("aviso_correo",)
 # MATU-124 (0035): el marcador de cada función de conservación y el de pago_resolver_venta
 MARCAS_0035 = ("pedido_conservar", "consumo_conservar", "iam_conservar", "quiebre_conservar", "relevo_conservar",
                "plan_destruir_claves", "pago_resolver_venta", "invitacion_conservar")
+# MATU-128 (0036): el marcador de pedido_lo_que_paso
+MARCAS_0036 = ("lo_que_paso",)
 
 
 def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
@@ -4002,7 +4004,7 @@ def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
 
 
 @pytest.mark.rf("RF-38")
-@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034)
+@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034 + MARCAS_0036)
 @pytest.mark.parametrize("contexto", [{}, {"usuario_id": U_NUEVO}, {"usuario_id": U_OBS_A, "grupo_id": G_A}])
 def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
     """O2: las políticas del marcador son TO matu_owner. matu_app que fija app.funcion no ve ni escribe más."""
@@ -4018,7 +4020,7 @@ def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
 
 
 @pytest.mark.rf("RF-38")
-@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034 + MARCAS_0035)
+@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034 + MARCAS_0035 + MARCAS_0036)
 def test_el_marcador_puesto_por_matu_app_no_abre_las_otras_funciones_definer(cx, marca):
     """O2: con el marcador puesto, las funciones SECURITY DEFINER que matu_app ejecuta devuelven lo mismo, y las de la
     0026 lo pisan con el suyo y lo limpian al salir."""

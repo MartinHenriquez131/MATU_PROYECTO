@@ -2166,7 +2166,7 @@ def test_0035_conservacion_con_su_marcador_y_baja_al_esquema_de_0034(base_desech
 
 # ---- 0036 (MATU-128): quien pagó un pedido ve lo que pasó con él
 
-# La anterior de la 0036: hoy la 0034; con la 0035 de MATU-124 en la rama, la 0035. Se lee de la migración
+# La anterior de la 0036: la 0035 de MATU-124. Se lee de la migración
 ANTES_0036 = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini"))).get_revision("0036").down_revision
 # C3 y C10: las dos nuevas, con el marcador, solo TO matu_owner
 POLITICAS_MATU_OWNER_0036 = {

@@ -1,7 +1,6 @@
 """MATU-128: quien pagó un pedido ve «Lo que pasó con tu pedido» en ese pedido (Ley 21.719, minimización).
 
-Cadena: 0034 (MATU-79) -> 0036, por ahora. La 0035 es de MATU-124, que se construye en paralelo: cuando suba,
-down_revision pasa a "0035" (decisión R7 del orquestador). Mientras tanto test_cadena_migraciones.py marca el hueco.
+Cadena: 0035 (MATU-124) -> 0036. down_revision = "0035" (decisión R7 del orquestador).
 
 Revisión previa del analista normativo del 19-11 (condiciones C1 a C10) y decisiones R1 a R5, E4 y E5 del orquestador
 con el mandato de Jorge del 19-11. Decisión 484 de docs/api/README.md. backend/db/*.sql no se tocan.
@@ -46,10 +45,10 @@ Recorrido: quién lee incidencia y clave_notas después de la 0036
 - clave_notas_destruir (0030), con su marcador 'clave_notas_destruir', sin cambios.
 - El comercio, el repartidor, el relevo, sistema y los roles de las tareas: nada.
 
-downgrade() quita la función y las dos políticas, sin borrar filas, y deja el catálogo como en la 0034.
+downgrade() quita la función y las dos políticas, sin borrar filas, y deja el catálogo como en la 0035.
 
 Revision ID: 0036
-Revises: 0034
+Revises: 0035
 Create Date: 2026-11-19
 """
 
@@ -58,8 +57,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "0036"
-# Por ahora: con la 0035 de MATU-124 en la rama, pasa a "0035"
-down_revision: str | None = "0034"
+down_revision: str | None = "0035"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
