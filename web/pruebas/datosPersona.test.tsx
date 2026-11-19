@@ -54,6 +54,8 @@ function abrir(copia: CopiaDatosPersona = copiaPersona()) {
   )
   return pedidas
 }
+/** La región viva amable de `RegionesVivas`, la primera del documento (se monta antes que la pantalla). */
+const amable = () => document.querySelector<HTMLElement>('[aria-live="polite"][aria-atomic="true"]')!
 const listo = () => screen.findByRole('button', { name: 'Descargar en un archivo' })
 const bloque = (nombre: string) => screen.getByRole('region', { name: nombre })
 /** El índice del teléfono (`details`); jsdom no aplica `@4xl/main:hidden`, así que también está el ancho. */
@@ -639,6 +641,8 @@ describe('«Datos de María»: descargar (3.7)', () => {
     // MATU-119: la nota que se ve, no su copia en la región viva, que llega 50 ms después.
     const nota = screen.getByText('Te entregamos el archivo. Búscalo en tus descargas.', fueraDeRegiones)
     await waitFor(() => expect(nota.closest('[tabindex="-1"]')).toHaveFocus())
+    // MATU-121: y se anuncia en la región amable, para quien usa lector de pantalla.
+    await waitFor(() => expect(amable()).toHaveTextContent('Te entregamos el archivo. Búscalo en tus descargas.'))
     // La nota se borra al volver a abrir el diálogo.
     await u().click(screen.getByRole('button', { name: 'Descargar en un archivo' }))
     expect(screen.queryByText('Te entregamos el archivo. Búscalo en tus descargas.')).toBeNull()

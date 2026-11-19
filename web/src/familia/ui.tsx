@@ -60,8 +60,8 @@ export function Cola({ children }: { children: ReactNode }) {
 /** Enlace de vuelta, de texto, 48 px en todos los tamaños. */
 export function Volver({ children, onClick }: { children: ReactNode; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="inline-flex min-h-12 items-center gap-1 self-start rounded-lg pr-2 text-left font-bold text-turquesa hover:underline">
-      <ChevronLeft aria-hidden className="size-5 shrink-0" />
+    <button type="button" onClick={onClick} className="inline-flex min-h-12 items-center gap-1 self-start rounded-lg pr-2 text-left font-bold text-turquesa hover:underline angosto:inline-block">
+      <ChevronLeft aria-hidden className="size-5 shrink-0 angosto:me-1 angosto:inline angosto:align-middle" />
       {children}
     </button>
   )
