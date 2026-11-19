@@ -47,13 +47,15 @@ _PLAN_EN_BLANCO = text(
     " WHERE persona_cuidada_id = :persona_id AND grupo_id = :grupo_id"
 )
 # MATU-72 (D5): los accesos se conservan (D4), sin el nombre de pila de la persona. MATU-46 (D-46-3 a): y sin el
-# teléfono del relevo, desde ese instante. Solo los accesos del plan de esta persona, nunca los de otra del grupo
+# teléfono del relevo, desde ese instante. Solo los accesos del plan de esta persona, nunca los de otra del grupo.
+# MATU-79 (0034, A6): matu_app no lee otorgado_a_telefono; telefono_borrado_en IS NULL es lo mismo por el CHECK
+# acceso_relevo_telefono_borrado (0027)
 _ACCESOS_SIN_NOMBRE_NI_TELEFONO = text(
     "UPDATE acceso_relevo a SET nombre_pila_persona = :fijo, otorgado_a_telefono = NULL,"
     " telefono_borrado_en = COALESCE(a.telefono_borrado_en, :ahora) FROM plan_cuidado p"
     " WHERE a.plan_id = p.id AND p.persona_cuidada_id = :persona_id AND p.grupo_id = :grupo_id"
     " AND a.grupo_id = :grupo_id"
-    " AND (a.nombre_pila_persona IS DISTINCT FROM :fijo OR a.otorgado_a_telefono IS NOT NULL)"
+    " AND (a.nombre_pila_persona IS DISTINCT FROM :fijo OR a.telefono_borrado_en IS NULL)"
 )
 
 

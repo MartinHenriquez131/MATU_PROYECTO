@@ -2544,15 +2544,18 @@ def test_el_admin_da_la_autorizacion_y_todo_el_grupo_la_lee(cx):
 @pytest.mark.rf("RF-37")
 def test_operacion_no_lee_ni_cambia_ni_crea_cuentas(sesiones_app):
     """Condición 5 de MATU-66: no inserta, no edita ni borra una cuenta. Desde MATU-114 (C1, 0031) tampoco lee el email
-    ni el celular: usuario_operacion_leer ya no existe."""
+    ni el celular: usuario_operacion_leer ya no existe. Desde MATU-79 (0034, A1) matu_app no tiene SELECT sobre esas
+    columnas: la consulta falla con 42501 en vez de devolver cero filas."""
     from sqlalchemy import text
     from sqlalchemy.exc import DBAPIError
 
     from app.core.db import sesion_tenant
 
+    with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, rol="operacion") as s:
+        s.execute(text("SELECT email, telefono FROM usuario WHERE id = :id"), {"id": U_OBS_A})
+    assert isinstance(error.value.orig, errors.InsufficientPrivilege)
     with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, rol="operacion") as s:
-        filas = s.execute(text("SELECT email, telefono FROM usuario WHERE id = :id"), {"id": U_OBS_A}).all()
-        assert filas == []
+        assert s.execute(text("SELECT nombre FROM usuario WHERE id = :id"), {"id": U_OBS_A}).all() == []
         # Ni siquiera una columna que la app sí cambia: operación no alcanza la fila ajena
         editadas = s.execute(text("UPDATE usuario SET telefono = '+56900000066' WHERE id = :id"), {"id": U_OBS_A})
         assert editadas.rowcount == 0  # type: ignore[attr-defined]
@@ -3985,6 +3988,8 @@ def test_una_invitacion_vencida_no_se_acepta_con_un_instante_del_pasado(cx):
 MARCAS_0026 = ("invitacion", "membresia_retirar")
 # MATU-63 (0029): las marcas de las funciones del comercio, del apartado, del despacho y de las cuentas
 MARCAS_0029 = ("comercio", "disponible", "despacho", "cuentas", "codigo_retiro")
+# MATU-79 (0034): el marcador de aviso_correo
+MARCAS_0034 = ("aviso_correo",)
 
 
 def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
@@ -3994,7 +3999,7 @@ def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
 
 
 @pytest.mark.rf("RF-38")
-@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029)
+@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034)
 @pytest.mark.parametrize("contexto", [{}, {"usuario_id": U_NUEVO}, {"usuario_id": U_OBS_A, "grupo_id": G_A}])
 def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
     """O2: las políticas del marcador son TO matu_owner. matu_app que fija app.funcion no ve ni escribe más."""
@@ -4010,7 +4015,7 @@ def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
 
 
 @pytest.mark.rf("RF-38")
-@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029)
+@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034)
 def test_el_marcador_puesto_por_matu_app_no_abre_las_otras_funciones_definer(cx, marca):
     """O2: con el marcador puesto, las funciones SECURITY DEFINER que matu_app ejecuta devuelven lo mismo, y las de la
     0026 lo pisan con el suyo y lo limpian al salir."""
@@ -4058,7 +4063,11 @@ def test_las_politicas_del_marcador_son_solo_de_matu_owner_y_las_definer_de_matu
                        "operacion_cuenta_activa", "cuenta_es_operacion", "operacion_solicitante_retracto",
                        # MATU-116 (0032): con el marcador ya puesto, app_pago_el_pedido responde false; las de «Tus
                        # datos» fallan cerradas fuera de una sesión de familia y filtran por app_usuario()
-                       "app_pago_el_pedido", "cuenta_pagos", "cuenta_retractos", "cuenta_condiciones"}
+                       "app_pago_el_pedido", "cuenta_pagos", "cuenta_retractos", "cuenta_condiciones",
+                       # MATU-79 (0034): cuenta_contacto_propia filtra por app_usuario(); acceso_relevo_telefono por el
+                       # grupo y app_escribe_plan(), fuera de operación, sistema y relevo; aviso_correo pisa el
+                       # marcador con 'aviso_correo', exige sistema sin cuenta y devuelve el anterior al salir
+                       "cuenta_contacto_propia", "acceso_relevo_telefono", "aviso_correo"}
 
 
 # ------------------------------------------------------------------ MATU-46 (migración 0027): el teléfono del relevo
@@ -5523,3 +5532,216 @@ def test_122_las_invitaciones_las_borra_solo_invitacion_conservar(cx):
     assert cx.execute("SELECT current_setting('app.funcion', true)").fetchone() == ("otra",)
     cx.execute("RESET ROLE")
     assert contar(cx, "invitacion", f"id = '{INV_42}'") == 0
+
+
+# ---- MATU-79 parte 3 (migración 0034): el contacto de las cuentas y del relevo, y el registro de avisos
+
+CONTACTO_79C = ("email", "telefono", "celular_verificado_en", "celular_canal")
+
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.parametrize("columna", CONTACTO_79C)
+def test_79c_nadie_lee_el_contacto_de_una_cuenta_desde_la_base(cx, columna):
+    """T1 (A1, hallazgo a): ni un miembro del grupo, ni el sistema con el grupo, ni la propia cuenta leen el correo o el
+    celular directo de usuario. El nombre, que usan los listados, sigue."""
+    for contexto in (
+        {"usuario_id": U_OBS_A, "grupo_id": G_A},
+        {"rol": "sistema", "grupo_id": G_A},
+        {"usuario_id": U_ADMIN_A, "grupo_id": G_A},
+    ):
+        como(cx, **contexto)
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute(f"SELECT {columna} FROM usuario WHERE id = %s", (U_ADMIN_A,))
+        assert cx.execute("SELECT nombre FROM usuario WHERE id = %s", (U_ADMIN_A,)).fetchone() == ("Admin A",), contexto
+        cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-39")
+@pytest.mark.rf("Ley-21.719")
+def test_79c_aviso_correo_solo_al_sistema_y_de_un_miembro_activo(cx):
+    """T2 (A3): el correo de un miembro activo del grupo del contexto, con el rol sistema y sin cuenta. Si no, NULL, sin
+    decir por qué. Las tareas no la ejecutan, y devuelve app.funcion como la encontró."""
+    correo = "SELECT aviso_correo(%s)"
+    como(cx, rol="sistema", grupo_id=G_A)
+    cx.execute("SELECT set_config('app.funcion', 'otra', true)")
+    assert cx.execute(correo, (U_ADMIN_A,)).fetchone() == ("admin.a@x.cl",)
+    assert cx.execute("SELECT current_setting('app.funcion', true)").fetchone() == ("otra",)
+    assert cx.execute(correo, (U_ADMIN_B,)).fetchone() == (None,)  # de otro grupo
+    assert cx.execute(correo, (U_ENC,)).fetchone() == (None,)  # sin membresía
+    cx.execute("RESET ROLE")
+    # Un miembro retirado y una cuenta bloqueada, como superusuario
+    cx.execute("UPDATE membresia SET estado = 'retirada' WHERE grupo_id = %s AND usuario_id = %s", (G_A, U_OBS_A))
+    cx.execute("UPDATE usuario SET estado = 'bloqueado' WHERE id = %s", (U_PAG_A,))
+    como(cx, rol="sistema", grupo_id=G_A)
+    assert cx.execute(correo, (U_OBS_A,)).fetchone() == (None,)
+    assert cx.execute(correo, (U_PAG_A,)).fetchone() == (None,)
+    assert cx.execute(correo, (U_PAG2_A,)).fetchone() == ("pag2.a@x.cl",)
+    cx.execute("RESET ROLE")
+    # Con la familia, con operación, con el sistema y una cuenta, o sin grupo: NULL
+    for contexto in (
+        {"usuario_id": U_ADMIN_A, "grupo_id": G_A},
+        {"rol": "operacion", "grupo_id": G_A},
+        {"rol": "sistema", "grupo_id": G_A, "usuario_id": U_ADMIN_A},
+        {"rol": "sistema"},
+    ):
+        como(cx, **contexto)
+        assert cx.execute(correo, (U_ADMIN_A,)).fetchone() == (None,), contexto
+        cx.execute("RESET ROLE")
+    # Las tareas no la ejecutan
+    for rol in ("matu_scheduler", "matu_publisher"):
+        como(cx, rol, rol="sistema", grupo_id=G_A)
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute(correo, (U_ADMIN_A,))
+        cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.rf("Ley-21.719")
+def test_79c_cuenta_contacto_propia_devuelve_solo_la_cuenta_del_contexto(cx):
+    """T3 (A2): la fila de app_usuario() y nada sin cuenta. El trigger invoker usuario_celular_cambia sigue dejando el
+    celular sin verificar cuando matu_app lo cambia (A8)."""
+    cx.execute("UPDATE usuario SET telefono = '+56900000079' WHERE id = %s", (U_OBS_A,))
+    cx.execute("UPDATE usuario SET celular_verificado_en = now() WHERE id = %s", (U_OBS_A,))
+    propia = (
+        "SELECT id, email, telefono, celular_verificado_en IS NOT NULL, celular_canal FROM cuenta_contacto_propia()"
+    )
+    como(cx, usuario_id=U_OBS_A, grupo_id=G_A)
+    assert cx.execute(propia).fetchall() == [(U_OBS_A, "obs.a@x.cl", "+56900000079", True, "sms")]
+    # La función no tiene parámetro: otra cuenta no sale ni filtrando por su id
+    assert cx.execute("SELECT 1 FROM cuenta_contacto_propia() WHERE id = %s", (U_ADMIN_A,)).fetchall() == []
+    # El trigger invoker lee NEW y OLD, sin permisos por columna
+    assert cx.execute(
+        "UPDATE usuario SET telefono = '+56900000080' WHERE id = app_usuario() RETURNING id"
+    ).fetchall() == [(U_OBS_A,)]
+    assert cx.execute(propia).fetchall() == [(U_OBS_A, "obs.a@x.cl", "+56900000080", False, "sms")]
+    cx.execute("RESET ROLE")
+    for contexto in (
+        {"rol": "sistema", "grupo_id": G_A},
+        {"rol": "operacion"},
+        {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE},
+        {},
+    ):
+        como(cx, **contexto)
+        assert cx.execute(propia).fetchall() == [], contexto
+        cx.execute("RESET ROLE")
+    for rol in ("matu_scheduler", "matu_publisher"):
+        como(cx, rol, usuario_id=U_OBS_A)
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute(propia)
+        cx.execute("RESET ROLE")
+
+
+def _sql_de(consulta) -> str:
+    """Una sentencia text() de SQLAlchemy con sus parámetros :nombre en el estilo de psycopg."""
+    import re
+
+    return re.sub(r"(?<!:):(\w+)", r"%(\1)s", str(consulta))
+
+
+@pytest.mark.rf("RF-05")
+@pytest.mark.rf("Ley-21.719")
+def test_79c_el_telefono_del_relevo_solo_para_admin_y_cuidador(cx):
+    """T4 (A4, A5 y A6, hallazgo b): el pagador con permiso ya no lee otorgado_a_telefono, y acceso_relevo_telefono lo
+    da solo a admin y cuidador activos del grupo del acceso, nunca después de los 30 días."""
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')", (G_A, U_NUEVO))
+    telefono = "SELECT acceso_relevo_telefono(%s)"
+    como(cx, usuario_id=U_PAG2_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("SELECT otorgado_a_telefono FROM acceso_relevo WHERE id = %s", (ACC_VIGENTE,))
+    # Sigue viendo el acceso (VE_PLAN), sin el teléfono
+    nombre = cx.execute("SELECT otorgado_a_nombre FROM acceso_relevo WHERE id = %s", (ACC_VIGENTE,)).fetchone()
+    assert nombre == ("Relevo",)
+    assert cx.execute(telefono, (ACC_VIGENTE,)).fetchone() == (None,)
+    cx.execute("RESET ROLE")
+    for usuario in (U_ADMIN_A, U_NUEVO):
+        como(cx, usuario_id=usuario, grupo_id=G_A)
+        assert cx.execute(telefono, (ACC_VIGENTE,)).fetchone() == ("+56911111111",), usuario
+        cx.execute("RESET ROLE")
+    # Otro grupo, operación, el sistema y el propio relevo: NULL
+    for contexto in (
+        {"usuario_id": U_ADMIN_B, "grupo_id": G_B},
+        {"rol": "operacion", "grupo_id": G_A},
+        {"rol": "sistema", "grupo_id": G_A},
+        {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE},
+    ):
+        como(cx, **contexto)
+        assert cx.execute(telefono, (ACC_VIGENTE,)).fetchone() == (None,), contexto
+        cx.execute("RESET ROLE")
+    # Después de los 30 días: relevo_conservar lo vació, y la función ya no tiene qué devolver
+    _acceso_b_vencido_hace_40_dias(cx)
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert cx.execute(telefono, (ACC_B_46,)).fetchone() == ("+56944444444",)
+    cx.execute("RESET ROLE")
+    como(cx, "matu_scheduler", rol="operacion")
+    cx.execute("SELECT relevo_conservar(now() - interval '30 days', now())")
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert cx.execute(telefono, (ACC_B_46,)).fetchone() == (None,)
+    cx.execute("RESET ROLE")
+    # Los triggers invoker siguen como matu_app: el teléfono solo se borra, y un acceso revocado no se reabre (A8)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE acceso_relevo SET otorgado_a_telefono = '+56900000079' WHERE id = %s", (ACC_VIGENTE,))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE acceso_relevo SET revocado_en = now() WHERE id = %s", (ACC_REVOCADO,))
+    # A6: el borrado de la persona vacía el teléfono como matu_app, sin leerlo
+    from app.modules.care_circle.domain.borrado import NOMBRE_BORRADO
+    from app.modules.care_plan.infrastructure.efecto_retiro import _ACCESOS_SIN_NOMBRE_NI_TELEFONO
+
+    [(ahora,)] = cx.execute("SELECT now()").fetchall()
+    cx.execute(
+        _sql_de(_ACCESOS_SIN_NOMBRE_NI_TELEFONO),
+        {"persona_id": P_A, "grupo_id": G_A, "ahora": ahora, "fijo": NOMBRE_BORRADO},
+    )
+    cx.execute("RESET ROLE")
+    vaciados = cx.execute(
+        "SELECT count(*) FROM acceso_relevo WHERE plan_id = %s AND otorgado_a_telefono IS NULL"
+        " AND telefono_borrado_en IS NOT NULL",
+        (PLAN_A,),
+    ).fetchone()
+    assert vaciados == (3,)
+
+
+@pytest.mark.rf("RF-39")
+@pytest.mark.rf("Ley-21.719")
+def test_79c_el_sistema_no_borra_ni_reescribe_el_registro_de_avisos(cx):
+    """T5 (A7 y D3): el sistema con el grupo lee, crea y actualiza estado, error y enviada_en, y nada más. Sin borrar,
+    sin otra columna, sin otro grupo y sin una cuenta en el contexto."""
+    propios = [_notificacion(cx, U_ADMIN_A, G_A, 79, 1), _notificacion(cx, U_OBS_A, G_A, 79, 1)]
+    como(cx, rol="sistema", grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("DELETE FROM notificacion WHERE grupo_id = %s", (G_A,))
+    for cambio in (
+        "canal = 'push'",
+        "plantilla = 'otra'",
+        "creada_en = now()",
+        f"usuario_id = '{U_PAG_A}'",
+        f"grupo_id = '{G_B}'",
+        "evento_id = 80",
+    ):
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute(f"UPDATE notificacion SET {cambio} WHERE id = %s", (propios[0],))
+    assert cx.execute(
+        "UPDATE notificacion SET estado = 'enviada', error = NULL, enviada_en = now() WHERE id = %s RETURNING id",
+        (propios[0],),
+    ).fetchall() == [(propios[0],)]
+    assert {r[0] for r in cx.execute("SELECT id FROM notificacion WHERE id = ANY(%s)", (propios,))} == set(propios)
+    cx.execute(
+        "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla) VALUES"
+        " (%s, %s, 81, 'correo', 'quiebre_proximo')",
+        (U_ADMIN_A, G_A),
+    )
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute(
+            "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla) VALUES"
+            " (%s, %s, 81, 'correo', 'quiebre_proximo')",
+            (U_ADMIN_B, G_B),
+        )
+    cx.execute("RESET ROLE")
+    # Con una cuenta en el contexto, el sistema no ve las del grupo (la cuenta ve solo las suyas)
+    como(cx, rol="sistema", grupo_id=G_A, usuario_id=U_PAG_A)
+    assert cx.execute("SELECT count(*) FROM notificacion WHERE id = ANY(%s)", (propios,)).fetchone() == (0,)
+    cx.execute("RESET ROLE")
+    assert _quedan(cx, "notificacion", propios) == set(propios)
+    assert cx.execute("SELECT estado FROM notificacion WHERE id = %s", (propios[0],)).fetchone() == ("enviada",)

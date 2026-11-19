@@ -52,9 +52,11 @@ _ESTADO = (
 
 # Quien compartió: su id y el nombre de pila copiado en el acceso, nunca el nombre completo ni el email
 # (decisión 35). Una cuenta eliminada o que RLS no muestra (ya no es miembro activo) queda con su id y sin nombre
-# (MATU-42, decisión 309)
+# (MATU-42, decisión 309). MATU-79 (0034, A5): el teléfono del relevo, con acceso_relevo_telefono, solo para admin y
+# cuidador activos; para los demás, NULL (la API tampoco se lo muestra, puede_ver_telefono)
 _LISTAR = text(
-    "SELECT a.id, a.otorgado_a_nombre, a.otorgado_a_telefono, a.secciones_permitidas, a.motivo, a.creado_en,"
+    "SELECT a.id, a.otorgado_a_nombre, acceso_relevo_telefono(a.id) AS otorgado_a_telefono, a.secciones_permitidas,"
+    " a.motivo, a.creado_en,"
     " a.expira_en, a.revocado_en, a.pin_intentos_fallidos, a.usos, a.ultimo_uso_en,"
     " a.otorgado_por AS autor_id, CASE WHEN u.id IS NOT NULL THEN a.nombre_pila_comparte END AS autor_nombre"
     " FROM acceso_relevo a LEFT JOIN usuario u ON u.id = a.otorgado_por AND u.eliminado_en IS NULL"

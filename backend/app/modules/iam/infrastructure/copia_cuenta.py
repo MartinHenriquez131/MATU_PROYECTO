@@ -76,9 +76,10 @@ def bloque_cuenta(nombre: str) -> FuenteBloqueCuenta | None:
 
 # --- Lo de iam ------------------------------------------------------------------------------------------------
 
+# MATU-79 (0034, A2): el contacto de la cuenta sale de cuenta_contacto_propia(); matu_app ya no lee esas columnas
 _CUENTA = text(
-    "SELECT nombre, email, telefono, celular_verificado_en, celular_canal, creado_en FROM usuario"
-    " WHERE id = app_usuario()"
+    "SELECT u.nombre, c.email, c.telefono, c.celular_verificado_en, c.celular_canal, u.creado_en"
+    " FROM usuario u JOIN cuenta_contacto_propia() c ON c.id = u.id WHERE u.id = app_usuario()"
 )
 _POLITICA = text(
     "SELECT version, huella, aceptada_en FROM aceptacion_politica WHERE usuario_id = app_usuario()"
