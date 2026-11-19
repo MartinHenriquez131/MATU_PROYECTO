@@ -68,7 +68,8 @@ export const PEDIDO = {
   otroComercioDetalle: 'El mismo producto. Si cambia el precio, lo ves antes de pagar.',
   quitar: 'Sacarlo del pedido y devolverme su precio',
   errRegla: 'No pudimos guardar qué hacer si falta. Revisa tu conexión y vuelve a intentarlo.',
-  siFaltaOtro: 'Si falta: lo buscamos en otro comercio.',
+  /** MATU-115 (2, decisión de Jorge del 17-11): buscar en otro comercio solo vale antes de pagar. */
+  siFaltaOtro: 'Si falta antes de pagar: lo buscamos en otro comercio.',
   siFaltaQuitar: 'Si falta: lo sacamos y te devolvemos su precio.',
   retractoTitulo: 'Derecho a retracto:',
   retracto: 'tienes 10 días hábiles desde que lo recibes.', // MATU-92 (C24, D1): «hábiles»

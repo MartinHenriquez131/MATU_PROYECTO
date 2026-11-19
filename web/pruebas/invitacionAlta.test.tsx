@@ -8,6 +8,10 @@ import { CrearCuenta, Entrar } from '../src/familia/Alta'
 import { responderCon } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
 import { responderPolitica } from './politicaFalsa'
+import { plazosConCarga } from './conCarga'
+
+// MATU-121 (H1 del QA): con la máquina cargada se pasaba del tope de 15 s; solo sube las esperas (MATU-119).
+plazosConCarga()
 
 const INVITACION = {
   token: 'TokenSinteticoDeInvitacion0123456789abcdefghij', // pragma: allowlist secret

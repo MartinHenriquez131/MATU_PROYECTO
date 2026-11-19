@@ -239,6 +239,7 @@ export const ID_OPERACION = {
   incidenciaAbierta: '81000000-0000-4000-8000-00000000d821',
   incidenciaEnGestion: '81000000-0000-4000-8000-00000000d827',
   incidenciaResuelta: '81000000-0000-4000-8000-00000000d825',
+  incidenciaNotaBorrada: '81000000-0000-4000-8000-00000000d828',
   ofertaPanal: '81000000-0000-4000-8000-00000000e001',
   ofertaToallitas: '81000000-0000-4000-8000-00000000e002',
   ofertaGuantes: '81000000-0000-4000-8000-00000000e003',
@@ -450,6 +451,23 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
     H.lineas = [linea(h1, 'Pañal adulto M x30', 'Paquete de 30 unidades', 1, 12990, { estado_linea: 'preparada' }), linea(h1, 'Toallitas húmedas x80', 'Paquete de 80 unidades', 2, 3290, { estado_linea: 'preparada' })]
     H.eventos.push(ev(-60, 'estado', 'operacion', 'no_entregado', { desde: 'en_ruta' }))
     pedidos.push(H)
+    // MATU-115 (P3 de Martín): una resuelta cuya clave de notas se destruyó (decisión 471), para ver en el
+    // teléfono «La nota ya no está disponible…» y que «Cómo se resolvió» no queda como título vacío. La vista
+    // entrega la nota y la resolución en `null`.
+    incidencias.push({
+      id: I.incidenciaNotaBorrada,
+      pedido_id: H.id,
+      tipo: 'entrega_fallida',
+      estado: 'resuelta',
+      descripcion: 'Nota sintética que ya no se puede leer.',
+      resolucion: 'Resolución sintética que ya no se puede leer.',
+      nota_disponible: false,
+      creada_en: en(-50),
+      resuelta_en: en(-20),
+      asignada: true,
+      asignada_a_mi: false,
+      version: 2,
+    })
 
     // 4831 · entregado hace 100 días: el retracto por correo responde 409 fuera de plazo.
     const k1 = nuevoId()

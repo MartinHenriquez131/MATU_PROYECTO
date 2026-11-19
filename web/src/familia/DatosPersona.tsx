@@ -2,9 +2,9 @@
 // v1.1, sección 3): todo lo que MATU guarda de la persona cuidada, para leerlo y descargarlo. La pide
 // admin o cuidador. La persona sale de la memoria de la app (`datosDe`), nunca de la ruta. Abrir la
 // página es pedir una copia (P1): un solo GET, y «Descargar» guarda esos mismos caracteres.
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
-import { Circle, CircleCheck, FileText, Hourglass, Info, RefreshCw, ShieldCheck, ShieldOff, ShieldQuestion, Trash2, type LucideIcon } from 'lucide-react'
+import { Circle, CircleCheck, CircleX, Clock, FileText, Hourglass, Info, RefreshCw, ShieldCheck, ShieldOff, ShieldQuestion, Trash2, type LucideIcon } from 'lucide-react'
 import { nombrePilaDe, type PersonaListada } from '../compartido/api/familia'
 import {
   pedirCopiaPersona,
@@ -708,8 +708,83 @@ function Pedido({ p, foco }: { p: PedidoCopia; foco?: React.Ref<HTMLLIElement> }
           {direccionEnLinea(p.entrega)}
         </p>
       )}
+      {p.retractos.length > 0 && <SeLePidioDevolver items={p.retractos} />}
       {p.lo_que_paso.length > 0 && <LoQuePaso items={p.lo_que_paso} />}
     </li>
+  )
+}
+
+/**
+ * MATU-115 (1.4): lo que alguien del grupo pidió devolver de este pedido, tal como lo trae la API
+ * (`RetractoCopia`). Sin montos (van arriba, en la devolución), sin `plazo_hasta` y sin quién lo pidió:
+ * el contrato no lo trae y no se deduce del historial (1.5). Las filas sin `items-start` (MATU-54 3.4):
+ * la etiqueta se alinea sola con `self-start`. Un estado o un motivo desconocido se omite.
+ */
+function SeLePidioDevolver({ items }: { items: PedidoCopia['retractos'] }) {
+  const R = T.seLePidioDevolver
+  const id = useId()
+  return (
+    <section aria-labelledby={id} className="flex w-full max-w-prose flex-col gap-2 border-t border-linea pt-3">
+      <h4 id={id} className="font-bold">
+        {R.titulo}
+      </h4>
+      <ul className="flex flex-col gap-3 divide-y divide-linea">
+        {items.map((r, i) => {
+          const estado: string = r.estado
+          const motivo = r.estado === 'rechazado' && r.motivo_rechazo ? R.motivo[r.motivo_rechazo] : undefined
+          return (
+            <li key={`${r.solicitado_en}-${i}`} className="flex min-w-0 flex-col gap-1 pt-3 first:pt-0">
+              {estado === 'solicitado' ? (
+                <Etiqueta tono="neutro" className="self-start">
+                  <Clock aria-hidden className="size-3.5 shrink-0" />
+                  <span className="min-w-0">{R.devolucionPedida}</span>
+                </Etiqueta>
+              ) : estado === 'devuelto' ? (
+                <Etiqueta tono="ok" className="self-start">
+                  <CircleCheck aria-hidden className="size-3.5 shrink-0" />
+                  <span className="min-w-0">
+                    {r.resuelto_en ? (
+                      <>
+                        {R.devueltoEl} <DiaDeInstante iso={r.resuelto_en} />
+                      </>
+                    ) : (
+                      R.devuelto
+                    )}
+                  </span>
+                </Etiqueta>
+              ) : estado === 'rechazado' ? (
+                <Etiqueta tono="neutro" className="self-start">
+                  <CircleX aria-hidden className="size-3.5 shrink-0" />
+                  <span className="min-w-0">{R.noSeAcepto}</span>
+                </Etiqueta>
+              ) : null}
+              <p className="text-base text-tenue break-words">
+                {R.sePidio[0]}
+                <DiaDeInstante iso={r.solicitado_en} fin={R.sePidio[1]} />
+              </p>
+              {r.lineas.length > 0 && (
+                <ul className="list-disc ps-5 text-base marker:text-tenue">
+                  {r.lineas.map((l, j) => (
+                    <li key={`${l.producto}-${j}`} className="break-words">
+                      {l.producto} ×{' '}
+                      <span className="cifras">{l.cantidad}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {r.incluye_envio && <p className="text-base">{R.tambienElEnvio}</p>}
+              {r.estado === 'rechazado' && r.resuelto_en && (
+                <p className="text-base text-tenue">
+                  {R.respondimos[0]}
+                  <DiaDeInstante iso={r.resuelto_en} fin={R.respondimos[1]} />
+                </p>
+              )}
+              {motivo && <p className="max-w-prose text-base">{motivo}</p>}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
@@ -726,9 +801,11 @@ function LoQuePaso({ items }: { items: PedidoCopia['lo_que_paso'] }) {
         {items.map((x, i) => {
           const resuelto = x.estado === 'resuelta'
           return (
-            <li key={`${x.anotado_en}-${i}`} className="flex flex-col items-start gap-1">
+            // MATU-115 (P1 del diseñador): sin `items-start`, que dejaba la nota más ancha que la tarjeta a
+            // 320 px con el texto al 200 % (WCAG 1.4.10); la etiqueta se alinea con `self-start` (MATU-54 3.4).
+            <li key={`${x.anotado_en}-${i}`} className="flex min-w-0 flex-col gap-1">
               <span className="font-bold break-words">{L.tipo[x.tipo] ?? L.tipo.otro}</span>
-              <Etiqueta>
+              <Etiqueta className="self-start">
                 {resuelto ? <CircleCheck aria-hidden className="size-3.5 shrink-0" /> : <Hourglass aria-hidden className="size-3.5 shrink-0" />}
                 <span className="min-w-0">{resuelto ? L.resuelto : L.revisando}</span>
               </Etiqueta>
@@ -740,7 +817,7 @@ function LoQuePaso({ items }: { items: PedidoCopia['lo_que_paso'] }) {
               ) : (
                 <>
                   {x.nota && <p className="text-base whitespace-pre-line break-words">{x.nota}</p>}
-                  {x.resolucion && (
+                  {x.resolucion?.trim() && (
                     <p className="text-base whitespace-pre-line break-words">
                       <b>{L.comoSeResolvio}</b> {x.resolucion}
                     </p>

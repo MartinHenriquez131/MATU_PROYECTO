@@ -90,7 +90,8 @@ describe('«Confirma tu celular» en modo angosto (H2 del 09-11)', () => {
     await u.click(await screen.findByRole('button', { name: 'Enviar código' }))
 
     const aviso = await screen.findByText(/^Te enviamos un código al/)
-    const numero = aviso.querySelector('span')!
+    // MATU-121: el primer span envuelve el ícono que flota en angosto (`hidden` fuera de ese modo); el número es el otro.
+    const numero = aviso.querySelector(':scope > span:not(.hidden)')!
     expect(numero.textContent).toBe(ENMASCARADO)
     expect(numero).toHaveClass('angosto:whitespace-normal')
     expect(aviso).toHaveTextContent('Te enviamos un código al +56 9 •••• ••37.')

@@ -80,7 +80,7 @@ describe('«Pedido» para quien «Se informa» (MATU-113, 2)', () => {
     expect(panal.getByText('Paquete de 30 unidades')).toBeVisible()
     expect(panal.getByText('De Almacén El Ejemplo (comercio ficticio)')).toBeVisible()
     expect(panal.getByText('envases de 30 unidades').closest('p')).toHaveTextContent('2 envases de 30 unidades')
-    expect(panal.getByText('Si falta: lo buscamos en otro comercio.')).toBeVisible()
+    expect(panal.getByText('Si falta antes de pagar: lo buscamos en otro comercio.')).toBeVisible()
     expect(within(lineaDe('Toallitas húmedas x80')).getByText('Si falta: lo sacamos del pedido.')).toBeVisible()
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByRole('radio')).toBeNull()
