@@ -70,9 +70,10 @@ Cada historia agrega aquí lo suyo:
   (local y pruebas), incluida produccion, y falla cerrada: ausente o vacía es la lista vacía y nadie activa push. Una
   entrada que no es UUID impide cargar la configuración, con un mensaje que nombra la variable y nunca el valor. Solo
   la consulta app/core/push_piloto.py
-- MATU-79 (deuda): DATABASE_URL, REDIS_URL y WEBPAY_CODIGO_COMERCIO son SecretStr, como las claves: ni el repr, ni el
-  str, ni model_dump muestran su valor. Quien necesita el valor lo pide con .get_secret_value() en el punto de uso
-  (el motor, los clientes de Redis, la pasarela), y nunca lo pasa a un log ni a un mensaje
+- MATU-79 (deuda): DATABASE_URL, SCHEDULER_DATABASE_URL, PUBLISHER_DATABASE_URL, REDIS_URL y WEBPAY_CODIGO_COMERCIO
+  son SecretStr, como las claves: ni el repr, ni el str, ni model_dump muestran su valor. Quien necesita el valor lo
+  pide con .get_secret_value() en el punto de uso (el motor, las tareas, los clientes de Redis, la pasarela), y nunca
+  lo pasa a un log ni a un mensaje. PUSH_CUENTAS_PERMITIDAS no sale en el repr ni en model_dump (exclude=True)
 """
 
 import base64
@@ -155,9 +156,10 @@ class Configuracion(BaseSettings):
 
     # MATU-74 (H2): las conexiones de las tareas, nunca de la API. SCHEDULER_DATABASE_URL como matu_scheduler, para
     # enumerar los grupos y llamar a las funciones de borrado y conservación; PUBLISHER_DATABASE_URL como
-    # matu_publisher, para las funciones del outbox. El trabajo por grupo sigue con DATABASE_URL (matu_app y RLS)
-    scheduler_database_url: str = Field(default="", repr=False)
-    publisher_database_url: str = Field(default="", repr=False)
+    # matu_publisher, para las funciones del outbox. El trabajo por grupo sigue con DATABASE_URL (matu_app y RLS).
+    # MATU-79: SecretStr, como DATABASE_URL. app/tareas.py las lee con .get_secret_value()
+    scheduler_database_url: SecretStr = SecretStr("")
+    publisher_database_url: SecretStr = SecretStr("")
 
     # Versión vigente de la política de privacidad (docs/legal/politica-privacidad.md del
     # repositorio MATU), en formato MAYOR.MENOR. Un valor con otro formato impide cargar la
@@ -286,9 +288,11 @@ class Configuracion(BaseSettings):
     codigo_retiro_secreto: SecretStr | None = Field(default=None, min_length=32, repr=False)
 
     # MATU-107 (C14): las cuentas del equipo que pueden activar los avisos push fuera de local y pruebas. Ver la
-    # cabecera de este archivo. NoDecode: se lee como texto separado por comas, no como JSON. repr=False: la lista
-    # nunca aparece en el repr de la configuración, un log ni un error
-    push_cuentas_permitidas: Annotated[frozenset[uuid.UUID], NoDecode] = Field(default_factory=frozenset, repr=False)
+    # cabecera de este archivo. NoDecode: se lee como texto separado por comas, no como JSON. repr=False y exclude=True
+    # (MATU-79): la lista nunca aparece en el repr de la configuración, en model_dump, un log ni un error
+    push_cuentas_permitidas: Annotated[frozenset[uuid.UUID], NoDecode] = Field(
+        default_factory=frozenset, repr=False, exclude=True
+    )
 
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",

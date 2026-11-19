@@ -410,8 +410,8 @@ def test_main_arma_cada_conexion_con_su_variable(monkeypatch: pytest.MonkeyPatch
     urls = {rol: f"postgresql+psycopg://{rol}@db.invalid/matu" for rol in roles}
     config = obtener_configuracion().model_copy(update={
         "database_url": SecretStr(urls["matu_app"]),
-        "scheduler_database_url": urls["matu_scheduler"],
-        "publisher_database_url": urls["matu_publisher"],
+        "scheduler_database_url": SecretStr(urls["matu_scheduler"]),
+        "publisher_database_url": SecretStr(urls["matu_publisher"]),
     })
     monkeypatch.setattr(tareas, "obtener_configuracion", lambda: config)
     monkeypatch.setattr(tareas, "create_engine", lambda url, **_: url)
@@ -439,7 +439,7 @@ class _Espia:
 
 _CONFIG = obtener_configuracion()
 requiere_roles = pytest.mark.skipif(
-    not (_CONFIG.scheduler_database_url and _CONFIG.publisher_database_url),
+    not (_CONFIG.scheduler_database_url.get_secret_value() and _CONFIG.publisher_database_url.get_secret_value()),
     reason="SCHEDULER_DATABASE_URL o PUBLISHER_DATABASE_URL no están definidas",
 )
 
@@ -463,8 +463,8 @@ def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> N
     )
     conexiones = {
         "matu_app": tareas.fabrica_tareas(config),
-        "matu_scheduler": tareas.fabrica_de_rol(config.scheduler_database_url, tareas.ROL_SCHEDULER),
-        "matu_publisher": tareas.fabrica_de_rol(config.publisher_database_url, tareas.ROL_PUBLISHER),
+        "matu_scheduler": tareas.fabrica_de_rol(config.scheduler_database_url.get_secret_value(), tareas.ROL_SCHEDULER),
+        "matu_publisher": tareas.fabrica_de_rol(config.publisher_database_url.get_secret_value(), tareas.ROL_PUBLISHER),
     }
     for rol, fabrica_rol in conexiones.items():
         assert fabrica_rol is not None, rol

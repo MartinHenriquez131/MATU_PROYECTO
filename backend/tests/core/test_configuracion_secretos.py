@@ -1,9 +1,12 @@
 """MATU-79 · El repr y el str de la configuración no muestran ningún secreto ni cadena de conexión.
 
 Una traza, un log de arranque o un print(config) en una sesión de depuración imprime el repr de Configuracion. Los
-secretos van como SecretStr (se ven como '**********'). DATABASE_URL, REDIS_URL y WEBPAY_CODIGO_COMERCIO llevaban
-repr=False desde el 18-11, que no los sacaba de model_dump: ahora también son SecretStr. Todos los valores son
-sintéticos y se generan al correr la prueba: ninguno queda escrito en el repositorio.
+secretos van como SecretStr (se ven como '**********'). Las tres cadenas de conexión a la base, REDIS_URL,
+WEBPAY_CODIGO_COMERCIO y PUSH_CUENTAS_PERMITIDAS llevaban repr=False desde el 18-11, que no los sacaba de model_dump:
+ahora las cinco primeras son SecretStr y la lista de cuentas va con exclude=True. Todos los valores son sintéticos y se
+generan al correr la prueba: ninguno queda escrito en el repositorio.
+
+Trazan a RNF-08 (arquitectura 2.2, «fuera de los registros», que sale de la sección 11.6, donde están los secretos).
 """
 
 import base64
@@ -21,8 +24,14 @@ from app.core.vapid import generar_clave_privada
 # uno de estos trozos en el nombre tiene que ser SecretStr o llevar repr=False (última prueba)
 TROZOS_SENSIBLES = ("url", "clave", "pepper", "kek_entorno", "llave", "secreto", "comercio", "cuentas")
 
-# La deuda de MATU-79: los tres campos que pasaron de repr=False a SecretStr
-MIGRADOS_A_SECRETSTR = ("database_url", "redis_url", "webpay_codigo_comercio")
+# La deuda de MATU-79: los campos que pasaron de repr=False a SecretStr
+MIGRADOS_A_SECRETSTR = (
+    "database_url", "scheduler_database_url", "publisher_database_url", "redis_url", "webpay_codigo_comercio"
+)
+# Y todos los que no pueden salir en ningún volcado: los anteriores y la lista de cuentas del piloto de push
+FUERA_DE_LOS_VOLCADOS = (*MIGRADOS_A_SECRETSTR, "push_cuentas_permitidas")
+
+pytestmark = pytest.mark.rf("RNF-08")
 
 
 @pytest.fixture(autouse=True)
@@ -87,11 +96,11 @@ def test_el_repr_y_el_str_no_muestran_ningun_valor(monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.parametrize("volcado", ["repr", "str", "model_dump", "model_dump_json"])
-def test_los_tres_campos_migrados_no_salen_en_ningun_volcado(monkeypatch: pytest.MonkeyPatch, volcado: str) -> None:
+def test_los_campos_migrados_no_salen_en_ningun_volcado(monkeypatch: pytest.MonkeyPatch, volcado: str) -> None:
     """Con repr=False el repr y el str ya los ocultaban, pero model_dump los entregaba en claro: esta prueba falla
     con la versión del 18-11 en model_dump y model_dump_json."""
     valores = _valores_sinteticos()
-    for campo in MIGRADOS_A_SECRETSTR:
+    for campo in FUERA_DE_LOS_VOLCADOS:
         monkeypatch.setenv(campo.upper(), valores[campo])
     monkeypatch.setenv("PASARELA_PAGO", "integracion")
     config = Configuracion()
@@ -104,25 +113,39 @@ def test_los_tres_campos_migrados_no_salen_en_ningun_volcado(monkeypatch: pytest
     }
     texto = volcados[volcado](config)
 
-    for campo in MIGRADOS_A_SECRETSTR:
+    for campo in FUERA_DE_LOS_VOLCADOS:
         for trozo in _a_la_vista(valores[campo]):
             assert trozo not in texto, f"{campo} aparece en {volcado}"
 
 
-def test_los_tres_campos_migrados_son_secretstr() -> None:
+def test_los_campos_migrados_son_secretstr() -> None:
     for campo in MIGRADOS_A_SECRETSTR:
         anotacion = Configuracion.model_fields[campo].annotation
         tipos = getattr(anotacion, "__args__", (anotacion,))
         assert SecretStr in tipos, f"{campo} no es SecretStr"
 
 
+def test_la_lista_de_cuentas_de_push_no_se_vuelca(monkeypatch: pytest.MonkeyPatch) -> None:
+    # exclude=True la saca de model_dump y model_dump_json; repr=False, del repr. app/core/push_piloto.py la lee igual
+    campo = Configuracion.model_fields["push_cuentas_permitidas"]
+    assert campo.exclude is True and campo.repr is False
+    cuenta = uuid.uuid4()
+    monkeypatch.setenv("PUSH_CUENTAS_PERMITIDAS", str(cuenta))
+    config = Configuracion()
+    assert config.push_cuentas_permitidas == frozenset({cuenta})
+    assert "push_cuentas_permitidas" not in config.model_dump()
+    assert "push_cuentas_permitidas" not in config.model_dump_json()
+
+
 def test_los_usos_leen_el_valor_con_get_secret_value(monkeypatch: pytest.MonkeyPatch) -> None:
-    # SecretStr no cambia el valor: el motor de la API, Redis y la pasarela lo piden con .get_secret_value()
+    # SecretStr no cambia el valor: el motor de la API, las tareas, Redis y la pasarela lo piden con .get_secret_value()
     valores = _valores_sinteticos()
     for campo in MIGRADOS_A_SECRETSTR:
         monkeypatch.setenv(campo.upper(), valores[campo])
     config = Configuracion()
     assert config.database_url.get_secret_value() == valores["database_url"]
+    assert config.scheduler_database_url.get_secret_value() == valores["scheduler_database_url"]
+    assert config.publisher_database_url.get_secret_value() == valores["publisher_database_url"]
     assert config.redis_url.get_secret_value() == valores["redis_url"]
     assert config.webpay_codigo_comercio is not None
     assert config.webpay_codigo_comercio.get_secret_value() == valores["webpay_codigo_comercio"]
@@ -131,6 +154,8 @@ def test_los_usos_leen_el_valor_con_get_secret_value(monkeypatch: pytest.MonkeyP
 def test_sin_variables_quedan_los_valores_por_omision() -> None:
     config = Configuracion()
     assert config.database_url.get_secret_value() == ""
+    assert config.scheduler_database_url.get_secret_value() == ""
+    assert config.publisher_database_url.get_secret_value() == ""
     assert config.redis_url.get_secret_value() == "redis://127.0.0.1:6379/0"
     assert config.webpay_codigo_comercio is None
 
