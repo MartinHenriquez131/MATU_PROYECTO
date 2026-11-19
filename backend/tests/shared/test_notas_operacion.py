@@ -168,7 +168,7 @@ def test_deks_falla_cerrada_con_una_clave_vigente_que_no_se_abre(caso: str) -> N
     assert str(error.value) == "las notas de operación no se pueden cifrar"
 
 
-# --- MATU-128 (R5, C9): sin correos ni teléfonos -------------------------------------------------------------------
+# --- MATU-128 (R5, C9): sin correos, teléfonos ni RUT---------------------------------------------------------------
 
 CON_CONTACTO = [
     "Escribir a contacto.familia@correo.ejemplo",
@@ -195,9 +195,40 @@ SIN_CONTACTO = [
     "La farmacia no tenía una de las bolsas",
     "Referencia ABCD22 de la parte",
     "Código interno a1b2c3912345678d4",
-    "Se usó el RUT 76000000-1 del comercio",
     "123 456 789 unidades",
     "x" * LARGO_MAXIMO_NOTA,
+]
+# El RUT (decisión de Jorge del 19-11): con los puntos de los miles o sin ellos, con el guion y el dígito verificador,
+# también la K. Todos sintéticos
+CON_RUT = [
+    "Se usó el RUT 76000000-1 del comercio",
+    "RUT 12.345.678-5",
+    "RUT 12345678-5",
+    "rut: 7.654.321-K de quien recibió",
+    "rut 7654321-k",
+    "Recibió (11.111.111-1).",
+    "11.111.111-1",
+    "Lo firmó 9.876.543-3, la vecina",
+    "Dos RUT: 12.345.678-5 y 7654321-K",
+]
+# Lo que tiene números y guiones o puntos, pero no la forma de un RUT: montos, fechas, referencias de pedido de cuatro
+# dígitos, números de serie y cantidades
+SIN_RUT = [
+    "Se devolvieron $69.000 a la tarjeta",
+    "Se cobró $1.290.000 y se devolvieron $69.000",
+    "Se devolvieron $12.345.678",
+    "Entregado el 19-11-2026; el 19/11/2026 se anotó",
+    "Fecha 2026-11-19 a las 14:30",
+    "Pedido 4790-2, reemplaza al pedido 4789",
+    "Pedidos 4790 y 4791, del 19.11.2026",
+    "Número de serie SN-20931-7 de la silla",
+    "Serie SN12345678-9 del colchón",
+    "Lote 2026-1234567-1 del proveedor",
+    "Serie 12345678-9A de la bomba",
+    "Serie 12345678-90 del equipo",
+    "Código 1.234.567.890-1 del despacho",
+    "12345678 unidades",
+    "Quedaron 123456-7 en la referencia",
 ]
 
 
@@ -205,7 +236,7 @@ SIN_CONTACTO = [
 def test_r5_una_nota_con_forma_de_correo_o_telefono_no_pasa_y_el_error_no_la_repite(dek: bytes, texto: str) -> None:
     with pytest.raises(NotaConContacto) as error:
         validar_nota(texto)
-    assert str(error.value) == "la nota no puede llevar correos ni teléfonos"
+    assert str(error.value) == "la nota no puede llevar correos, teléfonos ni RUT"
     assert texto not in repr(error.value)
     # Es una nota inválida, y cifrar_nota tampoco la cifra
     assert isinstance(error.value, NotaInvalida)
@@ -215,6 +246,24 @@ def test_r5_una_nota_con_forma_de_correo_o_telefono_no_pasa_y_el_error_no_la_rep
 
 @pytest.mark.parametrize("texto", SIN_CONTACTO)
 def test_r5_montos_fechas_cantidades_y_referencias_si_pasan(texto: str) -> None:
+    assert validar_nota(texto) == texto
+
+
+@pytest.mark.parametrize("texto", CON_RUT)
+def test_r5_una_nota_con_forma_de_rut_no_pasa_y_el_error_no_la_repite(dek: bytes, texto: str) -> None:
+    """Decisión de Jorge del 19-11: el RUT, con puntos o sin ellos, con el guion y el dígito verificador, es el mismo
+    NotaConContacto, con el mensaje fijo. Sin el cambio, el RUT sin puntos pasaba (se apartaba para no leerlo como un
+    teléfono) y el RUT con puntos también (el punto no separa una tira de teléfono)."""
+    with pytest.raises(NotaConContacto) as error:
+        validar_nota(texto)
+    assert str(error.value) == "la nota no puede llevar correos, teléfonos ni RUT"
+    assert texto not in repr(error.value)
+    with pytest.raises(NotaConContacto):
+        cifrar_nota(dek, uuid.uuid4(), "descripcion", texto)
+
+
+@pytest.mark.parametrize("texto", SIN_RUT)
+def test_r5_montos_fechas_pedidos_y_numeros_de_serie_no_son_un_rut(texto: str) -> None:
     assert validar_nota(texto) == texto
 
 

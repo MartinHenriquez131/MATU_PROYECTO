@@ -201,17 +201,21 @@ def test_e5_en_el_orden_en_que_se_anoto_y_con_la_clave_destruida_no_disponible(d
     "Llamar al +56 9 1234 5678 antes de entregar",
     "La vecina dejó su número 9 8765 4321",
     "Fijo de la farmacia: (2) 2345 6789",
+    "Recibió quien tiene el RUT 12.345.678-5",
+    "Recibió quien tiene el RUT 7654321-K",
 ])
 def test_r5_la_nota_con_forma_de_correo_o_telefono_responde_422_y_no_se_guarda(despacho: Despacho, texto: str) -> None:
-    """R5 (C9): la consola rechaza una nota o una resolución con forma de correo o de teléfono chileno, con 422
-    nota-con-contacto y un mensaje fijo que no repite el texto, sin guardar nada. El texto no va al log."""
+    """R5 (C9): la consola rechaza una nota o una resolución con forma de correo, de teléfono chileno o de RUT (el RUT,
+    decisión de Jorge del 19-11), con 422 nota-con-contacto y un mensaje fijo que no repite el texto, sin guardar
+    nada. El texto no va al log."""
     d = despacho
     _, pedido = d.pagado()
     antes = d.sql("SELECT count(*) FROM incidencia WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
     r = d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "otro", "descripcion": texto})
     assert r.status_code == 422, r.text
     assert r.json()["type"] == "/errores/nota-con-contacto"
-    assert r.json()["detail"] == "La nota no puede llevar correos ni teléfonos"
+    assert r.json()["detail"] == "La nota no puede llevar correos, teléfonos ni RUT"
+    assert r.json()["errores"][0]["mensaje"] == "sin correos, teléfonos ni RUT"
     assert [e["campo"] for e in r.json()["errores"]] == ["descripcion"]
     assert texto not in r.text
     assert d.sql("SELECT count(*) FROM incidencia WHERE pedido_id = %s", uuid.UUID(pedido["id"])) == antes
@@ -228,8 +232,10 @@ def test_r5_la_nota_con_forma_de_correo_o_telefono_responde_422_y_no_se_guarda(d
 
 
 def test_r5_montos_fechas_y_cantidades_si_se_anotan(despacho: Despacho) -> None:
-    """R5 sin falsos positivos en lo de todos los días: un monto con puntos, una fecha, la referencia y cantidades."""
+    """R5 sin falsos positivos en lo de todos los días: un monto con puntos, una fecha, la referencia, un número de
+    serie y cantidades."""
     d = despacho
     _, pedido = d.pagado()
-    nota = "Faltaron 2 de 10 unidades el 19/11/2026; se devolvieron $25.980 del pedido 4790 a las 14:30"
+    nota = ("Faltaron 2 de 10 unidades el 19-11-2026; se devolvieron $69.000 del pedido 4790 a las 14:30; serie"
+            " SN-20931-7")
     assert _anotar(d, pedido, nota)["descripcion"] == nota

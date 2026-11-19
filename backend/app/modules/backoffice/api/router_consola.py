@@ -377,8 +377,11 @@ def _custodia(custodia: CustodiaNotas | None) -> CustodiaNotas:
     return custodia
 
 
-# MATU-128 (R5, C9): el 422 de una nota con forma de correo o de teléfono. Mensaje fijo: nunca repite el texto
-_NOTA_CON_CONTACTO = "/errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo o de teléfono"
+# MATU-128 (R5, C9): el 422 de una nota con forma de correo, de teléfono o de RUT (el RUT, decisión de Jorge del
+# 19-11). Mensaje fijo: nunca repite el texto
+_NOTA_CON_CONTACTO = (
+    "/errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo, de teléfono o de RUT"
+)
 
 
 def _sin_contacto(campo: str, texto: str | None) -> None:
@@ -389,8 +392,8 @@ def _sin_contacto(campo: str, texto: str | None) -> None:
         validar_nota(texto)
     except NotaConContacto:
         raise ErrorMATU(
-            422, tipo="nota-con-contacto", detalle="La nota no puede llevar correos ni teléfonos",
-            errores=[{"campo": campo, "mensaje": "sin correos ni teléfonos", "tipo": "nota_con_contacto"}],
+            422, tipo="nota-con-contacto", detalle="La nota no puede llevar correos, teléfonos ni RUT",
+            errores=[{"campo": campo, "mensaje": "sin correos, teléfonos ni RUT", "tipo": "nota_con_contacto"}],
         ) from None
 
 
@@ -467,7 +470,7 @@ def ver_incidencia(incidencia_id: _ID, operador: Operador, fabrica: Fabrica, res
         "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la leen quien pagó el pedido, en"
         " «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, teléfonos,"
         " correos, datos de salud, la dirección ni quién de la familia reclamó (D5, ampliada por MATU-128). Un texto"
-        " con forma de correo o de teléfono chileno responde 422 nota-con-contacto, sin guardar nada. Se guarda"
+        " con forma de correo, de teléfono chileno o de RUT responde 422 nota-con-contacto, sin guardar nada. Se guarda"
         " cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin"
         " el texto. El texto nunca va a logs, errores, eventos ni auditoría."
     ),

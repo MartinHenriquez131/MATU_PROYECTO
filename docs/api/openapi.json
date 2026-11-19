@@ -11949,7 +11949,7 @@
             }
           },
           "422": {
-            "description": "falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido; o /errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo o de teléfono",
+            "description": "falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido; o /errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo, de teléfono o de RUT",
             "content": {
               "application/problem+json": {}
             }
@@ -11963,7 +11963,7 @@
           "operacion"
         ],
         "summary": "Crear Incidencia",
-        "description": "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la leen quien pagó el pedido, en «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, teléfonos, correos, datos de salud, la dirección ni quién de la familia reclamó (D5, ampliada por MATU-128). Un texto con forma de correo o de teléfono chileno responde 422 nota-con-contacto, sin guardar nada. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.",
+        "description": "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la leen quien pagó el pedido, en «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, teléfonos, correos, datos de salud, la dirección ni quién de la familia reclamó (D5, ampliada por MATU-128). Un texto con forma de correo, de teléfono chileno o de RUT responde 422 nota-con-contacto, sin guardar nada. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.",
         "operationId": "crear_incidencia_v1_operacion_pedidos__pedido_id__incidencias_post",
         "security": [
           {
@@ -12022,7 +12022,7 @@
             }
           },
           "422": {
-            "description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres; o /errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo o de teléfono",
+            "description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres; o /errores/nota-con-contacto: la nota o la resolución tiene algo con forma de correo, de teléfono o de RUT",
             "content": {
               "application/problem+json": {}
             }
@@ -23831,7 +23831,7 @@
               }
             ],
             "title": "Resolucion",
-            "description": "Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo o de teléfono responde 422 nota-con-contacto"
+            "description": "Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo, de teléfono o de RUT responde 422 nota-con-contacto"
           },
           "asignacion": {
             "anyOf": [
@@ -23873,7 +23873,7 @@
             "maxLength": 500,
             "minLength": 1,
             "title": "Descripcion",
-            "description": "Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo o de teléfono responde 422 nota-con-contacto"
+            "description": "Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo, de teléfono o de RUT responde 422 nota-con-contacto"
           },
           "asignarme": {
             "type": "boolean",
