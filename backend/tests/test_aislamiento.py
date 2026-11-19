@@ -4061,7 +4061,11 @@ def test_las_politicas_del_marcador_son_solo_de_matu_owner_y_las_definer_de_matu
                        "operacion_cuenta_activa", "cuenta_es_operacion", "operacion_solicitante_retracto",
                        # MATU-116 (0032): con el marcador ya puesto, app_pago_el_pedido responde false; las de «Tus
                        # datos» fallan cerradas fuera de una sesión de familia y filtran por app_usuario()
-                       "app_pago_el_pedido", "cuenta_pagos", "cuenta_retractos", "cuenta_condiciones"}
+                       "app_pago_el_pedido", "cuenta_pagos", "cuenta_retractos", "cuenta_condiciones",
+                       # MATU-79 (0034): cuenta_contacto_propia filtra por app_usuario(); acceso_relevo_telefono por el
+                       # grupo y app_escribe_plan(), fuera de operación, sistema y relevo; aviso_correo pisa el
+                       # marcador con 'aviso_correo', exige sistema sin cuenta y devuelve el anterior al salir
+                       "cuenta_contacto_propia", "acceso_relevo_telefono", "aviso_correo"}
 
 
 # ------------------------------------------------------------------ MATU-46 (migración 0027): el teléfono del relevo
