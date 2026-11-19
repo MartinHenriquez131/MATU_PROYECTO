@@ -492,6 +492,8 @@ Todas son **[NUEVO]** y van con el verbo de ADR-027, «devolver».
 
 **Nunca** el teléfono de contacto del pedido, ni el tipo de tarjeta, las cuotas o los dígitos, ni la orden, el token o el código de autorización (D-54-4 y D-54-14). El contrato no los trae. Los datos de la tarjeta van solo en «Tus datos» de quien pagó (5.4).
 
+**(MATU-115)** Dentro de cada pedido, después de «Entrega» y antes de «Lo que pasó con tu pedido», va la subsección «Lo que se pidió devolver» con `retractos`, y la frase de las devoluciones suma el motivo `retracto`. Están en `matu-115-retractos-y-si-falta.md`, sección 1.
+
 #### 3.4.9 Quién abrió o editó la ficha (`historial`)
 
 - Bajo el `h2`, la frase de los 90 días: «Los de los últimos 90 días. Lo anterior va en el archivo.» **[NUEVO]**, en `p text-base text-tenue`.

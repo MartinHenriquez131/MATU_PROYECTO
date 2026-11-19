@@ -4,6 +4,8 @@ Demo de MATU para la presentación del viernes 30 de octubre de 2026. Es una **w
 
 Todos los datos son sintéticos: Carmen cuida a María, Rosa la reemplaza y Rodrigo es su hijo.
 
+> **Prototipo histórico de octubre.** `Demo/` es el prototipo que se mostró el 30 de octubre de 2026 y no se mantiene al día con MATU. La aplicación del semestre es `web/`. Sus reglas de pago, como «Pagas lo mismo» y «la diferencia la pone MATU» cuando un producto falta y se busca en otro comercio, son anteriores a cómo rige hoy el ADR-027 y **ya no rigen**: hoy, si un producto falta antes de pagar, se busca en otro comercio y el precio nuevo se ve antes de pagar; si falta después de pagar, se saca del pedido y se anula su cobro a la misma tarjeta (condiciones del pedido 0.3, §5; MATU-112 y MATU-115). Para lo que dice MATU hoy, mandan `docs/lenguaje.md` y las condiciones del pedido, no esta demo. Decisión 5 de Jorge del 17-11-2026.
+
 ## Cómo correrla
 
 Requiere Node 22. Desde `Demo/`:

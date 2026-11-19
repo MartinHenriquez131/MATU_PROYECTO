@@ -102,7 +102,7 @@ describe('Antes de pagar, con el total vigente', () => {
     expect(panal.getByText('De Almacén El Ejemplo (comercio ficticio)')).toBeVisible()
     expect(panal.getByText('×', { exact: false }).closest('p')).toHaveTextContent('2 × $12.990')
     expect(panal.getByText('Subtotal:').closest('p')).toHaveTextContent('Subtotal: $25.980')
-    expect(panal.getByText('Si falta: lo buscamos en otro comercio.')).toBeVisible()
+    expect(panal.getByText('Si falta antes de pagar: lo buscamos en otro comercio.')).toBeVisible()
     expect(panal.getByText('Derecho a retracto:').closest('p')!.className).toMatch(/\btext-lg\b/)
     const entrega = screen.getByRole('region', { name: 'Entrega' })
     expect(within(entrega).getByText('Entrega: Entre 24 y 48 horas hábiles')).toBeVisible()
