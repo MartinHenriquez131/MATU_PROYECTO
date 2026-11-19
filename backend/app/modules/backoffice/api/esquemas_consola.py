@@ -29,9 +29,9 @@ Pesos = Annotated[int, Field(ge=0, description="Pesos enteros, con IVA incluido"
 # MATU-128 (R4 y R5, C8 y C9): la advertencia de la consola, la regla D5 ampliada y el filtro de correos, teléfonos
 # y RUT
 _TEXTO_NOTA = (
-    "Hasta 500 caracteres. No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la"
-    " familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo, de"
-    " teléfono o de RUT responde 422 nota-con-contacto"
+    "Hasta 500 caracteres. No escribas nombres, RUT, teléfonos, correos, datos de salud ni la dirección, ni quién"
+    " de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida. Un texto con forma de correo,"
+    " de teléfono o de RUT responde 422 nota-con-contacto"
 )
 # Decisión 471: la nota se guarda cifrada con la clave de las notas de la persona
 _NOTA_DISPONIBLE = (

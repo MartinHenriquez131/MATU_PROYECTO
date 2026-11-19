@@ -166,8 +166,8 @@ def test_los_motivos_son_los_de_la_especificacion(esquema: dict[str, Any]) -> No
 @pytest.mark.rf("Ley-21.719")
 def test_128_lo_que_paso_tiene_siete_campos_estrictos_y_sus_codigos(esquema: dict[str, Any]) -> None:
     """MATU-128 (C2 y C5): la proyección es extra="forbid", con los mismos siete campos de LoQuePasoCopia («Datos de»)
-    y nunca el id de la incidencia, quién la anotó, a quién se asignó ni su versión. La ruta dice 200, 401, 404 y 503,
-    y su 200 es LoQuePasoDelPedido."""
+    y nunca el id de la incidencia, quién la anotó, a quién se asignó ni su versión. La ruta dice 200, 401, 404, 422
+    (el de validación que FastAPI suma por los parámetros) y 503, y su 200 es LoQuePasoDelPedido."""
     schemas = esquema["components"]["schemas"]
     for nombre in ("LoQuePasoDelPedido", "CosaAnotadaVista"):
         assert schemas[nombre].get("additionalProperties") is False, nombre

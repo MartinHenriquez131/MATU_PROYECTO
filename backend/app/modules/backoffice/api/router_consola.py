@@ -468,11 +468,11 @@ def ver_incidencia(incidencia_id: _ID, operador: Operador, fabrica: Fabrica, res
                      + _NOTA_CON_CONTACTO, **_PROBLEMA}},
     description=(
         "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la leen quien pagó el pedido, en"
-        " «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, teléfonos,"
-        " correos, datos de salud, la dirección ni quién de la familia reclamó (D5, ampliada por MATU-128). Un texto"
-        " con forma de correo, de teléfono chileno o de RUT responde 422 nota-con-contacto, sin guardar nada. Se guarda"
-        " cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin"
-        " el texto. El texto nunca va a logs, errores, eventos ni auditoría."
+        " «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, RUT,"
+        " teléfonos, correos, datos de salud, la dirección ni quién de la familia reclamó (D5, ampliada por MATU-128)."
+        " Un texto con forma de correo, de teléfono chileno o de RUT responde 422 nota-con-contacto, sin guardar nada."
+        " Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita"
+        " incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría."
     ),
 )
 def crear_incidencia(pedido_id: _ID, solicitud: SolicitudIncidencia, request: Request, operador: Operador,

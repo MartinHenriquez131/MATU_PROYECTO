@@ -41,13 +41,21 @@ def dek() -> bytes:
 def test_la_nota_se_cifra_y_se_descifra_con_su_incidencia_y_su_campo(dek: bytes, texto: str) -> None:
     incidencia = uuid.uuid4()
     cifrado = cifrar_nota(dek, incidencia, "descripcion", texto)
-    # El cuerpo cifrado no es el texto. Con un texto corto («x»), un byte al azar del nonce o de la etiqueta puede
-    # coincidir con él: la búsqueda como subcadena solo vale desde 8 bytes (antes fallaba ~1 de cada 9 corridas)
-    assert cifrado[12:-16] != texto.encode("utf-8")
-    if len(texto.encode("utf-8")) >= 8:
-        assert texto.encode("utf-8") not in cifrado
     assert CIFRADO_MIN <= len(cifrado) <= CIFRADO_MAX
     assert descifrar_nota(dek, incidencia, "descripcion", cifrado) == texto
+
+
+# Que el texto no quede en claro se prueba solo con notas de 16 bytes o más. AES-GCM cifra en modo contador (el cuerpo
+# es el texto XOR un flujo al azar), así que una nota de 1 byte sale igual a sí misma 1 de cada 256 veces, y una
+# búsqueda como subcadena en el cifrado completo coincide aún más seguido (MATU-128, O1: dejó en rojo el CI). Desde
+# 16 bytes, que el texto aparezca en alguna posición del cifrado tiene una probabilidad menor que 2^-100: la prueba
+# no depende del azar
+@pytest.mark.parametrize("texto", ["Faltó un paquete de pañales; se devolvió su monto", "x" * LARGO_MAXIMO_NOTA])
+def test_la_nota_cifrada_no_lleva_el_texto_en_claro(dek: bytes, texto: str) -> None:
+    claro = texto.encode("utf-8")
+    assert len(claro) >= 16
+    cifrado = cifrar_nota(dek, uuid.uuid4(), "descripcion", texto)
+    assert claro not in cifrado
 
 
 def test_el_nonce_cambia_en_cada_cifrado(dek: bytes) -> None:
