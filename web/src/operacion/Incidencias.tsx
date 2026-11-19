@@ -153,6 +153,8 @@ function DetalleIncidencia({ id, onVolver, onCambio }: { id: string; onVolver: (
   const [resolviendo, setResolviendo] = useState(false)
   const [texto, setTexto] = useState('')
   const [sinTexto, setSinTexto] = useState(false)
+  /** MATU-128 (C8): el 422 nota-con-contacto al resolver. */
+  const [conContacto, setConContacto] = useState(false)
   const [ocupado, setOcupado] = useState<'gestion' | 'resolver' | null>(null)
   const [nota, setNota] = useState<{ tono: 'ok' | 'atenta' | 'pronto'; texto: string; n: number } | null>(null)
   const contador = useRef(0)
@@ -230,6 +232,7 @@ function DetalleIncidencia({ id, onVolver, onCambio }: { id: string; onVolver: (
       return
     }
     setSinTexto(false)
+    setConContacto(false)
     setOcupado('resolver')
     try {
       const r = await editarIncidencia(i.id, { estado: 'resuelta', resolucion: texto.trim() }, etag.current || etagIncidencia(i))
@@ -244,7 +247,11 @@ function DetalleIncidencia({ id, onVolver, onCambio }: { id: string; onVolver: (
       const f = leerFallo(x)
       if (f.status === 412 || f.status === 409) await conflicto()
       else if (f.status === 422 && esProblema(f.tipo, 'falta-resolucion')) setSinTexto(true)
-      else avisar('pronto', T.error)
+      else if (f.status === 422 && esProblema(f.tipo, 'nota-con-contacto')) {
+        // MATU-128 (C8): lo escrito se queda y el foco vuelve al campo para quitar el correo, el teléfono o el RUT.
+        setConContacto(true)
+        pedirFoco('incidencia-resolucion', 'textarea')
+      } else avisar('pronto', T.error)
     } finally {
       setOcupado(null)
     }
@@ -342,13 +349,14 @@ function DetalleIncidencia({ id, onVolver, onCambio }: { id: string; onVolver: (
               onCambio={(v) => {
                 setTexto(v)
                 setSinTexto(false)
+                setConContacto(false)
               }}
-              describe={sinTexto ? 'ayuda-resolucion resolucion-error' : 'ayuda-resolucion'}
-              error={sinTexto}
+              describe={sinTexto || conContacto ? 'ayuda-resolucion resolucion-error' : 'ayuda-resolucion'}
+              error={sinTexto || conContacto}
               contador={T.contador}
             />
           </div>
-          {sinTexto && <MensajeError id="resolucion-error">{T.sinResolucion}</MensajeError>}
+          {(sinTexto || conContacto) && <MensajeError id="resolucion-error">{sinTexto ? T.sinResolucion : T.conContacto}</MensajeError>}
           <Acciones>
             <Boton type="submit" ocupado={ocupado === 'resolver'} textoOcupado={T.guardando}>
               {T.marcarResuelta}
@@ -358,6 +366,7 @@ function DetalleIncidencia({ id, onVolver, onCambio }: { id: string; onVolver: (
               onClick={() => {
                 setResolviendo(false)
                 setSinTexto(false)
+                setConContacto(false)
                 pedirFoco('incidencia-resolver')
               }}
             >
@@ -406,7 +415,7 @@ export function AnotarIncidencia({
   const { fallo } = useOperacion()
   const [tipo, setTipo] = useState<TipoIncidencia | null>(tipoInicial)
   const [texto, setTexto] = useState('')
-  const [errores, setErrores] = useState<{ tipo?: boolean; texto?: 'vacia' | 'larga' }>({})
+  const [errores, setErrores] = useState<{ tipo?: boolean; texto?: 'vacia' | 'larga' | 'contacto' }>({})
   const [falla, setFalla] = useState<{ texto: string; n: number } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const contador = useRef(0)
@@ -431,7 +440,11 @@ export function AnotarIncidencia({
     } catch (x) {
       if (fallo(x)) return
       const f = leerFallo(x)
-      if (f.status === 422 && f.errores.some((c) => c.campo === 'descripcion')) {
+      // MATU-128 (C8): antes que el largo, porque el 422 nota-con-contacto también es de la nota.
+      if (f.status === 422 && esProblema(f.tipo, 'nota-con-contacto')) {
+        setErrores({ texto: 'contacto' })
+        pedirFoco('anotar-nota', 'textarea')
+      } else if (f.status === 422 && f.errores.some((c) => c.campo === 'descripcion')) {
         setErrores({ texto: 'larga' })
         pedirFoco('anotar-nota', 'textarea')
       } else if (f.status === 404 || f.status === 409 || f.status === 422) setFalla({ texto: T.soloPagados, n: ++contador.current })
@@ -474,7 +487,7 @@ export function AnotarIncidencia({
           contador={T.contador}
         />
       </div>
-      {errores.texto && <MensajeError id="anotar-nota-error">{errores.texto === 'vacia' ? T.notaVacia : T.muyLarga}</MensajeError>}
+      {errores.texto && <MensajeError id="anotar-nota-error">{errores.texto === 'vacia' ? T.notaVacia : errores.texto === 'contacto' ? T.conContacto : T.muyLarga}</MensajeError>}
       {falla && (
         <div key={falla.n}>
           <Nota tono={falla.texto === T.soloPagados ? 'atenta' : 'pronto'} rol="alert">

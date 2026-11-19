@@ -358,6 +358,10 @@ describe('El retracto que llegó por correo', () => {
 
 describe('Incidencias', () => {
   const NOTA = 'El comercio avisó que faltó la crema.'
+  const AYUDA = 'No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida.'
+  const CON_CONTACTO = 'La nota no puede llevar correos, teléfonos ni RUT. Quítalos para guardarla.'
+  /** MATU-128 (C8): el 422 cuando la nota o la resolución tiene forma de correo, de teléfono o de RUT (el RUT lo suma el backend). */
+  const NOTA_CON_CONTACTO = { status: 422, cuerpo: { type: '/errores/nota-con-contacto', status: 422 } }
 
   it('anotar desde el pedido: la ayuda antes del campo y en su descripción, el tope de 500 y el contador', async () => {
     const almacen = vigilarAlmacenamiento()
@@ -366,8 +370,9 @@ describe('Incidencias', () => {
     await screen.findByRole('heading', { level: 3, name: 'Anotar una incidencia' })
     const campo = screen.getByLabelText('Nota')
     expect(campo).toHaveAttribute('maxlength', '500')
-    expect(campo).toHaveAccessibleDescription(/No escribas nombres, datos de salud ni la dirección\. La familia puede leer esta nota\./)
-    const ayuda = screen.getByText('No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota.')
+    // MATU-128 (C8): qué no lleva y quién la lee, como en el contrato.
+    expect(campo).toHaveAccessibleDescription(expect.stringContaining(AYUDA))
+    const ayuda = screen.getByText(AYUDA)
     expect(ayuda.compareDocumentPosition(campo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('de 500 caracteres')).toBeVisible()
     await usuario.click(screen.getByRole('button', { name: 'Guardar la incidencia' }))
@@ -410,6 +415,37 @@ describe('Incidencias', () => {
     expect(screen.getByLabelText('Nota')).toHaveValue(NOTA)
   })
 
+  it('MATU-128 (C8): 422 nota-con-contacto al anotar: su texto con el foco en el campo, no el del largo ni el general', async () => {
+    const { usuario } = await abrirEntregado('4825', (l) => (l.endsWith('/incidencias') && l.startsWith('POST') ? NOTA_CON_CONTACTO : undefined))
+    await usuario.click(screen.getByRole('button', { name: 'Anotar una incidencia' }))
+    await usuario.click(await screen.findByRole('radio', { name: 'Otra cosa' }))
+    await usuario.type(screen.getByLabelText('Nota'), NOTA)
+    await usuario.click(screen.getByRole('button', { name: 'Guardar la incidencia' }))
+    expect(await screen.findByText(CON_CONTACTO)).toBeVisible()
+    const campo = screen.getByLabelText('Nota')
+    await waitFor(() => expect(campo).toHaveFocus())
+    expect(campo).toHaveAccessibleDescription(expect.stringContaining(CON_CONTACTO))
+    expect(campo).toHaveValue(NOTA)
+    expect(screen.queryByText('La nota admite hasta 500 caracteres. Acórtala un poco para guardarla.')).toBeNull()
+    expect(screen.queryByText('Solo se anotan incidencias de pedidos pagados.')).toBeNull()
+    expect(document.body.textContent).not.toMatch(/No pudimos|Lo que escribiste sigue aquí/)
+  })
+
+  it('MATU-128 (C8): 422 nota-con-contacto al resolver: su texto con el foco en el campo, no el general', async () => {
+    const { usuario } = await abrir('/operacion/incidencias', (l) => (l === `PATCH /v1/operacion/incidencias/${ID.incidenciaAbierta}` ? NOTA_CON_CONTACTO : undefined))
+    await usuario.click(await screen.findByRole('button', { name: /^Falta un producto, Abiertas/ }))
+    await usuario.click(await screen.findByRole('button', { name: 'Resolver' }))
+    const campo = await screen.findByLabelText('Cómo se resolvió')
+    await usuario.type(campo, 'Se devolvió el suplemento a la tarjeta.')
+    await usuario.click(screen.getByRole('button', { name: 'Marcar resuelta' }))
+    expect(await screen.findByText(CON_CONTACTO)).toBeVisible()
+    await waitFor(() => expect(campo).toHaveFocus())
+    expect(campo).toHaveAccessibleDescription(expect.stringContaining(CON_CONTACTO))
+    expect(campo).toHaveValue('Se devolvió el suplemento a la tarjeta.')
+    expect(screen.queryByText('Escribe cómo se resolvió, sin nombres ni datos de salud.')).toBeNull()
+    expect(document.body.textContent).not.toMatch(/No pudimos|Lo que escribiste sigue aquí/)
+  })
+
   it('la lista no muestra la nota; el detalle sí, y «Pasar a en gestión» manda If-Match', async () => {
     const { api, usuario, amable } = await abrir('/operacion/incidencias')
     const fila = await screen.findByRole('button', { name: /^Falta un producto, Abiertas, Pedido 4821/ })
@@ -436,7 +472,7 @@ describe('Incidencias', () => {
     await usuario.click(await screen.findByRole('button', { name: /^Falta un producto, Abiertas/ }))
     await usuario.click(await screen.findByRole('button', { name: 'Resolver' }))
     const campo = await screen.findByLabelText('Cómo se resolvió')
-    expect(campo).toHaveAccessibleDescription(/La familia puede leer esta nota\./)
+    expect(campo).toHaveAccessibleDescription(expect.stringContaining(AYUDA))
     await usuario.click(screen.getByRole('button', { name: 'Marcar resuelta' }))
     expect(screen.getByText('Escribe cómo se resolvió, sin nombres ni datos de salud.')).toBeVisible()
     await usuario.type(campo, 'Se devolvió el suplemento a la tarjeta.')
