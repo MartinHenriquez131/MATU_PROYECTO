@@ -22,6 +22,8 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from dotenv import load_dotenv
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
@@ -2043,4 +2045,68 @@ def test_0034_politicas_de_contacto_y_baja_al_esquema_de_0033(base_desechable):
         ("ALL", "{public}")]
     assert consultar("SELECT count(*) FROM pg_proc WHERE proname IN ('cuenta_contacto_propia', 'aviso_correo',"
                      " 'acceso_relevo_telefono')") == [(0,)]
+    alembic("upgrade", "head")
+
+
+# ---- 0036 (MATU-128): quien pagó un pedido ve lo que pasó con él
+
+# La anterior de la 0036: hoy la 0034; con la 0035 de MATU-124 en la rama, la 0035. Se lee de la migración
+ANTES_0036 = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini"))).get_revision("0036").down_revision
+# C3 y C10: las dos nuevas, con el marcador, solo TO matu_owner
+POLITICAS_MATU_OWNER_0036 = {
+    ("incidencia", "incidencia_lo_que_paso", "SELECT"),
+    ("clave_notas", "clave_notas_lo_que_paso", "SELECT"),
+}
+# C2: las columnas de la función, en orden. Nunca creada_por, asignada_a ni version
+COLUMNAS_0036 = [
+    "id", "tipo", "estado", "creada_en", "resuelta_en", "descripcion", "clave_notas_id", "resolucion",
+    "resolucion_clave_id", "nota_dek_cifrada", "nota_kek_version", "resolucion_dek_cifrada", "resolucion_kek_version",
+]
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_0036_lo_que_paso_de_quien_pago_y_baja_al_esquema_anterior(base_desechable):
+    assert isinstance(ANTES_0036, str)
+    alembic("upgrade", ANTES_0036)
+    esquema_antes = catalogo()
+    politicas_antes = {n: (q, r) for n, q, r in consultar(
+        "SELECT policyname, qual, roles::text FROM pg_policies"
+        " WHERE policyname IN ('incidencia_familia', 'clave_notas_familia_leer')")}
+    alembic("upgrade", "0036")
+
+    # C3: las dos políticas, SELECT y TO matu_owner, con el marcador y el rol de una sesión de familia
+    nuevas = consultar("SELECT tablename, policyname, cmd, roles::text, qual FROM pg_policies"
+                       " WHERE policyname LIKE '%lo_que_paso'")
+    assert {(t, n, c) for t, n, c, _, _ in nuevas} == POLITICAS_MATU_OWNER_0036
+    for _, nombre, _, roles, qual in nuevas:
+        assert roles == "{matu_owner}", nombre
+        assert "current_setting('app.funcion'::text, true) = 'lo_que_paso'::text" in qual, nombre
+        assert "app_rol() = 'ninguno'::text" in qual and "app_grupo()" in qual, nombre
+    [(qual_incidencia,)] = consultar("SELECT qual FROM pg_policies WHERE policyname = 'incidencia_lo_que_paso'")
+    assert "app_pago_el_pedido(pedido_id)" in qual_incidencia
+    # C4: las de la familia no cambian
+    assert {n: (q, r) for n, q, r in consultar(
+        "SELECT policyname, qual, roles::text FROM pg_policies"
+        " WHERE policyname IN ('incidencia_familia', 'clave_notas_familia_leer')")} == politicas_antes
+    # C1: definer de matu_owner, VOLATILE, search_path fijo y EXECUTE solo para matu_app
+    [(definer, volatilidad, config, acl, dueno, nombres, fuente)] = consultar(
+        "SELECT prosecdef, provolatile, proconfig, proacl::text, pg_get_userbyid(proowner), proargnames, prosrc"
+        " FROM pg_proc WHERE proname = 'pedido_lo_que_paso'")
+    assert definer and volatilidad == "v" and dueno == "matu_owner"
+    assert config == ["search_path=pg_catalog, public, pg_temp"]
+    assert set(acl.strip("{}").split(",")) == {"matu_owner=X/matu_owner", "matu_app=X/matu_owner"}
+    # C2: el parámetro y las columnas fijas
+    assert nombres == ["p_pedido", *COLUMNAS_0036]
+    assert not {"creada_por", "asignada_a", "version"} & set(nombres)
+    # El marcador se fija después de app_pago_el_pedido y antes de leer, y se devuelve al salir
+    assert fuente.index("app_pago_el_pedido") < fuente.index("'lo_que_paso'") < fuente.index("FROM public.incidencia")
+    assert "set_config('app.funcion', COALESCE(v_antes, ''), true)" in fuente
+
+    # C10: la bajada quita la función y las políticas y deja el catálogo como antes, sin borrar filas
+    alembic("downgrade", ANTES_0036)
+    despues = catalogo()
+    for parte, filas_antes in esquema_antes.items():
+        assert despues[parte] == filas_antes, f"downgrade no restaura {parte}: {set(filas_antes) ^ set(despues[parte])}"
+    assert consultar("SELECT count(*) FROM pg_proc WHERE proname = 'pedido_lo_que_paso'") == [(0,)]
     alembic("upgrade", "head")
