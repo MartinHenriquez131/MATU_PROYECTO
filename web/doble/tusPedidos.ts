@@ -9,6 +9,8 @@
 // tus-pedidos-vacio@, tus-pedidos-carrera@ (el primer retracto responde 422 producto-no-retractable,
 // como si otra persona hubiera ganado), tus-pedidos-red@ (cancelar y arrepentirse responden 503 la
 // primera vez) y tus-pedidos-plazo@ (el plazo de la app venció, y otro pasó los 90 días).
+// MATU-116: tus-pedidos-se-informa-pago@ (se informa y pagó dos de los cuatro: esos llegan con
+// `vista: 'pagaste'` y la fila de quien paga, con `puede_cancelar` en false; los demás, con `se_informa`).
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { comercioDe, COSTO_ENVIO, productoDe, type Pedido, type Responder, type RetractoDoble, type Rol, type SeguimientoDoble, type UsuarioPedido } from './pedido'
@@ -59,7 +61,8 @@ function motivoArrepentirse(p: Pedido, rol: Rol, u: UsuarioPedido) {
   if (!s.entregado_en) return 'sin_entregar'
   if (Date.now() > new Date(plazoCorreo(s.entregado_en)).getTime()) return 'plazo_vencido'
   if (Date.now() > new Date(plazoApp(s.entregado_en)).getTime()) return 'plazo_app_vencido'
-  if (rol !== 'admin' && !(rol === 'pagador' && s.quien === u.id)) return 'rol'
+  // MATU-116 (C5): quien pagó se arrepiente también en «Se informa», mientras siga en el grupo.
+  if (rol !== 'admin' && !((rol === 'pagador' || rol === 'observador') && s.quien === u.id)) return 'rol'
   if (!lineasParaRetracto(p).some((l) => l.disponibles > 0)) return 'nada_disponible'
   return null
 }
@@ -72,13 +75,17 @@ function motivoCancelar(p: Pedido, rol: Rol) {
   return null
 }
 
-/** La fila de quien ve el pago (`PedidoPagadoFila`) o del observador. */
+/** MATU-116 (C5): el observador que pagó este pedido lo ve como quien paga. */
+export const observadorQuePago = (p: Pedido, rol: Rol, u: UsuarioPedido) => rol === 'observador' && !!p.pagado && p.pagado.quien === u.id
+
+/** La fila de quien ve el pago (`PedidoPagadoFila`), la del observador o, MATU-116, la del observador que pagó. */
 function fila(p: Pedido, rol: Rol, u: UsuarioPedido) {
   const s = seg(p)
   const productos = p.lineas.map((l) => ({ producto: productoVista(l.producto_id), cantidad: l.cantidad }))
   const resumen = productos.length ? { primero: productos[0].producto.nombre, otros: productos.length - 1 } : null
+  const pagaste = observadorQuePago(p, rol, u)
   // MATU-113 (decisión 472): el estado real de familia y la fecha de entrega, sin ningún monto.
-  if (rol === 'observador') return { pedido_id: p.id, pagado_en: p.pagado!.pagado_en, estado: s.estado, entregado_en: s.entregado_en, productos, resumen_productos: resumen, productos_borrados: false }
+  if (rol === 'observador' && !pagaste) return { vista: 'se_informa', pedido_id: p.id, pagado_en: p.pagado!.pagado_en, estado: s.estado, entregado_en: s.entregado_en, productos, resumen_productos: resumen, productos_borrados: false }
   const devs = p.devoluciones ?? []
   const devuelto = devs.filter((d) => d.estado === 'hecha' && d.motivo !== 'pago_tardio').reduce((t, d) => t + d.monto, 0)
   const ma = motivoArrepentirse(p, rol, u)
@@ -98,6 +105,8 @@ function fila(p: Pedido, rol: Rol, u: UsuarioPedido) {
     devuelto_todo: devs.length > 0 && devs.filter((d) => d.motivo !== 'pago_tardio').every((d) => d.estado === 'hecha'),
     puede_cancelar: mc === null,
     cancelar_motivo: mc,
+    // MATU-116: el observador que pagó nunca cancela (motivoCancelar da `rol` o el del estado).
+    ...(pagaste ? { vista: 'pagaste' } : {}),
     puede_arrepentirse: ma === null,
     arrepentirse_motivo: ma,
     plazo_hasta: s.entregado_en ? plazoApp(s.entregado_en) : null,
@@ -158,8 +167,9 @@ export function atenderTusPedidos(
 ) {
   res.setHeader('Cache-Control', 'no-store')
   const no = () => problema(res, 404, '/errores/no-encontrado')
-  // D-92-1 a: el observador no tiene detalle (C6: también antes de mirar la cabecera o el cuerpo).
-  if (rol === 'observador' || !p.pagado) return no()
+  // D-92-1 a: el observador no tiene detalle (C6: también antes de mirar la cabecera o el cuerpo),
+  // salvo en un pedido que pagó (MATU-116, C5).
+  if ((rol === 'observador' && !observadorQuePago(p, rol, u)) || !p.pagado) return no()
   const s = seg(p)
   const metodo = req.method ?? 'GET'
 
@@ -181,7 +191,7 @@ export function atenderTusPedidos(
         lineas: lineas.map((l) => ({ linea_id: l.id, producto: productoVista(l.producto_id), cantidad: l.cantidad, unidades_faltantes: s.faltantes[l.producto_id] ?? 0 })),
       }
     })
-    const { productos: _p, resumen_productos: _r, ...base } = fila(p, rol, u) as Record<string, unknown>
+    const { productos: _p, resumen_productos: _r, vista: _v, ...base } = fila(p, rol, u) as Record<string, unknown>
     return json(res, 200, { ...base, partes })
   }
 
@@ -224,7 +234,7 @@ export function atenderTusPedidos(
     })
   }
   if (metodo !== 'POST') return no()
-  if (rol !== 'admin' && !(rol === 'pagador' && s.quien === u.id)) return no()
+  if (rol !== 'admin' && !((rol === 'pagador' || rol === 'observador') && s.quien === u.id)) return no()
   const clave = req.headers['idempotency-key']
   if (!clave) return problema(res, 428, '/errores/falta-idempotencia')
   if (usadas.has(`r:${clave}`)) return json(res, 201, usadas.get(`r:${clave}`))

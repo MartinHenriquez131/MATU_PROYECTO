@@ -29,7 +29,7 @@ pytestmark = [pytest.mark.rf("RF-20"), pytest.mark.rf("RF-25"), requiere_base]
 TOTAL = 2 * PRECIO_PANAL + COSTO_ENVIO
 # MATU-113 (decisión 472): suma entregado_en, y el estado es el real de familia
 CAMPOS_OBSERVADOR = {
-    "pedido_id", "pagado_en", "estado", "entregado_en", "productos", "resumen_productos", "productos_borrados",
+    "vista", "pedido_id", "pagado_en", "estado", "entregado_en", "productos", "resumen_productos", "productos_borrados",
 }
 
 
@@ -185,19 +185,93 @@ def test_c6_el_observador_recibe_404_al_pedir_el_retracto(despacho: Despacho) ->
     assert d.sql("SELECT count(*) FROM retracto WHERE pedido_id = %s", uuid.UUID(pedido["id"])) == [(0,)]
 
 
+# MATU-116 (C5): la fila de quien pagó y se informa es la de quien paga, con puede_cancelar siempre en false
+CAMPOS_PAGASTE = {
+    "vista", "pedido_id", "referencia", "pagado_en", "estado", "entregado_en", "cancelado_en", "productos",
+    "resumen_productos", "productos_borrados", "total", "devuelto", "devuelto_todo", "puede_cancelar",
+    "cancelar_motivo", "puede_arrepentirse", "arrepentirse_motivo", "plazo_hasta", "plazo_correo_hasta",
+}
+
+
 @pytest.mark.rf("R3")
-def test_c6_quien_pago_y_paso_a_observador_recibe_404(despacho: Despacho) -> None:
-    """Quien pagó y después pasó a observador: su participación cobró, pero ya no ve el pago. 404 y nada escrito."""
+@pytest.mark.rf("RNF-07")
+def test_c5_quien_pago_y_paso_a_se_informa_ve_ese_pedido_y_se_arrepiente_y_los_demas_no(despacho: Despacho) -> None:
+    """MATU-116 (J1, C5; reemplaza la prueba de C6 de MATU-92 que esperaba 404): quien pagó y pasó a «Se informa» ve
+    en la lista la fila de quien paga en el pedido que pagó, su detalle sin la entrega y con puede_cancelar siempre en
+    false (la forma de «Paga»: motivo rol mientras se podría cancelar), y puede arrepentirse. El pedido que pagó otra
+    cuenta sigue con la fila de «Se informa» y 404 en el detalle y el retracto."""
     d = despacho
     familia, pedido = _pagado_por_el_pagador(d)
-    _entregar(d, pedido)
     pagador = _rol(d, familia, "pagador")
     d.sql("UPDATE membresia SET rol = 'observador' WHERE usuario_id = %s AND grupo_id = %s", pagador.id,
           familia.grupo.id)
+    # Pagado y sin preparar: el admin podría cancelar, quien se informa nunca (false, con el motivo rol)
+    [fila] = _lista(d, familia, pagador).json()["items"]
+    assert (fila["vista"], fila["puede_cancelar"], fila["cancelar_motivo"]) == ("pagaste", False, "rol")
+    detalle = d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/seguimiento", pagador, familia)
+    assert (detalle.json()["puede_cancelar"], detalle.json()["cancelar_motivo"]) == (False, "rol"), detalle.text
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/cancelar-con-devolucion", pagador, familia)
+    assert r.status_code == 404, r.text
+    assert d.estado_pedido(pedido["id"]) == "pagado"
+    _entregar(d, pedido)
+    d.e.avanzar(timedelta(minutes=1))
+    ajeno = _otro_pagado(d, familia)
+
+    r = _lista(d, familia, pagador)
+    assert r.status_code == 200, r.text
+    filas = {x["pedido_id"]: x for x in r.json()["items"]}
+    assert [x["pedido_id"] for x in r.json()["items"]] == [ajeno["id"], pedido["id"]]
+    suya, otra = filas[pedido["id"]], filas[ajeno["id"]]
+    assert set(suya) == CAMPOS_PAGASTE and suya["vista"] == "pagaste"
+    assert (suya["total"], suya["puede_arrepentirse"], suya["arrepentirse_motivo"]) == (TOTAL, True, None)
+    # Ya se preparó: el motivo que vale para todos va antes que el rol, como a «Paga»; nunca true
+    assert (suya["puede_cancelar"], suya["cancelar_motivo"]) == (False, "ya_se_prepara")
+    assert set(otra) == CAMPOS_OBSERVADOR and otra["vista"] == "se_informa"
+    [(referencia_ajena,)] = d.sql("SELECT referencia FROM pedido WHERE id = %s", uuid.UUID(ajeno["id"]))
+    assert referencia_ajena not in r.text
+
+    detalle = d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/seguimiento", pagador, familia)
+    assert detalle.status_code == 200, detalle.text
+    cuerpo_detalle = detalle.json()
+    assert (cuerpo_detalle["puede_cancelar"], cuerpo_detalle["cancelar_motivo"]) == (False, "ya_se_prepara")
+    assert (cuerpo_detalle["total"], cuerpo_detalle["puede_arrepentirse"]) == (TOTAL, True)
+    # Sin la entrega (dirección y teléfono) ni las notas del equipo
+    assert not claves_a_cualquier_profundidad(cuerpo_detalle) & {"entrega", "calle", "telefono_contacto",
+                                                                  "lo_que_paso", "nota"}
+    _sin_nada_del_comercio(d, pedido, detalle.text)
+    para_devolver = d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/retractos", pagador, familia)
+    assert para_devolver.status_code == 200, para_devolver.text
+    # El comprobante de quien paga (GET …/pago), con su tarjeta; del pedido ajeno, solo pagado o no
+    pago = d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/pago", pagador, familia)
+    assert pago.status_code == 200, pago.text
+    assert pago.json()["comprobante"]["pagaste_tu"] is True and pago.json()["comprobante"]["total"] == TOTAL
+    pago_ajeno = d.e.pedir("GET", f"/v1/pedidos/{ajeno['id']}/pago", pagador, familia)
+    assert pago_ajeno.status_code == 200 and set(pago_ajeno.json()) == {"pedido_id", "estado"}, pago_ajeno.text
+
+    # El pedido que no pagó: 404 en el detalle, lo que se puede devolver y el retracto
+    for ruta in (f"/v1/pedidos/{ajeno['id']}/seguimiento", f"/v1/pedidos/{ajeno['id']}/retractos"):
+        assert d.e.pedir("GET", ruta, pagador, familia).status_code == 404, ruta
+    _entregar(d, ajeno)
+    cuerpo_ajeno = {"lineas": [{"linea_id": _linea(d, ajeno), "cantidad": 1}]}
+    r = d.post_familia(f"/v1/pedidos/{ajeno['id']}/retractos", pagador, familia, cuerpo_ajeno)
+    assert r.status_code == 404, r.text
+    assert d.sql("SELECT count(*) FROM retracto WHERE pedido_id = %s", uuid.UUID(ajeno["id"])) == [(0,)]
+
+    # «Arrepentirme de la compra» del pedido que pagó
     cuerpo = {"lineas": [{"linea_id": _linea(d, pedido), "cantidad": 1}]}
     r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", pagador, familia, cuerpo)
+    assert r.status_code == 201, r.text
+    assert r.json()["es_tuyo"] is True
+    assert d.sql("SELECT solicitado_por FROM retracto WHERE pedido_id = %s", uuid.UUID(pedido["id"])) == [
+        (pagador.id,)]
+
+    # Un observador que no pagó nada: solo filas de «Se informa», y 404 en el detalle
+    observador = _rol(d, familia, "observador")
+    r = _lista(d, familia, observador)
+    assert {x["vista"] for x in r.json()["items"]} == {"se_informa"}
+    assert d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/seguimiento", observador, familia).status_code == 404
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", observador, familia, cuerpo)
     assert r.status_code == 404, r.text
-    assert d.sql("SELECT count(*) FROM retracto WHERE pedido_id = %s", uuid.UUID(pedido["id"])) == [(0,)]
 
 
 @pytest.mark.rf("R3")

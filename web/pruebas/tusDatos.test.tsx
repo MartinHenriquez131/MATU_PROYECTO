@@ -9,7 +9,7 @@ import type { CopiaDatosCuenta } from '../src/compartido/api/misDatos'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
 import { enmascararCelular, TusDatos } from '../src/familia/TusDatos'
 import { familiaFalsa } from './familiaFalsa'
-import { apiCopia, copiaComoRespuesta, copiaCuenta, dialogoDeJsdom, fijarAhora, problemaCopia } from './misDatosFalso'
+import { apiCopia, copiaComoRespuesta, copiaCuenta, dialogoDeJsdom, fijarAhora, problemaCopia, retractoCuenta } from './misDatosFalso'
 
 const fijar = vi.fn()
 vi.mock('../src/familia/estado', async (original) => ({
@@ -44,6 +44,16 @@ function abrir(copia: CopiaDatosCuenta = copiaCuenta()) {
     </StrictMode>,
   )
   return pedidas
+}
+/** Como `abrir`, pero devuelve `unmount` para abrir varias copias en una prueba. */
+function abrirDesmontable(copia: CopiaDatosCuenta) {
+  apiCopia(copiaComoRespuesta(copia, ARCHIVO))
+  return render(
+    <StrictMode>
+      <RegionesVivas />
+      <TusDatos />
+    </StrictMode>,
+  )
 }
 const listo = () => screen.findByRole('button', { name: 'Descargar en un archivo' })
 const bloque = (nombre: string) => screen.getByRole('region', { name: nombre })
@@ -198,6 +208,141 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
     await listo()
     expect(screen.queryByRole('region', { name: 'Tus pagos' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Condiciones de compra que acep­taste' })).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------- MATU-116
+
+describe('MATU-116: los pagos y lo que pediste devolver, también de un grupo del que saliste', () => {
+  it('N1: un pago de un grupo del que salió dice «en un grupo del que saliste», en minúscula, nunca «en » solo', async () => {
+    const base = copiaCuenta().pagos!
+    abrir(
+      copiaCuenta({
+        pagos: [
+          base[0],
+          { ...base[2], grupo: null, sigue_en_el_grupo: false, referencia: null, pagado_en: '2024-11-08T11:24:00-03:00', cobrado: 37_260 },
+          { ...base[1], grupo: '', sigue_en_el_grupo: false },
+        ],
+      }),
+    )
+    await listo()
+    const [conGrupo, salio, enBlanco] = within(bloque('Tus pagos')).getAllByRole('listitem')
+    expect(conGrupo).toHaveTextContent('$37.260 en Familia Soto')
+    // Sin pedido (se guarda 6 años y el pedido 2) y de un grupo del que salió: las dos cosas.
+    expect(within(salio).getByRole('heading', { level: 3 })).toHaveTextContent('Pago del 08/11/2024')
+    expect(salio).toHaveTextContent('$37.260 en un grupo del que saliste')
+    expect(salio).not.toHaveTextContent('Un grupo del que saliste')
+    // `""` se trata igual que `null` (por defensa).
+    expect(enBlanco).toHaveTextContent('$10.480 en un grupo del que saliste')
+    for (const li of [salio, enBlanco]) expect(li.textContent).not.toMatch(/ en (Tarjeta|$)/)
+  })
+
+  it('N2: «Lo que pediste devolver» va después de «Tus pagos» y antes de las condiciones, también en el índice', async () => {
+    abrir(copiaCuenta({ retractos: [retractoCuenta()] }))
+    await listo()
+    const h2 = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+    expect(h2.slice(h2.indexOf('Tus pagos'), h2.indexOf('Tus pagos') + 3)).toEqual(['Tus pagos', 'Lo que pediste devolver', 'Condiciones de compra que acep\u00ADtaste'])
+    const indice = within(screen.getAllByRole('navigation', { name: 'Índice' })[0]).getAllByRole('link').map((a) => a.textContent)
+    expect(indice.slice(indice.indexOf('Tus pagos'), indice.indexOf('Tus pagos') + 2)).toEqual(['Tus pagos', 'Lo que pediste devolver'])
+    // Al elegirlo en el índice, el foco va a su h2.
+    await u().click(within(screen.getAllByRole('navigation', { name: 'Índice' })[0]).getByRole('link', { name: 'Lo que pediste devolver' }))
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Lo que pediste devolver' })).toHaveFocus())
+  })
+
+  it('sin nada pedido (`[]`) o con la capa 3 quitada (`null`), ni el bloque ni su entrada en el índice', async () => {
+    for (const retractos of [[], null]) {
+      const { unmount } = abrirDesmontable(copiaCuenta({ retractos }))
+      await listo()
+      expect(screen.queryByRole('region', { name: 'Lo que pediste devolver' })).toBeNull()
+      expect(within(screen.getAllByRole('navigation', { name: 'Índice' })[0]).queryByRole('link', { name: 'Lo que pediste devolver' })).toBeNull()
+      unmount()
+    }
+  })
+
+  it('con el grupo: la referencia, la etiqueta, «Lo pediste el…», «En {grupo}.» y los productos; sin T4', async () => {
+    abrir(copiaCuenta({ retractos: [retractoCuenta(), retractoCuenta({ referencia: null, estado: 'solicitado', resuelto_en: null, solicitado_en: '2026-11-10T09:00:00-03:00' })] }))
+    await listo()
+    const [devuelto, pedido] = within(bloque('Lo que pediste devolver')).getAllByRole('listitem').filter((li) => li.querySelector('h3'))
+    expect(within(devuelto).getByRole('heading', { level: 3 })).toHaveTextContent('Pedido 4790')
+    expect(within(devuelto).getByText('Devuelto el').closest('span.inline-flex')).toHaveTextContent('Devuelto el 15/11/2026')
+    expect(devuelto.querySelector('svg.lucide-circle-check')).not.toBeNull()
+    expect(devuelto).toHaveTextContent('Lo pediste el 12/11/2026.')
+    expect(devuelto).not.toHaveTextContent('Respondimos')
+    expect(devuelto).toHaveTextContent('En Familia Soto.')
+    expect(within(devuelto).getByRole('list')).toHaveTextContent('Suplemento vainilla x12')
+    expect(devuelto).not.toHaveTextContent('Los productos los puedes pedir')
+    // N3: sin referencia, «Devolución del {fecha}».
+    expect(within(pedido).getByRole('heading', { level: 3 })).toHaveTextContent('Devolución del 10/11/2026')
+    expect(within(pedido).getByText('Devolución pedida')).toBeVisible()
+  })
+
+  it('T4 y N6: de un grupo del que salió, «En un grupo del que saliste.», sin productos y con el correo; si no se aceptó, cuándo y por qué', async () => {
+    abrir(
+      copiaCuenta({
+        retractos: [
+          retractoCuenta({
+            grupo: null,
+            sigue_en_el_grupo: false,
+            referencia: '4655',
+            estado: 'rechazado',
+            solicitado_en: '2026-10-02T10:00:00-03:00',
+            resuelto_en: '2026-10-06T10:00:00-03:00',
+            motivo_rechazo: 'sello_abierto',
+            productos: null,
+          }),
+        ],
+      }),
+    )
+    await listo()
+    const b = bloque('Lo que pediste devolver')
+    const li = within(b).getAllByRole('listitem')[0]
+    expect(within(li).getByRole('heading', { level: 3 })).toHaveTextContent('Pedido 4655')
+    expect(within(li).getByText('No se aceptó la devolución')).toBeVisible()
+    expect(li).toHaveTextContent('Lo pediste el 02/10/2026.')
+    expect(li).toHaveTextContent('Respondimos el 06/10/2026.')
+    expect(li).toHaveTextContent('En un grupo del que saliste.')
+    expect(within(li).queryByRole('list')).toBeNull()
+    const t4 = within(li).getByText((_, el) => el?.tagName === 'P' && el.textContent === 'Los productos los puedes pedir a cuidaconmatu@gmail.com.')
+    expect(within(t4).getByRole('link', { name: 'cuidaconmatu@gmail.com' })).toHaveAttribute('href', 'mailto:cuidaconmatu@gmail.com')
+    expect(li).toHaveTextContent('El producto volvió con el sello abierto.')
+    // Nunca la palabra del contrato, ni el nombre de la persona cuidada, ni montos.
+    expect(b).not.toHaveTextContent(/retracto|rechazado|María|\$/i)
+  })
+
+  it('P3: el grupo y T4 dependen solo de `sigue_en_el_grupo`, aunque llegue un nombre o una lista', async () => {
+    abrir(copiaCuenta({ retractos: [retractoCuenta({ grupo: 'Familia Soto', sigue_en_el_grupo: false, productos: ['Suplemento vainilla x12'] })] }))
+    await listo()
+    const li = within(bloque('Lo que pediste devolver')).getAllByRole('listitem')[0]
+    expect(li).toHaveTextContent('En un grupo del que saliste.')
+    expect(li).not.toHaveTextContent('Familia Soto')
+    expect(li).not.toHaveTextContent('Suplemento vainilla x12')
+    expect(li).toHaveTextContent('Los productos los puedes pedir a cuidaconmatu@gmail.com.')
+  })
+
+  it('P3 (2.2): en «Tus pagos» el grupo depende solo de `sigue_en_el_grupo`, aunque llegue un nombre', async () => {
+    const base = copiaCuenta()
+    abrir(copiaCuenta({ pagos: [{ ...base.pagos![0], grupo: 'Familia Soto', sigue_en_el_grupo: false }] }))
+    await listo()
+    const pago = within(bloque('Tus pagos')).getAllByRole('listitem')[0]
+    expect(pago).toHaveTextContent('$37.260 en un grupo del que saliste')
+    expect(pago).not.toHaveTextContent('Familia Soto')
+  })
+
+  it('P3 (2.4/N7): en las condiciones el grupo depende solo de `sigue_en_el_grupo`, aunque llegue un nombre', async () => {
+    const base = copiaCuenta()
+    abrir(
+      copiaCuenta({
+        condiciones_aceptadas: [
+          { ...base.condiciones_aceptadas![0], grupo: 'Familia Soto', sigue_en_el_grupo: false },
+          { ...base.condiciones_aceptadas![1], grupo: 'Familia Soto', sigue_en_el_grupo: false },
+        ],
+      }),
+    )
+    await listo()
+    const [pagadas, sinPagar] = within(bloque('Condiciones de compra que acep­taste')).getAllByRole('listitem')
+    expect(pagadas).toHaveTextContent('En un grupo del que saliste, para el pedido 4821.')
+    expect(sinPagar).toHaveTextContent('En un grupo del que saliste, para un pedido que no se pagó.')
+    for (const li of [pagadas, sinPagar]) expect(li).not.toHaveTextContent('Familia Soto')
   })
 })
 

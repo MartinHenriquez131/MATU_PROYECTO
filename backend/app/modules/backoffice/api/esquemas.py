@@ -360,6 +360,10 @@ class PedidoPagadoFilaObservador(_Estricto):
     """Lo que ve el observador (D-92-1 a, C3; MATU-113, decisión 472): la fecha del pago, el estado de familia, la
     fecha de entrega y los productos. Sin referencia, montos, comprobante, código ni acciones."""
 
+    # MATU-116: obligatoria y sin valor por omisión, para que vaya en required del contrato
+    vista: Annotated[
+        Literal["se_informa"], Field(description="MATU-116: la fila de «Se informa», de un pedido que no pagó")
+    ]
     pedido_id: uuid.UUID
     pagado_en: datetime
     estado: Annotated[EstadoFamiliaApi, Field(description=_DESCRIPCION_ESTADO)]
@@ -369,13 +373,49 @@ class PedidoPagadoFilaObservador(_Estricto):
     productos_borrados: bool
 
 
+class PedidoPagadoFilaPagaste(_Estricto):
+    """MATU-116 (J1, C5; decisión 475): la fila del observador en un pedido que pagó. La de quien paga
+    (PedidoPagadoFila), con puede_cancelar siempre false: puede arrepentirse de la compra, nunca cancelar."""
+
+    vista: Annotated[Literal["pagaste"], Field(description="MATU-116: el pedido lo pagó quien lee")]
+    pedido_id: uuid.UUID
+    referencia: Referencia
+    pagado_en: datetime
+    estado: Annotated[EstadoFamiliaApi, Field(description=_DESCRIPCION_ESTADO)]
+    entregado_en: datetime | None
+    cancelado_en: datetime | None
+    productos: list[ProductoDeLaFila]
+    resumen_productos: ResumenProductos | None
+    productos_borrados: Annotated[bool, Field(description="C28: ya no se guardan los productos del pedido")]
+    total: Annotated[int, Field(gt=0, description="El total pagado, envío incluido, en pesos enteros")]
+    devuelto: Annotated[int, Field(ge=0, description="Lo devuelto a la tarjeta con anulaciones hechas")]
+    devuelto_todo: Annotated[bool, Field(description="devuelto = total: «Devolvimos», y no «Estamos devolviendo»")]
+    # MATU-116 (decisión del orquestador del 18-11): la forma de «Paga». Nunca puede cancelar: siempre false, con su
+    # motivo (rol, o ya_se_prepara y cancelado antes que el rol, como a «Paga»)
+    puede_cancelar: Literal[False]
+    cancelar_motivo: Annotated[MotivoNoCancelarApi, Field(description=_DESCRIPCION_CANCELAR)]
+    puede_arrepentirse: bool
+    arrepentirse_motivo: Annotated[MotivoNoArrepentirseApi | None, Field(description=_DESCRIPCION_ARREPENTIRSE)]
+    plazo_hasta: Annotated[
+        datetime | None,
+        Field(description="Fin del décimo día hábil desde la entrega, en hora de Chile. null sin entrega"),
+    ]
+    plazo_correo_hasta: Annotated[datetime | None, Field(description="90 días desde la entrega. null sin entrega")]
+
+
 class ListaPedidosPagados(_Estricto):
     items: list[PedidoPagadoFila]
     siguiente_cursor: str | None
 
 
+FilaDelObservador = Annotated[PedidoPagadoFilaObservador | PedidoPagadoFilaPagaste, Field(discriminator="vista")]
+
+
 class ListaPedidosPagadosObservador(_Estricto):
-    items: list[PedidoPagadoFilaObservador]
+    """La lista del observador. MATU-116: con los dos tipos de fila, por ``vista``: «pagaste» en los pedidos que pagó
+    y «se_informa» en los demás. Lo decide la API, nunca la pantalla (C10)."""
+
+    items: list[FilaDelObservador]
     siguiente_cursor: str | None
 
 
@@ -420,6 +460,31 @@ class SeguimientoPedido(_Estricto):
     devuelto_todo: bool
     puede_cancelar: bool
     cancelar_motivo: Annotated[MotivoNoCancelarApi | None, Field(description=_DESCRIPCION_CANCELAR)]
+    puede_arrepentirse: bool
+    arrepentirse_motivo: Annotated[MotivoNoArrepentirseApi | None, Field(description=_DESCRIPCION_ARREPENTIRSE)]
+    plazo_hasta: datetime | None
+    plazo_correo_hasta: datetime | None
+
+
+class SeguimientoPedidoPagaste(_Estricto):
+    """MATU-116 (J1, C5): el detalle para el observador que pagó el pedido. El de quien paga (SeguimientoPedido), con
+    puede_cancelar siempre false. Como SeguimientoPedido, sin la entrega, el teléfono ni las notas del equipo."""
+
+    pedido_id: uuid.UUID
+    referencia: Referencia
+    pagado_en: datetime
+    estado: Annotated[EstadoFamiliaApi, Field(description=_DESCRIPCION_ESTADO)]
+    entregado_en: datetime | None
+    cancelado_en: datetime | None
+    partes: list[ParteDelPedido]
+    productos_borrados: bool
+    total: Annotated[int, Field(gt=0)]
+    devuelto: Annotated[int, Field(ge=0)]
+    devuelto_todo: bool
+    # MATU-116 (decisión del orquestador del 18-11): la forma de «Paga». Nunca puede cancelar: siempre false, con su
+    # motivo (rol, o ya_se_prepara y cancelado antes que el rol, como a «Paga»)
+    puede_cancelar: Literal[False]
+    cancelar_motivo: Annotated[MotivoNoCancelarApi, Field(description=_DESCRIPCION_CANCELAR)]
     puede_arrepentirse: bool
     arrepentirse_motivo: Annotated[MotivoNoArrepentirseApi | None, Field(description=_DESCRIPCION_ARREPENTIRSE)]
     plazo_hasta: datetime | None

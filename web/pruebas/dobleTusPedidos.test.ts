@@ -66,11 +66,36 @@ describe('El doble de «Tus pedidos»', () => {
     const { h, personaId } = await entrar('tus-pedidos-observador@example.com')
     const items = (await pedir('GET', `/v1/personas-cuidadas/${personaId}/pedidos`, null, h)).cuerpo.items as Fila[]
     expect(items).toHaveLength(4)
-    for (const f of items) expect(Object.keys(f).sort()).toEqual(['entregado_en', 'estado', 'pagado_en', 'pedido_id', 'productos', 'productos_borrados', 'resumen_productos'])
+    for (const f of items) expect(Object.keys(f).sort()).toEqual(['entregado_en', 'estado', 'pagado_en', 'pedido_id', 'productos', 'productos_borrados', 'resumen_productos', 'vista'])
+    // MATU-116: no pagó ninguno, así que todas son «se_informa».
+    for (const f of items) expect(f).toMatchObject({ vista: 'se_informa' })
     // MATU-113 (decisión 472): el estado de familia, el mismo que ve quien paga.
     expect(items.map((f) => f.estado)).toEqual(['pagado', 'preparando', 'entregado', 'cancelado_con_devolucion'])
     expect((await pedir('GET', `/v1/pedidos/${items[0].pedido_id}/seguimiento`, null, h)).status).toBe(404)
     expect((await pedir('POST', `/v1/pedidos/${items[2].pedido_id}/retractos`, { lineas: [] }, h)).status).toBe(404)
+  })
+
+  it('MATU-116: se informa y pagó dos; esos con `vista: pagaste`, sin cancelar, con detalle, comprobante y retracto; los otros, 404', async () => {
+    const { h, personaId } = await entrar('tus-pedidos-se-informa-pago@example.com')
+    const items = (await pedir('GET', `/v1/personas-cuidadas/${personaId}/pedidos`, null, h)).cuerpo.items as (Fila & { vista: string })[]
+    expect(items.map((f) => f.vista)).toEqual(['pagaste', 'se_informa', 'pagaste', 'se_informa'])
+    const [reciente, preparando, entregado] = items
+    expect(reciente).toMatchObject({ puede_cancelar: false, cancelar_motivo: 'rol' })
+    expect(entregado).toMatchObject({ puede_cancelar: false, puede_arrepentirse: true, arrepentirse_motivo: null })
+    expect(preparando).not.toHaveProperty('total')
+    const s = await pedir('GET', `/v1/pedidos/${entregado.pedido_id}/seguimiento`, null, h)
+    expect(s.status).toBe(200)
+    expect(s.cuerpo).not.toHaveProperty('vista')
+    expect(s.cuerpo).toMatchObject({ puede_cancelar: false })
+    const pg = await pedir('GET', `/v1/pedidos/${entregado.pedido_id}/pago`, null, h)
+    expect(pg.cuerpo).toHaveProperty('comprobante')
+    expect((await pedir('GET', `/v1/pedidos/${preparando.pedido_id}/seguimiento`, null, h)).status).toBe(404)
+    expect((await pedir('GET', `/v1/pedidos/${preparando.pedido_id}/pago`, null, h)).cuerpo).toEqual({ pedido_id: preparando.pedido_id, estado: 'pagado' })
+    const datos = (await pedir('GET', `/v1/pedidos/${entregado.pedido_id}/retractos`, null, h)).cuerpo as { lineas: { linea_id: string; disponibles: number }[] }
+    const linea = datos.lineas.find((l) => l.disponibles > 0)!
+    const k = { ...h, 'idempotency-key': 'clave-de-prueba-0116' }
+    expect((await pedir('POST', `/v1/pedidos/${entregado.pedido_id}/retractos`, { lineas: [{ linea_id: linea.linea_id, cantidad: 1 }] }, k)).status).toBe(201)
+    expect((await pedir('POST', `/v1/pedidos/${entregado.pedido_id}/cancelar-con-devolucion`, null, k)).status).toBe(404)
   })
 
   it('el seguimiento nunca trae un código ni la referencia de la parte (C15)', async () => {

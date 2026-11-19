@@ -40,12 +40,14 @@ import { esVencida } from '../compartido/api/sesion'
 import {
   cancelarConDevolucion,
   esFilaCompleta,
+  esFilaPagaste,
   leerRetractos,
   leerSeguimiento,
   listarPedidos,
   pedirRetracto,
   type EstadoFamilia,
   type FilaObservador,
+  type FilaPagaste,
   type FilaPedido,
   type ListaPedidos,
   type ParteDelPedido,
@@ -252,7 +254,7 @@ function NoEncontrado() {
 
 // ---------------------------------------------------------------- 3: la lista
 
-type Fila = FilaPedido | FilaObservador
+type Fila = FilaPedido | FilaObservador | FilaPagaste
 type CargaLista = 'cargando' | 'listo' | 'red' | 'apagado'
 
 /** Junta una página nueva con la que se ve: las filas que ya estaban se actualizan en su lugar. */
@@ -277,8 +279,13 @@ function Lista() {
       try {
         const r = await listarPedidos(personaId)
         if (capa3 !== true) fijar({ capa3: true })
-        if (silencioso) setFilas((antes) => juntar(antes, r.items))
-        else {
+        if (silencioso) {
+          // MATU-116 (1.7): si la fila con el foco deja de abrirse (la API ya no la da como pagada por
+          // quien lee), el foco pasa al h1, sin anuncio.
+          const enFoco = document.activeElement?.id
+          setFilas((antes) => juntar(antes, r.items))
+          if (enFoco && r.items.some((f) => idFila(f.pedido_id) === enFoco && !esFilaCompleta(f))) enfocar('titulo-pagina', 40)
+        } else {
           setFilas(r.items)
           setCursor(r.siguiente_cursor)
         }
@@ -352,6 +359,8 @@ function Lista() {
   }
 
   const observador = filas.some((f) => !esFilaCompleta(f))
+  // MATU-116 (T1, C10): con al menos una fila que la API marca `vista: 'pagaste'`, nunca por el rol.
+  const pagaste = filas.some(esFilaPagaste)
   const encabezado = (
     <>
       <PestanasInsumos activa="/insumos/tus-pedidos" />
@@ -359,6 +368,7 @@ function Lista() {
         <Titulo>{T.titulo}</Titulo>
         <p className="mt-1.5 max-w-prose text-base text-tenue">{T.bajada(pila)}</p>
         {carga === 'listo' && observador && <p className="mt-1.5 max-w-prose text-base text-tenue">{T.observador(pila)}</p>}
+        {carga === 'listo' && pagaste && <p className="mt-1.5 max-w-prose text-base text-tenue">{T.dePedidosQuePagaste}</p>}
       </div>
     </>
   )
@@ -606,8 +616,11 @@ function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: Retracto
     cargaAntes.current = carga
     if (venia !== 'cargando' || carga === 'cargando') return
     const activo = document.activeElement
-    if (activo === null || activo === document.body || activo.id === 'titulo-pagina' || !activo.isConnected) enfocar('titulo-pagina', 0)
-  }, [carga])
+    if (activo === null || activo === document.body || activo.id === 'titulo-pagina' || !activo.isConnected)
+      // MATU-116 (P2 de la revisión, 5.6 de MATU-92): con un retracto recién pedido, el foco va a la nota
+      // «Recibimos tu pedido de devolución…», para que el lector la lea; si no, al `h1`.
+      enfocar(recien ? ID_NOTA_DETALLE : 'titulo-pagina', 0)
+  }, [carga, recien])
 
   const reintentarPago = async () => {
     if (reintentandoPago) return
@@ -946,6 +959,42 @@ function DineroDevuelto({ devoluciones, seg }: { devoluciones: Devolucion[]; seg
 
 // ---------------------------------------------------------------- 4.5 productos para devolver
 
+/**
+ * La etiqueta del estado de lo que se pidió devolver [L 38]. MATU-116 (2.3): también la usa «Lo que
+ * pediste devolver» de «Tus datos». La palabra del contrato para el no aceptado nunca se muestra (C26).
+ */
+export function EtiquetaRetracto({ estado, resueltoEn }: { estado: RetractoFamilia['estado']; resueltoEn: string | null }) {
+  const resuelto = enChile(resueltoEn)
+  if (estado === 'solicitado')
+    return (
+      <Etiqueta tono="neutro" className="self-start">
+        <Clock aria-hidden className="size-4 shrink-0" />
+        {T.devolucionPedida}
+      </Etiqueta>
+    )
+  if (estado === 'devuelto')
+    return (
+      <Etiqueta tono="ok" className="flex-wrap self-start">
+        <CircleCheck aria-hidden className="size-4 shrink-0" />
+        <span className="min-w-0">
+          {resuelto ? (
+            <>
+              {T.devueltoEl} <span className="cifras">{resuelto.fecha}</span>
+            </>
+          ) : (
+            T.devueltoEl.replace(/ el$/, '')
+          )}
+        </span>
+      </Etiqueta>
+    )
+  return (
+    <Etiqueta tono="neutro" className="self-start">
+      <CircleX aria-hidden className="size-4 shrink-0" />
+      {T.noSeAcepto}
+    </Etiqueta>
+  )
+}
+
 function ParaDevolver({ retractos }: { retractos: RetractoFamilia[] }) {
   return (
     <section aria-labelledby="para-devolver-t" className="flex min-w-0 flex-col gap-3">
@@ -954,34 +1003,9 @@ function ParaDevolver({ retractos }: { retractos: RetractoFamilia[] }) {
       </h2>
       <ul className="flex flex-col gap-3">
         {retractos.map((r) => {
-          const resuelto = enChile(r.resuelto_en)
           return (
             <li key={r.id} className="flex min-w-0 flex-col items-start gap-2 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea">
-              {r.estado === 'solicitado' ? (
-                <Etiqueta tono="neutro">
-                  <Clock aria-hidden className="size-4 shrink-0" />
-                  {T.devolucionPedida}
-                </Etiqueta>
-              ) : r.estado === 'devuelto' ? (
-                <Etiqueta tono="ok" className="flex-wrap">
-                  <CircleCheck aria-hidden className="size-4 shrink-0" />
-                  <span className="min-w-0">
-                    {resuelto ? (
-                      <>
-                        {T.devueltoEl} <span className="cifras">{resuelto.fecha}</span>
-                      </>
-                    ) : (
-                      T.devueltoEl.replace(/ el$/, '')
-                    )}
-                  </span>
-                </Etiqueta>
-              ) : (
-                // La palabra del contrato para este estado nunca se muestra (C26).
-                <Etiqueta tono="neutro">
-                  <CircleX aria-hidden className="size-4 shrink-0" />
-                  {T.noSeAcepto}
-                </Etiqueta>
-              )}
+              <EtiquetaRetracto estado={r.estado} resueltoEn={r.resuelto_en} />
               <ul className="text-base">
                 {r.lineas.map((l) => (
                   <li key={l.linea_id} className="break-words">

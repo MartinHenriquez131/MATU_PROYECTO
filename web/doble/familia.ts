@@ -573,20 +573,22 @@ function sembrar() {
   // MATU-92: «Tus pedidos». Cuatro pedidos pagados de María: recién pagado, en preparación, entregado
   // con un protector que faltó, el envío devuelto y dos devoluciones pedidas (una por correo), y
   // cancelado con la devolución hecha. Cada cuenta ve el mismo grupo con su rol.
-  const tusPedidos = (email: string, nombre: string, rol: Rol, modo?: string, { pagoElla = true, vencido = false }: { pagoElla?: boolean; vencido?: boolean } = {}) => {
+  // MATU-116: `pagoElla: 'algunos'` paga el entregado y el recién pagado, y otra cuenta los otros dos.
+  const tusPedidos = (email: string, nombre: string, rol: Rol, modo?: string, { pagoElla = true, vencido = false }: { pagoElla?: boolean | 'algunos'; vencido?: boolean } = {}) => {
     const { u, p } = conPedido(email, nombre, rol, 'vigente', modo)
-    const quien = pagoElla ? u.id : 'otra-cuenta'
+    const quien = pagoElla === true ? u.id : 'otra-cuenta'
+    const suyo = pagoElla === false ? 'otra-cuenta' : u.id
     const hace = (horas: number) => new Date(Date.now() - horas * 3_600_000).toISOString()
     const protectores = productoDelCatalogo('Protectores diarios')!
     const cancelado = sembrarPagado(p.id, [['Toallitas húmedas', 2]], { quien, haceHoras: 24 * 20 })
     fijarSeguimiento(cancelado, { estado: 'cancelado_con_devolucion', cancelado_en: hace(24 * 20 - 1) })
     cancelado.devoluciones = [{ motivo: 'cancelacion', monto: 0, producto_id: null, estado: 'hecha', solicitada_en: hace(24 * 20 - 1), hecha_en: hace(24 * 20 - 2), ultimos4: '4051', de: quien }]
-    const entregado = sembrarPagado(p.id, tresProductos, { quien, haceHoras: vencido ? 24 * 30 : 24 * 4 })
+    const entregado = sembrarPagado(p.id, tresProductos, { quien: suyo, haceHoras: vencido ? 24 * 30 : 24 * 4 })
     fijarSeguimiento(entregado, { estado: 'entregado', entregado_en: hace(vencido ? 24 * 28 : 24 * 2), faltantes: { [protectores]: 1 } })
     const precioProtector = (entregado.lineas.find((l) => l.producto_id === protectores)?.confirmada?.precio ?? 0)
     entregado.devoluciones = [
-      { motivo: 'producto_no_entregado', monto: precioProtector, producto_id: protectores, estado: 'hecha', solicitada_en: hace(24 * 2), hecha_en: hace(24 * 2 - 1), ultimos4: '4051', de: quien },
-      { motivo: 'producto_no_entregado', monto: 3990, producto_id: null, estado: 'hecha', solicitada_en: hace(24 * 2), hecha_en: hace(24 * 2 - 1), ultimos4: '4051', de: quien },
+      { motivo: 'producto_no_entregado', monto: precioProtector, producto_id: protectores, estado: 'hecha', solicitada_en: hace(24 * 2), hecha_en: hace(24 * 2 - 1), ultimos4: '4051', de: suyo },
+      { motivo: 'producto_no_entregado', monto: 3990, producto_id: null, estado: 'hecha', solicitada_en: hace(24 * 2), hecha_en: hace(24 * 2 - 1), ultimos4: '4051', de: suyo },
     ]
     if (!vencido)
       entregado.seguimiento!.retractos = [
@@ -594,13 +596,15 @@ function sembrar() {
       ]
     const preparando = sembrarPagado(p.id, [['Pañal adulto M', 1]], { quien, haceHoras: 26 })
     fijarSeguimiento(preparando, { estado: 'preparando' })
-    sembrarPagado(p.id, [['Pañal adulto M', 2], ['Toallitas húmedas', 1]], { quien, haceHoras: 0.05 })
+    sembrarPagado(p.id, [['Pañal adulto M', 2], ['Toallitas húmedas', 1]], { quien: suyo, haceHoras: 0.05 })
     for (const x of [cancelado]) x.devoluciones![0].monto = x.lineas.reduce((t, l) => t + (l.confirmada?.precio ?? l.precio_carrito) * l.cantidad, 0) + 3990
   }
   tusPedidos('tus-pedidos@example.com', 'Carmen', 'admin')
   tusPedidos('tus-pedidos-pagador@example.com', 'Rodrigo', 'pagador')
   tusPedidos('tus-pedidos-cuidador@example.com', 'Javiera', 'cuidador', undefined, { pagoElla: false })
   tusPedidos('tus-pedidos-observador@example.com', 'Pedro', 'observador', undefined, { pagoElla: false })
+  // MATU-116: se informa y pagó el entregado y el recién pagado; los otros dos los pagó otra cuenta.
+  tusPedidos('tus-pedidos-se-informa-pago@example.com', 'Rodrigo', 'observador', undefined, { pagoElla: 'algunos' })
   tusPedidos('tus-pedidos-carrera@example.com', 'Carmen', 'admin', 'tus-pedidos-carrera')
   tusPedidos('tus-pedidos-red@example.com', 'Carmen', 'admin', 'tus-pedidos-red')
   tusPedidos('tus-pedidos-plazo@example.com', 'Carmen', 'admin', undefined, { vencido: true })

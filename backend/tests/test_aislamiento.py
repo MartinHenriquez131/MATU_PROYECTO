@@ -4051,7 +4051,10 @@ def test_las_politicas_del_marcador_son_solo_de_matu_owner_y_las_definer_de_matu
                        "iam_mfa_secreto",
                        # MATU-114 (0031): fijan 'cuentas', devuelven el marcador anterior y responden solo un booleano
                        # o un id
-                       "operacion_cuenta_activa", "cuenta_es_operacion", "operacion_solicitante_retracto"}
+                       "operacion_cuenta_activa", "cuenta_es_operacion", "operacion_solicitante_retracto",
+                       # MATU-116 (0032): con el marcador ya puesto, app_pago_el_pedido responde false; las de «Tus
+                       # datos» fallan cerradas fuera de una sesión de familia y filtran por app_usuario()
+                       "app_pago_el_pedido", "cuenta_pagos", "cuenta_retractos", "cuenta_condiciones"}
 
 
 # ------------------------------------------------------------------ MATU-46 (migración 0027): el teléfono del relevo
@@ -5078,7 +5081,10 @@ def test_c17_la_clave_de_las_notas_la_leen_solo_admin_y_cuidador_activos(cx, ope
 def test_c10_quien_pago_y_salio_del_grupo_sigue_siendo_el_titular(cx, operador_81):
     """C10 (decisión de Jorge del 18-11): el retracto por correo sin indicar a nombre de quién va se registra a nombre
     de quien pagó aunque haya salido del grupo, porque el derecho a arrepentirse es de quien compró y la devolución va
-    a su tarjeta (D-76-4). Un admin, en cambio, tiene que estar activo. Si esta prueba falla, se cambió la regla."""
+    a su tarjeta (D-76-4). Un admin, en cambio, tiene que estar activo. Si esta prueba falla, se cambió la regla.
+
+    MATU-116 (C9, J4): con la huella del correo, también quien pagó ese pedido aunque haya salido del grupo."""
+    _credenciales_114(cx)
     # Quien pagó el pedido de A (participacion de la semilla) es U_ADMIN_A: sale del grupo, con otro admin que queda
     cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'admin')", (G_A, U_NUEVO))
     cx.execute("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE grupo_id = %s AND usuario_id = %s",
@@ -5089,4 +5095,218 @@ def test_c10_quien_pago_y_salio_del_grupo_sigue_siendo_el_titular(cx, operador_8
     # A su nombre explícito también: es quien pagó
     assert cx.execute("SELECT operacion_solicitante_retracto(%s, NULL, %s)", (PED_A_ENVIADO, U_ADMIN_A)).fetchone() == (
         U_ADMIN_A,)
+    # C9: por la huella de su correo, también, y solo el id
+    assert cx.execute("SELECT operacion_solicitante_retracto(%s, %s, NULL)", (PED_A_ENVIADO, HUELLA_ADMIN_A)
+                      ).fetchone() == (U_ADMIN_A,)
+    # La huella de quien no pagó ni administra, nunca
+    assert cx.execute("SELECT operacion_solicitante_retracto(%s, %s, NULL)", (PED_A_ENVIADO, HUELLA_OBS_A)
+                      ).fetchone() == (None,)
 
+
+# ---- MATU-116 (migración 0032): quien pagó sigue viendo lo suyo en «Se informa» y después de salir del grupo
+
+PARTICIPACION_A = "00000000-0000-0000-0000-0000000008a1"
+PARTICIPACION_RECHAZADA_116 = uuid.UUID("00000000-0000-0000-0000-0000000116a1")
+TABLAS_DEL_PAGO_116 = ("cargo", "participacion", "transaccion_pasarela", "retracto", "retracto_linea")
+
+
+def _paga_y_se_informa_116(cx):
+    """Como superusuario: el pedido de A, entregado, lo pagó U_OBS_A («Se informa»); U_PAG_A lo intentó antes con una
+    venta rechazada, sin cobro; U_NUEVO está en «Se informa» y no pagó nada; el admin pidió un retracto con un
+    producto."""
+    _entregado(cx)
+    cx.execute("SET LOCAL session_replication_role = replica")
+    cx.execute("UPDATE participacion SET usuario_id = %s WHERE id = %s", (U_OBS_A, PARTICIPACION_A))
+    cx.execute("UPDATE pedido SET condiciones_aceptadas_por = %s WHERE id = %s", (U_OBS_A, PED_A_ENVIADO))
+    cx.execute("INSERT INTO participacion (id, cargo_id, usuario_id, porcentaje_bp, estado, monto_cobrado)"
+               " VALUES (%s, %s, %s, 10000, 'rechazada', 0)", (PARTICIPACION_RECHAZADA_116, CARGO_A, U_PAG_A))
+    cx.execute("INSERT INTO transaccion_pasarela (participacion_id, cargo_id, proveedor, tipo, buy_order, monto,"
+               " estado, idempotency_key, total_confirmado_en) VALUES (%s, %s, 'webpay_plus', 'venta', 'MATU-1160',"
+               " 28970, 'rechazada', 'k116', now())", (PARTICIPACION_RECHAZADA_116, CARGO_A))
+    cx.execute("SET LOCAL session_replication_role = origin")
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'observador')", (G_A, U_NUEVO))
+    retracto = uuid.uuid4()
+    cx.execute("INSERT INTO retracto (id, grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta,"
+               " incluye_envio) VALUES (%s, %s, %s, %s, now(), now() + interval '10 days', false)",
+               (retracto, G_A, PED_A_ENVIADO, U_ADMIN_A))
+    [(linea,)] = cx.execute("SELECT id FROM pedido_linea WHERE pedido_id = %s", (PED_A_ENVIADO,)).fetchall()
+    cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad) VALUES (%s, %s, %s, 1)",
+               (retracto, G_A, linea))
+    return retracto
+
+
+def _ve_del_pago(cx, **ctx):
+    como(cx, **ctx)
+    vistos = {t: contar(cx, t) for t in TABLAS_DEL_PAGO_116}
+    vistos["pedido_entrega"] = contar(cx, "pedido_entrega")
+    cx.execute("RESET ROLE")
+    return vistos
+
+
+NADA_DEL_PAGO = dict.fromkeys(TABLAS_DEL_PAGO_116, 0) | {"pedido_entrega": 0}
+
+
+def _retirar(cx, usuario):
+    cx.execute("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE grupo_id = %s AND usuario_id = %s",
+               (G_A, usuario))
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("R3")
+def test_116_quien_paga_y_se_informa_ve_su_pago_y_sus_retractos_y_no_lo_de_otra_cuenta(cx):
+    """C6 y C7: «o pagó este pedido», dentro de app_grupo(). La participación y la venta, solo las suyas (no la venta
+    rechazada de U_PAG_A); el cargo y los retractos del pedido que pagó; nunca la entrega."""
+    _paga_y_se_informa_116(cx)
+    assert _ve_del_pago(cx, usuario_id=U_OBS_A, grupo_id=G_A) == {
+        "cargo": 1, "participacion": 1, "transaccion_pasarela": 1, "retracto": 1, "retracto_linea": 1,
+        "pedido_entrega": 0}
+    como(cx, usuario_id=U_OBS_A, grupo_id=G_A)
+    assert cx.execute("SELECT usuario_id FROM participacion").fetchall() == [(U_OBS_A,)]
+    assert cx.execute("SELECT buy_order FROM transaccion_pasarela").fetchall() == [("MATU-0001",)]
+    cx.execute("RESET ROLE")
+    # «Se informa» sin pagar, otra cuenta del grupo y otro grupo: nada
+    assert _ve_del_pago(cx, usuario_id=U_NUEVO, grupo_id=G_A) == NADA_DEL_PAGO
+    assert _ve_del_pago(cx, usuario_id=U_ADMIN_B, grupo_id=G_B) == NADA_DEL_PAGO
+    # Quien pagó, con el contexto de un grupo del que no es miembro: nada
+    assert _ve_del_pago(cx, usuario_id=U_OBS_A, grupo_id=G_B) == NADA_DEL_PAGO
+    # El pagador que no pagó sigue viendo todo el pago (app_ve_entrega), como hasta la 0031
+    assert _ve_del_pago(cx, usuario_id=U_PAG_A, grupo_id=G_A)["participacion"] == 2
+    # Si sale del grupo, tampoco con el grupo en el contexto (sesion_de_grupo ya responde 404)
+    _retirar(cx, U_OBS_A)
+    assert _ve_del_pago(cx, usuario_id=U_OBS_A, grupo_id=G_A) == NADA_DEL_PAGO
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("R3")
+def test_116_en_la_base_el_retracto_de_quien_paga_y_se_informa_pasa_y_el_de_quien_no_pago_no(cx):
+    """C6: retracto_familia_crear exige, en la rama de quien pagó, que esté activo en el grupo y que haya pagado."""
+    _paga_y_se_informa_116(cx)
+    insertar = ("INSERT INTO retracto (id, grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta,"
+                " incluye_envio) VALUES (%s, %s, %s, %s, now(), now() + interval '10 days', false)")
+    for usuario in (U_NUEVO, U_PAG_A):
+        como(cx, usuario_id=usuario, grupo_id=G_A)
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute(insertar, (uuid.uuid4(), G_A, PED_A_ENVIADO, usuario))
+        cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_OBS_A, grupo_id=G_A)
+    propio = uuid.uuid4()
+    cx.execute(insertar, (propio, G_A, PED_A_ENVIADO, U_OBS_A))
+    [(linea,)] = cx.execute("SELECT id FROM pedido_linea WHERE pedido_id = %s", (PED_A_ENVIADO,)).fetchall()
+    cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad) VALUES (%s, %s, %s, 1)",
+               (propio, G_A, linea))
+    assert contar(cx, "retracto") == 2
+    cx.execute("RESET ROLE")
+    # Desde otro grupo, nunca: el trigger no ve el pedido (CheckViolation) o la política lo rechaza
+    como(cx, usuario_id=U_OBS_A, grupo_id=G_B)
+    with pytest.raises((errors.InsufficientPrivilege, errors.CheckViolation)), cx.transaction():
+        cx.execute(insertar, (uuid.uuid4(), G_A, PED_A_ENVIADO, U_OBS_A))
+    cx.execute("RESET ROLE")
+    # Fuera del grupo, tampoco: lo pide por correo (C9)
+    _retirar(cx, U_OBS_A)
+    como(cx, usuario_id=U_OBS_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute(insertar, (uuid.uuid4(), G_A, PED_A_ENVIADO, U_OBS_A))
+
+
+def _tus_datos(cx, **ctx):
+    como(cx, **ctx)
+    pagos = cx.execute("SELECT referencia, cobrado, grupo, sigue_en_el_grupo FROM cuenta_pagos()").fetchall()
+    retractos = cx.execute("SELECT estado, productos, grupo, sigue_en_el_grupo FROM cuenta_retractos()").fetchall()
+    condiciones = cx.execute("SELECT version, grupo, sigue_en_el_grupo FROM cuenta_condiciones()").fetchall()
+    cx.execute("RESET ROLE")
+    return pagos, retractos, condiciones
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_116_tus_datos_trae_lo_de_la_cuenta_en_sus_grupos_y_en_los_que_dejo_sin_el_nombre(cx):
+    """C1 a C4: sin app.grupo_id, las funciones de «Tus datos» devuelven solo lo de la cuenta. En un grupo del que
+    salió, el nombre del grupo va en null y los retractos sin productos. Otra cuenta y otro grupo no ven nada."""
+    _paga_y_se_informa_116(cx)
+    como(cx, usuario_id=U_OBS_A, grupo_id=G_A)
+    cx.execute("INSERT INTO retracto (grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta, incluye_envio)"
+               " VALUES (%s, %s, %s, now(), now() + interval '10 days', false)", (G_A, PED_A_ENVIADO, U_OBS_A))
+    cx.execute("RESET ROLE")
+    [(referencia,)] = cx.execute("SELECT referencia FROM pedido WHERE id = %s", (PED_A_ENVIADO,)).fetchall()
+    pagos, retractos, condiciones = _tus_datos(cx, usuario_id=U_OBS_A)
+    assert pagos == [(referencia, 28970, "Familia A", True)]
+    # Solo el retracto que pidió (no el del admin), con sus productos (este no tiene)
+    assert retractos == [("solicitado", [], "Familia A", True)]
+    assert condiciones == [("0.1", "Familia A", True)]
+    # Otra cuenta del grupo: lo suyo, nunca lo de U_OBS_A (el pago rechazado no es un pago)
+    assert _tus_datos(cx, usuario_id=U_PAG_A) == ([], [], [])
+    assert _tus_datos(cx, usuario_id=U_NUEVO) == ([], [], [])
+    assert _tus_datos(cx, usuario_id=U_ADMIN_B)[:2] == ([], [])
+    # El admin ve su retracto con su producto
+    assert _tus_datos(cx, usuario_id=U_ADMIN_A)[1] == [("solicitado", ["Pañal adulto M"], "Familia A", True)]
+    # Salen del grupo (queda otro admin): sus pagos, sin el nombre; sus retractos, sin productos
+    cx.execute("UPDATE membresia SET rol = 'admin' WHERE grupo_id = %s AND usuario_id = %s", (G_A, U_PAG_A))
+    for usuario in (U_OBS_A, U_ADMIN_A):
+        _retirar(cx, usuario)
+    pagos, retractos, condiciones = _tus_datos(cx, usuario_id=U_OBS_A)
+    assert pagos == [(referencia, 28970, None, False)]
+    assert retractos == [("solicitado", None, None, False)]
+    assert condiciones == [("0.1", None, False)]
+    assert _tus_datos(cx, usuario_id=U_ADMIN_A)[1] == [("solicitado", None, None, False)]
+    # Con el grupo de otro en el contexto, lo mismo: lo que filtra es la cuenta, no el grupo
+    assert _tus_datos(cx, usuario_id=U_OBS_A, grupo_id=G_B)[0] == [(referencia, 28970, None, False)]
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.parametrize("funcion", ["cuenta_pagos", "cuenta_retractos", "cuenta_condiciones"])
+def test_116_las_funciones_de_tus_datos_fallan_cerradas(cx, operador_81, funcion):
+    """C1: sin app_usuario(), con operación, sistema, relevo, repartidor o comercio, o con la cuenta eliminada:
+    insufficient_privilege, nunca filas."""
+    _paga_y_se_informa_116(cx)
+    contextos = [
+        {}, {"grupo_id": G_A},
+        {"usuario_id": operador_81, "rol": "operacion"}, {"usuario_id": U_OBS_A, "rol": "operacion"},
+        {"usuario_id": operador_81},
+        {"rol": "sistema", "grupo_id": G_A}, {"usuario_id": U_OBS_A, "rol": "sistema"},
+        {"usuario_id": U_ENC, "comercio_id": COMERCIO}, {"usuario_id": U_OBS_A, "comercio_id": COMERCIO},
+        {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE}, {"usuario_id": U_OBS_A, "repartidor_id": REPARTIDOR},
+    ]
+    for ctx in contextos:
+        como(cx, **ctx)
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute(f"SELECT * FROM {funcion}()")
+        cx.execute("RESET ROLE")
+    cx.execute("UPDATE usuario SET estado = 'eliminado', eliminado_en = now() WHERE id = %s", (U_OBS_A,))
+    como(cx, usuario_id=U_OBS_A)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute(f"SELECT * FROM {funcion}()")
+    cx.execute("RESET ROLE")
+    for rol in ("matu_scheduler", "matu_publisher", "public"):
+        assert cx.execute("SELECT has_function_privilege(%s, %s, 'EXECUTE')", (rol, f"{funcion}()")).fetchone() == (
+            False,), rol
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.parametrize("marca", ["tus_datos", "pago_propio"])
+def test_116_matu_app_no_gana_nada_fijando_los_marcadores_de_la_0032(cx, marca):
+    """Las políticas de 'tus_datos' y 'pago_propio' son TO matu_owner: matu_app que las fija no ve más. Quien pagó y
+    fija 'pago_propio' ve menos (app_pago_el_pedido responde false con el marcador puesto): falla cerrada."""
+    _paga_y_se_informa_116(cx)
+    for ctx in ({"usuario_id": U_NUEVO}, {"usuario_id": U_NUEVO, "grupo_id": G_A}, {"usuario_id": U_OBS_A},
+                {"usuario_id": U_ADMIN_B, "grupo_id": G_B}):
+        sin_marca = _ve_del_pago(cx, **ctx)
+        como(cx, **ctx)
+        sin_marca |= {t: contar(cx, t) for t in ("pedido", "grupo_familiar")}
+        cx.execute("SELECT set_config('app.funcion', %s, true)", (marca,))
+        assert {t: contar(cx, t) for t in sin_marca} == sin_marca, ctx
+        cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_OBS_A, grupo_id=G_A)
+    cx.execute("SELECT set_config('app.funcion', 'pago_propio', true)")
+    assert contar(cx, "cargo") == 0
+    cx.execute("SELECT set_config('app.funcion', '', true)")
+    assert contar(cx, "cargo") == 1
+    # Las funciones devuelven el marcador que había al entrar
+    cx.execute("SELECT set_config('app.funcion', 'invitacion', true)")
+    assert contar(cx, "cargo") == 1
+    assert cx.execute("SELECT current_setting('app.funcion', true)").fetchone() == ("invitacion",)
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_OBS_A)
+    cx.execute("SELECT set_config('app.funcion', 'invitacion', true)")
+    assert len(cx.execute("SELECT * FROM cuenta_pagos()").fetchall()) == 1
+    assert cx.execute("SELECT current_setting('app.funcion', true)").fetchone() == ("invitacion",)
