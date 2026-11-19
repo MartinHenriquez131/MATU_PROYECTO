@@ -43,7 +43,9 @@ h) participacion_conservacion_leer, TO matu_owner, con operación y app.conserva
    0020).
 i) participacion_solicitante_leer, TO matu_owner, con el marcador app.funcion = 'solicitante_retracto', y
    operacion_solicitante_retracto lo fija antes de leer quién pagó, después fija 'cuentas' y al salir devuelve el
-   valor con que entró. La regla de C9 de la 0032 no cambia. 'cuentas' no se amplía a participacion.
+   valor con que entró. La regla de C9 de la 0032 no cambia. 'cuentas' no se amplía a participacion. Pasa de
+   STABLE a VOLATILE, porque cambia app.funcion con set_config (observación 3 del QA). invitacion_conservar ya era
+   VOLATILE.
 j) cargo_operacion_leer y transaccion_operacion_leer no cambian: la consola las usa (consola_sql.py).
 
 Las incidencias (C5, O5)
@@ -224,7 +226,7 @@ ALTER POLICY participacion_operacion_leer ON participacion TO public USING (app_
 SOLICITANTE = """
 CREATE OR REPLACE FUNCTION operacion_solicitante_retracto(p_pedido uuid, p_email_hash bytea, p_solicitado_por uuid)
     RETURNS uuid
-    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS
+    LANGUAGE plpgsql {VOLATILIDAD} SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS
 $$
 DECLARE
     v_antes text{ANTES};
@@ -263,8 +265,10 @@ BEGIN
     RETURN v_solicitante;
 END $$;
 """
-# (i) El valor de app.funcion con que se entra, y quién pagó con el marcador 'solicitante_retracto'
-SOLICITANTE_0033 = SOLICITANTE.replace("{ANTES}", " := current_setting('app.funcion', true)").replace(
+# (i) El valor de app.funcion con que se entra, y quién pagó con el marcador 'solicitante_retracto'. VOLATILE: cambia
+# app.funcion con set_config, y una función STABLE no cambia la configuración (observación 3 del QA)
+SOLICITANTE_0033 = SOLICITANTE.replace("{VOLATILIDAD}", "VOLATILE").replace(
+    "{ANTES}", " := current_setting('app.funcion', true)").replace(
     "{PAGADOR}",
     """    -- Quien pagó: la primera participación con un cobro (como _QUIEN_PAGO desde MATU-63)
     PERFORM set_config('app.funcion', 'solicitante_retracto', true);
@@ -273,7 +277,7 @@ SOLICITANTE_0033 = SOLICITANTE.replace("{ANTES}", " := current_setting('app.func
 """,
 ) + "REVOKE ALL ON FUNCTION operacion_solicitante_retracto(uuid, bytea, uuid) FROM PUBLIC;\n"
 # La de la 0032 (SOLICITANTE_0032), igual letra por letra
-SOLICITANTE_0032 = SOLICITANTE.replace("{ANTES}", "").replace(
+SOLICITANTE_0032 = SOLICITANTE.replace("{VOLATILIDAD}", "STABLE").replace("{ANTES}", "").replace(
     "{PAGADOR}",
     """    -- Quien pagó: la primera participación con un cobro (como _QUIEN_PAGO desde MATU-63)
     SELECT pa.usuario_id INTO v_pagador FROM public.participacion pa JOIN public.cargo c ON c.id = pa.cargo_id

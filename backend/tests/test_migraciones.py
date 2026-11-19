@@ -1898,6 +1898,10 @@ def test_0033_operacion_lee_lo_que_usa_y_baja_al_esquema_de_0032(base_desechable
                              " 'invitacion_conservar')"))
     assert "set_config('app.funcion', 'solicitante_retracto', true)" in fuentes["operacion_solicitante_retracto"]
     assert "set_config('app.funcion', 'invitacion_conservar', true)" in fuentes["invitacion_conservar"]
+    # Observación 3 del QA: las dos cambian app.funcion, y son VOLATILE
+    volatilidad = ("SELECT proname, provolatile FROM pg_proc WHERE proname IN ('operacion_solicitante_retracto',"
+                   " 'invitacion_conservar')")
+    assert dict(consultar(volatilidad)) == {"operacion_solicitante_retracto": "v", "invitacion_conservar": "v"}
     # C5
     [(qual,)] = consultar("SELECT qual FROM pg_policies WHERE policyname = 'incidencia_familia'")
     assert "app_escribe_plan()" in qual
@@ -1918,4 +1922,6 @@ def test_0033_operacion_lee_lo_que_usa_y_baja_al_esquema_de_0032(base_desechable
     despues = catalogo()
     for parte, filas_0032 in esquema_0032.items():
         assert despues[parte] == filas_0032, f"downgrade no restaura {parte}: {set(filas_0032) ^ set(despues[parte])}"
+    # catalogo() no mira la volatilidad: la de la 0032
+    assert dict(consultar(volatilidad)) == {"operacion_solicitante_retracto": "s", "invitacion_conservar": "v"}
     alembic("upgrade", "head")
