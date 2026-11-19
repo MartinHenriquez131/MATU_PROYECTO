@@ -26,7 +26,11 @@ TROZOS_SENSIBLES = ("url", "clave", "pepper", "kek_entorno", "llave", "secreto",
 
 # La deuda de MATU-79: los campos que pasaron de repr=False a SecretStr
 MIGRADOS_A_SECRETSTR = (
-    "database_url", "scheduler_database_url", "publisher_database_url", "redis_url", "webpay_codigo_comercio"
+    "database_url",
+    "scheduler_database_url",
+    "publisher_database_url",
+    "redis_url",
+    "webpay_codigo_comercio",
 )
 # Y todos los que no pueden salir en ningún volcado: los anteriores y la lista de cuentas del piloto de push
 FUERA_DE_LOS_VOLCADOS = (*MIGRADOS_A_SECRETSTR, "push_cuentas_permitidas")
@@ -151,8 +155,11 @@ def test_los_usos_leen_el_valor_con_get_secret_value(monkeypatch: pytest.MonkeyP
     assert config.webpay_codigo_comercio.get_secret_value() == valores["webpay_codigo_comercio"]
 
 
-def test_sin_variables_quedan_los_valores_por_omision() -> None:
-    config = Configuracion()
+def test_sin_variables_quedan_los_valores_por_omision(monkeypatch: pytest.MonkeyPatch) -> None:
+    # El CI define DATABASE_URL, y la fixture _sin_env la deja a propósito: la prueba borra todas las que compara
+    for campo in (*MIGRADOS_A_SECRETSTR, "webpay_llave", "pasarela_pago"):
+        monkeypatch.delenv(campo.upper(), raising=False)
+    config = Configuracion(_env_file=None)
     assert config.database_url.get_secret_value() == ""
     assert config.scheduler_database_url.get_secret_value() == ""
     assert config.publisher_database_url.get_secret_value() == ""
