@@ -4,9 +4,11 @@ Cada transacción se abre con sesion_tenant, app.rol = 'sistema' y el grupo del 
 diario: nunca un rol que se salte RLS.
 
 - membresia, usuario (usuario_comiembro), consentimiento, perfil_consumo y alerta_quiebre: las políticas
-  que ya existen para el grupo del contexto.
+  que ya existen para el grupo del contexto. El correo, con aviso_correo (MATU-79, 0034): usuario_comiembro ya no
+  deja leer el email.
 - preferencia_notificacion: preferencia_sistema (solo lectura).
-- notificacion: notificacion_sistema (las filas del grupo del contexto).
+- notificacion: notificacion_sistema_leer, _crear y _editar (las filas del grupo del contexto, sin cuenta; 0034).
+  UPDATE solo de estado, error y enviada_en, y sin DELETE.
 - dispositivo: dispositivo_sistema_leer y dispositivo_sistema_expirar (0014), solo de miembros activos del
   grupo, y el sistema solo puede borrar el push_token.
 - evento_consumido: tabla de infraestructura sin RLS; matu_app lee e inserta.
@@ -83,7 +85,8 @@ _CONTEXTO = text(
     " LEFT JOIN consentimiento c ON c.persona_cuidada_id = :persona AND c.grupo_id = :grupo"
     " AND c.finalidad = :finalidad AND c.revocado_en IS NULL"
 )
-_CORREO = text("SELECT email FROM usuario WHERE id = :usuario")
+# MATU-79 (0034, A3): solo el de un miembro activo del grupo del contexto, con el rol sistema; si no, NULL
+_CORREO = text("SELECT aviso_correo(:usuario) AS email")
 _PUSH = text(
     "SELECT id, push_token FROM dispositivo WHERE usuario_id = :usuario AND revocado_en IS NULL"
     " AND push_token IS NOT NULL ORDER BY creado_en, id"

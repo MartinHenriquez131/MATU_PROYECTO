@@ -256,9 +256,10 @@ class RepositorioSesionesSql:
         ]
 
 
+# MATU-79 (0034, A2): el contacto de la cuenta sale de cuenta_contacto_propia(); matu_app ya no lee esas columnas
 _DATOS_CUENTA = text(
-    "SELECT id, nombre, email, telefono, estado, celular_verificado_en, celular_canal FROM usuario"
-    " WHERE id = app_usuario()"
+    "SELECT u.id, u.nombre, c.email, c.telefono, u.estado, c.celular_verificado_en, c.celular_canal"
+    " FROM usuario u JOIN cuenta_contacto_propia() c ON c.id = u.id WHERE u.id = app_usuario()"
 )
 
 

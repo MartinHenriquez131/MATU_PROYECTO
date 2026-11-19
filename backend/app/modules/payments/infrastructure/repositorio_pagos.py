@@ -88,7 +88,8 @@ _EMITIR = text(
     " VALUES (:grupo_id, :tipo, 'pedido', :pedido_id, CAST(:payload AS jsonb), :ahora, :ahora)"
 )
 
-_CORREO = text("SELECT email FROM usuario WHERE id = app_usuario()")
+# MATU-79 (0034, A2): el correo de la propia cuenta
+_CORREO = text("SELECT email FROM cuenta_contacto_propia()")
 _ASOCIAR_CLAVE = text(
     "UPDATE idempotencia SET transaccion_id = :venta_id"
     " WHERE grupo_id = :grupo_id AND endpoint = :endpoint AND clave = :clave AND usuario_id = app_usuario()"

@@ -479,7 +479,8 @@ _MEMBRESIA = text(
     "SELECT rol, puede_ver_plan FROM membresia WHERE grupo_id = :grupo_id AND usuario_id = :usuario_id"
     " AND estado = 'activa'"
 )
-_TELEFONO = text("SELECT telefono FROM usuario WHERE id = :id")
+# MATU-79 (0034, A2): el celular de la propia cuenta, en su contexto (matu_app ya no lee usuario.telefono)
+_TELEFONO = text("SELECT telefono FROM cuenta_contacto_propia() WHERE id = :id")
 # El trigger usuario_celular_cambia (0012) deja el celular sin verificar
 _CAMBIAR_TELEFONO = text("UPDATE usuario SET telefono = :telefono, actualizado_en = now() WHERE id = :id")
 _RELEVO_VIGENTE = text(
