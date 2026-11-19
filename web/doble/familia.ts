@@ -598,6 +598,21 @@ function sembrar() {
     fijarSeguimiento(preparando, { estado: 'preparando' })
     sembrarPagado(p.id, [['Pañal adulto M', 2], ['Toallitas húmedas', 1]], { quien: suyo, haceHoras: 0.05 })
     for (const x of [cancelado]) x.devoluciones![0].monto = x.lineas.reduce((t, l) => t + (l.confirmada?.precio ?? l.precio_carrito) * l.cantidad, 0) + 3990
+    return { cancelado, entregado, preparando }
+  }
+  /**
+   * MATU-128: lo que anotó el equipo en el entregado (lo pagó quien entra): «Faltó un producto», resuelto,
+   * y «No se pudo entregar», en revisión, guardados en otro orden (la ruta los ordena por `anotado_en`).
+   * El preparando lo pagó otra cuenta y también tiene algo anotado: a quien entra le responde 404.
+   */
+  const conLoQuePaso = (email: string, nombre: string, rol: Rol, modo?: string) => {
+    const { entregado, preparando } = tusPedidos(email, nombre, rol, modo, { pagoElla: 'algunos' })
+    const hace = (horas: number) => new Date(Date.now() - horas * 3_600_000).toISOString()
+    entregado.loQuePaso = [
+      { tipo: 'entrega_fallida', estado: 'en_gestion', anotado_en: hace(24), resuelto_en: null, nota: 'No había nadie en la casa a la hora de la entrega.', resolucion: null, nota_disponible: true },
+      { tipo: 'faltante', estado: 'resuelta', anotado_en: hace(47), resuelto_en: hace(46), nota: 'La farmacia no tenía una de las bolsas de protectores.', resolucion: 'devolvimos su precio a tu tarjeta.', nota_disponible: true },
+    ]
+    preparando.loQuePaso = [{ tipo: 'otro', estado: 'abierta', anotado_en: hace(25), resuelto_en: null, nota: 'Una nota sintética de un pedido que pagó otra persona.', resolucion: null, nota_disponible: true }]
   }
   tusPedidos('tus-pedidos@example.com', 'Carmen', 'admin')
   tusPedidos('tus-pedidos-pagador@example.com', 'Rodrigo', 'pagador')
@@ -608,6 +623,13 @@ function sembrar() {
   tusPedidos('tus-pedidos-carrera@example.com', 'Carmen', 'admin', 'tus-pedidos-carrera')
   tusPedidos('tus-pedidos-red@example.com', 'Carmen', 'admin', 'tus-pedidos-red')
   tusPedidos('tus-pedidos-plazo@example.com', 'Carmen', 'admin', undefined, { vencido: true })
+  // MATU-128: «Lo que pasó con tu pedido». Pagó el entregado (con dos cosas anotadas) y el recién pagado
+  // (sin nada); el preparando y el cancelado los pagó otra cuenta (404, aunque el preparando tenga algo).
+  conLoQuePaso('tus-pedidos-lo-que-paso@example.com', 'Rodrigo', 'pagador')
+  conLoQuePaso('lo-que-paso-se-informa@example.com', 'Rodrigo', 'observador')
+  conLoQuePaso('lo-que-paso-sin-clave@example.com', 'Rodrigo', 'pagador', 'lo-que-paso-sin-clave')
+  conLoQuePaso('lo-que-paso-red@example.com', 'Rodrigo', 'pagador', 'lo-que-paso-red')
+  conLoQuePaso('lo-que-paso-lento@example.com', 'Rodrigo', 'pagador', 'lo-que-paso-lento')
   conPedido('tus-pedidos-vacio@example.com', 'Carmen', 'admin', 'vigente')
   conPedido('tus-pedidos-falla@example.com', 'Carmen', 'admin', 'vigente', 'tus-pedidos-falla')
   // MATU-55: Dónde entraste y los avisos. Con carmen@ y las demás se ve la historia de ejemplo; cada una

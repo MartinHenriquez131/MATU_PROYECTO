@@ -11,6 +11,9 @@
 // primera vez) y tus-pedidos-plazo@ (el plazo de la app venció, y otro pasó los 90 días).
 // MATU-116: tus-pedidos-se-informa-pago@ (se informa y pagó dos de los cuatro: esos llegan con
 // `vista: 'pagaste'` y la fila de quien paga, con `puede_cancelar` en false; los demás, con `se_informa`).
+// MATU-128: `GET /v1/pedidos/{id}/lo-que-paso` responde solo a quien pagó ese pedido (nunca según el rol):
+// a los demás, 404. Con tus-pedidos-lo-que-paso@ (Paga), lo-que-paso-se-informa@ (Se informa y pagó),
+// lo-que-paso-sin-clave@ (503), lo-que-paso-red@ (500 la primera vez) y lo-que-paso-lento@ (2 s).
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { comercioDe, COSTO_ENVIO, productoDe, type Pedido, type Responder, type RetractoDoble, type Rol, type SeguimientoDoble, type UsuarioPedido } from './pedido'
@@ -153,6 +156,26 @@ export function listarPagados(req: IncomingMessage, res: ServerResponse, { json,
 
 const usadas = new Map<string, unknown>()
 const primeraVez = new Set<string>()
+
+/**
+ * MATU-128 (decisión 484): lo que anotó el equipo de MATU, para quien pagó este pedido. Lo decide quién
+ * pagó (`pagado.quien`), nunca el rol: el admin que no pagó recibe 404 y lo ve en «Datos de». Ordenado por
+ * `anotado_en` (E5); sin nada anotado, 200 con la lista vacía aunque falte la clave (E4).
+ */
+export function verLoQuePaso(req: IncomingMessage, res: ServerResponse, { json, problema }: Responder, u: UsuarioPedido, p: Pedido) {
+  res.setHeader('Cache-Control', 'no-store')
+  if ((req.method ?? 'GET') !== 'GET' || !p.pagado || p.pagado.quien !== u.id) return problema(res, 404, '/errores/no-encontrado')
+  const items = [...(p.loQuePaso ?? [])].sort((a, b) => a.anotado_en.localeCompare(b.anotado_en))
+  // lo-que-paso-red@: la primera lectura de cada pedido responde 500; «Volver a intentar» trae lo que hay.
+  if (u.modo === 'lo-que-paso-red' && !primeraVez.has(`lqp:${p.id}`)) {
+    primeraVez.add(`lqp:${p.id}`)
+    return problema(res, 500, '/errores/interno')
+  }
+  if (u.modo === 'lo-que-paso-sin-clave' && items.length) return problema(res, 503, '/errores/servicio-no-disponible')
+  const responder = () => json(res, 200, { lo_que_paso: items })
+  if (u.modo === 'lo-que-paso-lento') return void setTimeout(responder, 2000)
+  return responder()
+}
 
 /** El seguimiento, los retractos y cancelar con devolución de un pedido pagado. */
 export function atenderTusPedidos(
