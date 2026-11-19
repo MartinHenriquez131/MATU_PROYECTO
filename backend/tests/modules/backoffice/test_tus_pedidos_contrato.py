@@ -25,6 +25,8 @@ RUTAS = (
 VISTAS_DE_LA_FAMILIA = (
     "ListaPedidosPagados", "ListaPedidosPagadosObservador", "SeguimientoPedido", "RetractosDelPedido",
     "RetractoVistaFamilia", "EstadoPedidoVista", "PagoVista", "PagoVistaObservador",
+    # MATU-116 (C5): el detalle del observador que pagó el pedido
+    "SeguimientoPedidoPagaste",
 )
 NUNCA_A_LA_FAMILIA = {
     "codigo", "codigo_hash", "codigo_generado_en", "codigo_expira_en", "codigo_usado_en", "codigo_intentos",
@@ -91,11 +93,12 @@ def test_c15_ninguna_vista_de_la_familia_trae_el_codigo_ni_la_parte_del_comercio
 
 
 def test_c3_c5_la_vista_del_observador_no_trae_montos_ni_acciones(esquema: dict[str, Any]) -> None:
-    propiedades = _propiedades(esquema, "ListaPedidosPagadosObservador")
+    propiedades = _propiedades(esquema, "PedidoPagadoFilaObservador")
     assert not propiedades & NO_PARA_EL_OBSERVADOR, propiedades & NO_PARA_EL_OBSERVADOR
     fila = esquema["components"]["schemas"]["PedidoPagadoFilaObservador"]
     assert set(fila["properties"]) == {
-        "pedido_id", "pagado_en", "estado", "entregado_en", "productos", "resumen_productos", "productos_borrados"}
+        "vista", "pedido_id", "pagado_en", "estado", "entregado_en", "productos", "resumen_productos",
+        "productos_borrados"}
     # MATU-113 (decisión 472): el estado real de familia, con los mismos valores que la fila completa
     completa = esquema["components"]["schemas"]["PedidoPagadoFila"]
     assert "const" not in fila["properties"]["estado"]
@@ -103,9 +106,33 @@ def test_c3_c5_la_vista_del_observador_no_trae_montos_ni_acciones(esquema: dict[
     assert fila["properties"]["entregado_en"] == completa["properties"]["entregado_en"]
 
 
+@pytest.mark.rf("RNF-07")
+def test_c5_quien_paga_y_se_informa_tiene_su_fila_y_su_detalle_sin_cancelar(esquema: dict[str, Any]) -> None:
+    """MATU-116 (C5, decisión 475): la lista del observador trae dos filas, por vista; la de un pedido que pagó, y su
+    detalle, tienen la forma de las de quien paga, con puede_cancelar fijo en false y cancelar_motivo sin null, y
+    ninguna trae la entrega ni las notas."""
+    schemas = esquema["components"]["schemas"]
+    items = schemas["ListaPedidosPagadosObservador"]["properties"]["items"]["items"]
+    assert items["discriminator"]["propertyName"] == "vista"
+    assert set(items["discriminator"]["mapping"]) == {"pagaste", "se_informa"}
+    for pagaste, paga in (("PedidoPagadoFilaPagaste", "PedidoPagadoFila"),
+                          ("SeguimientoPedidoPagaste", "SeguimientoPedido")):
+        propias = set(schemas[pagaste]["properties"]) - {"vista"}
+        assert propias == set(schemas[paga]["properties"]), pagaste
+        cancelar = schemas[pagaste]["properties"]["puede_cancelar"]
+        assert (cancelar["type"], cancelar["const"]) == ("boolean", False), pagaste
+        assert {"puede_cancelar", "cancelar_motivo"} <= set(schemas[pagaste]["required"]), pagaste
+        motivo = schemas[pagaste]["properties"]["cancelar_motivo"]
+        assert "anyOf" not in motivo and motivo["type"] == "string" and "rol" in motivo["enum"], pagaste
+        assert not _propiedades(esquema, pagaste) & {"entrega", "calle", "telefono_contacto", "lo_que_paso", "nota"}
+    seguimiento = esquema["paths"]["/v1/pedidos/{pedido_id}/seguimiento"]["get"]["responses"]["200"]
+    referidos = json.dumps(seguimiento)
+    assert "SeguimientoPedidoPagaste" in referidos and '/SeguimientoPedido"' in referidos
+
+
 def test_las_vistas_son_estrictas_y_dicen_sus_codigos(esquema: dict[str, Any]) -> None:
     for nombre in ("PedidoPagadoFila", "PedidoPagadoFilaObservador", "SeguimientoPedido", "RetractosDelPedido",
-                   "RetractoVistaFamilia", "ParteDelPedido"):
+                   "RetractoVistaFamilia", "ParteDelPedido", "PedidoPagadoFilaPagaste", "SeguimientoPedidoPagaste"):
         assert esquema["components"]["schemas"][nombre].get("additionalProperties") is False, nombre
     lista = esquema["paths"]["/v1/personas-cuidadas/{persona_id}/pedidos"]["get"]["responses"]
     assert {"200", "401", "404", "422"} <= set(lista)

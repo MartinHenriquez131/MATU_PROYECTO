@@ -1,7 +1,8 @@
 """Rutas del pago de la familia (MATU-62, ADR-027; decisiones 224 a 230 y 236 a 239).
 
     POST /v1/pedidos/{pedido_id}/pagar                       admin y pagador. 201
-    GET  /v1/pedidos/{pedido_id}/pago                        los cuatro roles (el observador, solo pagado o no). 200
+    GET  /v1/pedidos/{pedido_id}/pago                        los cuatro roles (el observador, solo pagado o no,
+                                                             salvo en el pedido que pagó: MATU-116). 200
     GET  /v1/personas-cuidadas/{persona_id}/pedido-pagado    los cuatro roles. 200 o 404
 
 Son capa 3: van en ROUTERS_CAPA_3 de app/main.py. La vuelta de Webpay está en router_retorno.py y no se apaga con la
@@ -299,7 +300,10 @@ def _vista(
     comercios_precios_de_ejemplo: bool,
     reloj: RelojDep,
 ) -> VistaPago:
-    if contexto.rol not in lectura.ROLES_QUE_VEN_EL_PAGO:
+    # MATU-116 (C5): el observador que pagó el pedido ve su comprobante, como quien paga
+    if contexto.rol not in lectura.ROLES_QUE_VEN_EL_PAGO and not lectura.pago_el_pedido(
+        pagos, pedido.id, contexto.usuario_id
+    ):
         return vista_observador(lectura.vista_observador(pedido))
     estado = lectura.estado_del_pago(
         pagos,
@@ -322,7 +326,8 @@ def _vista(
     summary="El estado del pago del pedido, sus devoluciones y el comprobante",
     description=(
         "MATU-62 (decisiones 236, 238 y 239). admin, cuidador y pagador: PagoVista; la tarjeta, el código de"
-        " autorización y el correo solo para quien pagó. observador: PagoVistaObservador (pagado o sin_pagar). Sin"
+        " autorización y el correo solo para quien pagó. observador: PagoVistaObservador (pagado o sin_pagar), salvo"
+        " en un pedido que pagó, donde recibe PagoVista como quien paga (MATU-116, C5). Sin"
         " cargo, 200 con sin_intento. No pide despacho. No se audita. Capa 3"
     ),
 )

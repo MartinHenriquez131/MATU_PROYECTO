@@ -7084,7 +7084,7 @@
           "pedidos"
         ],
         "summary": "«Tus pedidos»: los pedidos pagados de la persona, de los últimos 2 años",
-        "description": "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos, sin ningún monto (C3; MATU-113, decisión 472). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación con devolución. Paginada con cursor opaco. No se audita. Capa 3",
+        "description": "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos, sin ningún monto (C3; MATU-113, decisión 472), con vista = se_informa; y en los pedidos que pagó, la fila de quien paga con puede_cancelar en false, con vista = pagaste (MATU-116, C5). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación con devolución. Paginada con cursor opaco. No se audita. Capa 3",
         "operationId": "listar_pedidos_v1_personas_cuidadas__persona_id__pedidos_get",
         "security": [
           {
@@ -8278,7 +8278,7 @@
           "pago"
         ],
         "summary": "El estado del pago del pedido, sus devoluciones y el comprobante",
-        "description": "MATU-62 (decisiones 236, 238 y 239). admin, cuidador y pagador: PagoVista; la tarjeta, el código de autorización y el correo solo para quien pagó. observador: PagoVistaObservador (pagado o sin_pagar). Sin cargo, 200 con sin_intento. No pide despacho. No se audita. Capa 3",
+        "description": "MATU-62 (decisiones 236, 238 y 239). admin, cuidador y pagador: PagoVista; la tarjeta, el código de autorización y el correo solo para quien pagó. observador: PagoVistaObservador (pagado o sin_pagar), salvo en un pedido que pagó, donde recibe PagoVista como quien paga (MATU-116, C5). Sin cargo, 200 con sin_intento. No pide despacho. No se audita. Capa 3",
         "operationId": "ver_pago_v1_pedidos__pedido_id__pago_get",
         "security": [
           {
@@ -10933,7 +10933,7 @@
           "pedidos"
         ],
         "summary": "Ver Retractos",
-        "description": "Hasta cuándo se puede pedir el retracto (fecha exacta, D-63-9) y los retractos pedidos. MATU-92 (rutas 3 y 4): por línea, lo entregado, lo ya pedido, lo disponible, el precio pagado y si se pierde al abrir; si devolver todo incluye el envío; plazo_correo_hasta (C22); puede_arrepentirse con su motivo (C7); y en cada retracto sus líneas, es_tuyo (C18), origen (C21) y resuelto_en. admin, cuidador y pagador, pedido entregado. No se audita. Capa 3",
+        "description": "Hasta cuándo se puede pedir el retracto (fecha exacta, D-63-9) y los retractos pedidos. MATU-92 (rutas 3 y 4): por línea, lo entregado, lo ya pedido, lo disponible, el precio pagado y si se pierde al abrir; si devolver todo incluye el envío; plazo_correo_hasta (C22); puede_arrepentirse con su motivo (C7); y en cada retracto sus líneas, es_tuyo (C18), origen (C21) y resuelto_en. admin, cuidador y pagador, y el observador que pagó el pedido (MATU-116, C5); pedido entregado. No se audita. Capa 3",
         "operationId": "ver_retractos_v1_pedidos__pedido_id__retractos_get",
         "security": [
           {
@@ -11008,7 +11008,7 @@
           "pedidos"
         ],
         "summary": "Pedir Retracto",
-        "description": "R3: «Arrepentirme de la compra». El admin, o quien pagó si sigue en el grupo, elige los productos y cuántos. Se devuelven a precio pagado, y el envío según las condiciones aceptadas (D-63-10), cuando MATU recibe el producto con el sello intacto. MATU-92: el observador recibe 404 (C6); Idempotency-Key obligatoria (la repetición responde 201 con el mismo retracto, C8); el pedido se bloquea antes de leer lo ya pedido, y dos solicitudes a la vez no piden más de lo entregado. Registra pedido.retracto_solicitar. Capa 3",
+        "description": "R3: «Arrepentirme de la compra». El admin, o quien pagó si sigue en el grupo en cualquier rol (MATU-116, C5), elige los productos y cuántos. Se devuelven a precio pagado, y el envío según las condiciones aceptadas (D-63-10), cuando MATU recibe el producto con el sello intacto. MATU-92: quien no pagó y no es admin recibe 404 (C6); Idempotency-Key obligatoria (la repetición responde 201 con el mismo retracto, C8); el pedido se bloquea antes de leer lo ya pedido, y dos solicitudes a la vez no piden más de lo entregado. Registra pedido.retracto_solicitar. Capa 3",
         "operationId": "pedir_retracto_v1_pedidos__pedido_id__retractos_post",
         "security": [
           {
@@ -11277,7 +11277,7 @@
           "pedidos"
         ],
         "summary": "Cómo va un pedido pagado, por comercio",
-        "description": "MATU-92 (ruta 2). admin, cuidador y pagador; el observador no tiene detalle (404, D-92-1 a). Cada parte con el nombre de fantasía del comercio, su estado y cancelada_por; cada línea con unidades_faltantes. Nunca el código de retiro, la referencia de la parte ni la cuenta del encargado (C15). El comprobante es GET …/pago (C14). No se audita. Capa 3",
+        "description": "MATU-92 (ruta 2). admin, cuidador y pagador: SeguimientoPedido. El observador que pagó el pedido: SeguimientoPedidoPagaste, con puede_cancelar en false (MATU-116, C5); de uno que no pagó, no tiene detalle (404, D-92-1 a). Cada parte con el nombre de fantasía del comercio, su estado y cancelada_por; cada línea con unidades_faltantes. Nunca el código de retiro, la referencia de la parte ni la cuenta del encargado (C15). El comprobante es GET …/pago (C14). No se audita. Capa 3",
         "operationId": "ver_seguimiento_v1_pedidos__pedido_id__seguimiento_get",
         "security": [
           {
@@ -11318,7 +11318,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SeguimientoPedido"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SeguimientoPedido"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SeguimientoPedidoPagaste"
+                    }
+                  ],
+                  "title": "Response Ver Seguimiento V1 Pedidos  Pedido Id  Seguimiento Get"
                 }
               }
             }
@@ -18561,8 +18569,19 @@
       "PagoCuentaCopia": {
         "properties": {
           "grupo": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Grupo"
+          },
+          "sigue_en_el_grupo": {
+            "type": "boolean",
+            "title": "Sigue En El Grupo"
           },
           "referencia": {
             "anyOf": [
@@ -18617,6 +18636,7 @@
         "type": "object",
         "required": [
           "grupo",
+          "sigue_en_el_grupo",
           "referencia",
           "pagado_en",
           "cobrado",
@@ -18970,8 +18990,19 @@
       "CondicionesCopia": {
         "properties": {
           "grupo": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Grupo"
+          },
+          "sigue_en_el_grupo": {
+            "type": "boolean",
+            "title": "Sigue En El Grupo"
           },
           "referencia": {
             "anyOf": [
@@ -19001,6 +19032,7 @@
         "type": "object",
         "required": [
           "grupo",
+          "sigue_en_el_grupo",
           "referencia",
           "version",
           "huella",
@@ -21428,8 +21460,19 @@
       "RetractoCuentaCopia": {
         "properties": {
           "grupo": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Grupo"
+          },
+          "sigue_en_el_grupo": {
+            "type": "boolean",
+            "title": "Sigue En El Grupo"
           },
           "referencia": {
             "anyOf": [
@@ -21482,10 +21525,17 @@
             "title": "Motivo Rechazo"
           },
           "productos": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Productos"
           }
         },
@@ -21493,6 +21543,7 @@
         "type": "object",
         "required": [
           "grupo",
+          "sigue_en_el_grupo",
           "referencia",
           "estado",
           "solicitado_en",
@@ -21501,7 +21552,7 @@
           "productos"
         ],
         "title": "RetractoCuentaCopia",
-        "description": "MATU-63 (R3): los retractos que pidió esta cuenta, sin el nombre de la persona."
+        "description": "MATU-63 (R3): los retractos que pidió esta cuenta, sin el nombre de la persona; MATU-116, también de los grupos\nque dejó."
       },
       "SolicitudRetractoPorCorreo": {
         "properties": {
@@ -21727,7 +21778,21 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/PedidoPagadoFilaObservador"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/PedidoPagadoFilaObservador"
+                },
+                {
+                  "$ref": "#/components/schemas/PedidoPagadoFilaPagaste"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "vista",
+                "mapping": {
+                  "pagaste": "#/components/schemas/PedidoPagadoFilaPagaste",
+                  "se_informa": "#/components/schemas/PedidoPagadoFilaObservador"
+                }
+              }
             },
             "type": "array",
             "title": "Items"
@@ -21750,7 +21815,8 @@
           "items",
           "siguiente_cursor"
         ],
-        "title": "ListaPedidosPagadosObservador"
+        "title": "ListaPedidosPagadosObservador",
+        "description": "La lista del observador. MATU-116: con los dos tipos de fila, por ``vista``: «pagaste» en los pedidos que pagó\ny «se_informa» en los demás. Lo decide la API, nunca la pantalla (C10)."
       },
       "ParteDelPedido": {
         "properties": {
@@ -21997,6 +22063,12 @@
       },
       "PedidoPagadoFilaObservador": {
         "properties": {
+          "vista": {
+            "type": "string",
+            "const": "se_informa",
+            "title": "Vista",
+            "description": "MATU-116: la fila de «Se informa», de un pedido que no pagó"
+          },
           "pedido_id": {
             "type": "string",
             "format": "uuid",
@@ -22060,6 +22132,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "vista",
           "pedido_id",
           "pagado_en",
           "estado",
@@ -23900,6 +23973,368 @@
         ],
         "title": "VentaVista",
         "description": "D-81-8: buy_order sí (para buscar en el portal de Transbank); nunca va en la URL ni en los logs."
+      },
+      "PedidoPagadoFilaPagaste": {
+        "properties": {
+          "vista": {
+            "type": "string",
+            "const": "pagaste",
+            "title": "Vista",
+            "description": "MATU-116: el pedido lo pagó quien lee"
+          },
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "referencia": {
+            "type": "string",
+            "pattern": "^[0-9]{4,6}$",
+            "title": "Referencia"
+          },
+          "pagado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Pagado En"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "pagado",
+              "enviado_a_comercio",
+              "preparando",
+              "listo_retiro",
+              "en_ruta",
+              "entregado",
+              "no_entregado",
+              "reprogramado",
+              "cancelado_con_devolucion"
+            ],
+            "title": "Estado",
+            "description": "El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado"
+          },
+          "entregado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entregado En"
+          },
+          "cancelado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelado En"
+          },
+          "productos": {
+            "items": {
+              "$ref": "#/components/schemas/ProductoDeLaFila"
+            },
+            "type": "array",
+            "title": "Productos"
+          },
+          "resumen_productos": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResumenProductos"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "productos_borrados": {
+            "type": "boolean",
+            "title": "Productos Borrados",
+            "description": "C28: ya no se guardan los productos del pedido"
+          },
+          "total": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Total",
+            "description": "El total pagado, envío incluido, en pesos enteros"
+          },
+          "devuelto": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Devuelto",
+            "description": "Lo devuelto a la tarjeta con anulaciones hechas"
+          },
+          "devuelto_todo": {
+            "type": "boolean",
+            "title": "Devuelto Todo",
+            "description": "devuelto = total: «Devolvimos», y no «Estamos devolviendo»"
+          },
+          "puede_cancelar": {
+            "type": "boolean",
+            "const": false,
+            "title": "Puede Cancelar"
+          },
+          "cancelar_motivo": {
+            "type": "string",
+            "enum": [
+              "rol",
+              "ya_se_prepara",
+              "cancelado"
+            ],
+            "title": "Cancelar Motivo",
+            "description": "null si puede_cancelar. rol: solo el admin cancela; ya_se_prepara: un comercio ya empezó (o el pedido ya salió); cancelado: el pedido ya se canceló"
+          },
+          "puede_arrepentirse": {
+            "type": "boolean",
+            "title": "Puede Arrepentirse"
+          },
+          "arrepentirse_motivo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "rol",
+                  "sin_entregar",
+                  "plazo_app_vencido",
+                  "plazo_vencido",
+                  "nada_disponible"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arrepentirse Motivo",
+            "description": "null si puede_arrepentirse. sin_entregar; plazo_app_vencido: pasaron los 10 días hábiles y queda el correo hasta plazo_correo_hasta (C22); plazo_vencido: pasaron también los 90 días; rol: pueden el admin y quien pagó; nada_disponible: ya se pidió devolver todo lo entregado"
+          },
+          "plazo_hasta": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plazo Hasta",
+            "description": "Fin del décimo día hábil desde la entrega, en hora de Chile. null sin entrega"
+          },
+          "plazo_correo_hasta": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plazo Correo Hasta",
+            "description": "90 días desde la entrega. null sin entrega"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "vista",
+          "pedido_id",
+          "referencia",
+          "pagado_en",
+          "estado",
+          "entregado_en",
+          "cancelado_en",
+          "productos",
+          "resumen_productos",
+          "productos_borrados",
+          "total",
+          "devuelto",
+          "devuelto_todo",
+          "puede_cancelar",
+          "cancelar_motivo",
+          "puede_arrepentirse",
+          "arrepentirse_motivo",
+          "plazo_hasta",
+          "plazo_correo_hasta"
+        ],
+        "title": "PedidoPagadoFilaPagaste",
+        "description": "MATU-116 (J1, C5; decisión 475): la fila del observador en un pedido que pagó. La de quien paga\n(PedidoPagadoFila), con puede_cancelar siempre false: puede arrepentirse de la compra, nunca cancelar."
+      },
+      "SeguimientoPedidoPagaste": {
+        "properties": {
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "referencia": {
+            "type": "string",
+            "pattern": "^[0-9]{4,6}$",
+            "title": "Referencia"
+          },
+          "pagado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Pagado En"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "pagado",
+              "enviado_a_comercio",
+              "preparando",
+              "listo_retiro",
+              "en_ruta",
+              "entregado",
+              "no_entregado",
+              "reprogramado",
+              "cancelado_con_devolucion"
+            ],
+            "title": "Estado",
+            "description": "El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado"
+          },
+          "entregado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entregado En"
+          },
+          "cancelado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelado En"
+          },
+          "partes": {
+            "items": {
+              "$ref": "#/components/schemas/ParteDelPedido"
+            },
+            "type": "array",
+            "title": "Partes"
+          },
+          "productos_borrados": {
+            "type": "boolean",
+            "title": "Productos Borrados"
+          },
+          "total": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Total"
+          },
+          "devuelto": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Devuelto"
+          },
+          "devuelto_todo": {
+            "type": "boolean",
+            "title": "Devuelto Todo"
+          },
+          "puede_cancelar": {
+            "type": "boolean",
+            "const": false,
+            "title": "Puede Cancelar"
+          },
+          "cancelar_motivo": {
+            "type": "string",
+            "enum": [
+              "rol",
+              "ya_se_prepara",
+              "cancelado"
+            ],
+            "title": "Cancelar Motivo",
+            "description": "null si puede_cancelar. rol: solo el admin cancela; ya_se_prepara: un comercio ya empezó (o el pedido ya salió); cancelado: el pedido ya se canceló"
+          },
+          "puede_arrepentirse": {
+            "type": "boolean",
+            "title": "Puede Arrepentirse"
+          },
+          "arrepentirse_motivo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "rol",
+                  "sin_entregar",
+                  "plazo_app_vencido",
+                  "plazo_vencido",
+                  "nada_disponible"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arrepentirse Motivo",
+            "description": "null si puede_arrepentirse. sin_entregar; plazo_app_vencido: pasaron los 10 días hábiles y queda el correo hasta plazo_correo_hasta (C22); plazo_vencido: pasaron también los 90 días; rol: pueden el admin y quien pagó; nada_disponible: ya se pidió devolver todo lo entregado"
+          },
+          "plazo_hasta": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plazo Hasta"
+          },
+          "plazo_correo_hasta": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plazo Correo Hasta"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pedido_id",
+          "referencia",
+          "pagado_en",
+          "estado",
+          "entregado_en",
+          "cancelado_en",
+          "partes",
+          "productos_borrados",
+          "total",
+          "devuelto",
+          "devuelto_todo",
+          "puede_cancelar",
+          "cancelar_motivo",
+          "puede_arrepentirse",
+          "arrepentirse_motivo",
+          "plazo_hasta",
+          "plazo_correo_hasta"
+        ],
+        "title": "SeguimientoPedidoPagaste",
+        "description": "MATU-116 (J1, C5): el detalle para el observador que pagó el pedido. El de quien paga (SeguimientoPedido), con\npuede_cancelar siempre false. Como SeguimientoPedido, sin la entrega, el teléfono ni las notas del equipo."
       }
     },
     "securitySchemes": {

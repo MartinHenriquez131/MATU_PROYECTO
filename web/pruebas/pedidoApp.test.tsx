@@ -11,6 +11,8 @@ import { RegionesVivas } from '../src/compartido/ui/Anuncios'
 import { AppFamilia } from '../src/familia/AppFamilia'
 import { respuestaDelGrupo } from './miembrosFalsos'
 import { autorizaciones, CATALOGO, confirmado, CUENTA, DIRECCION, PERSONA_ID, type Respuesta } from './pedidoFalso'
+import { comprobante, pago } from './pagoFalso'
+import { filaObservador, filaPagaste, lista, PEDIDO_2, retractos, seguimientoEntregado } from './tusPedidosFalso'
 
 const GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g1'
 const MARIA = { id: PERSONA_ID, nombre: 'María Soto', nombre_pila: 'María', nivel_apoyo: 'apoyo_parcial', direccion: DIRECCION, consentimiento: null }
@@ -18,7 +20,14 @@ const PEDRO = { id: '3c9d4e20-0000-4000-8000-0000000000bb', nombre: 'Pedro Rojas
 
 function apiApp(
   rol: Rol,
-  { capa3 = true, personas = [MARIA] as object[], despacho = 'vigente' as Parameters<typeof autorizaciones>[0], pedido = confirmado() as object | null, demora = 0 } = {},
+  {
+    capa3 = true,
+    personas = [MARIA] as object[],
+    despacho = 'vigente' as Parameters<typeof autorizaciones>[0],
+    pedido = confirmado() as object | null,
+    demora = 0,
+    otras = (() => null) as (linea: string) => Respuesta | null,
+  } = {},
 ) {
   const pedidas: string[] = []
   const responder = (config: InternalAxiosRequestConfig, r: Respuesta): AxiosResponse => {
@@ -44,6 +53,8 @@ function apiApp(
     // Sin la autorización de pedidos, crear el pedido responde 403 (decisión 194).
     if (linea === `POST /v1/personas-cuidadas/${PERSONA_ID}/pedidos` && despacho !== 'vigente') return responder(config, { status: 403, cuerpo: { type: '/errores/sin-autorizacion', status: 403 } })
     if (/\/consumo/.test(linea)) return responder(config, { status: 200, cuerpo: { items: [], siguiente_cursor: null } })
+    const otra = otras(linea)
+    if (otra) return responder(config, otra)
     // MATU-42/53: Grupo familiar pide quiénes lo forman; con un 404 la app entiende que la sacaron del grupo.
     const delGrupo = respuestaDelGrupo(linea)
     if (delGrupo) return responder(config, delGrupo)
@@ -176,5 +187,43 @@ describe('MATU-94 (decisión 251, C8): la dirección con la capa 3 apagada', () 
     await waitFor(() => expect(window.location.pathname).toBe('/grupo'))
     expect((await screen.findAllByText('Vaciamos la dirección.', {}, { timeout: 5000 }))[0]).toBeVisible()
     expect(pedidas).toContain(`DELETE /v1/personas-cuidadas/${PERSONA_ID}/direccion`)
+  })
+})
+
+// ---------------------------------------------------------------- MATU-116 (H1): la guarda del detalle
+
+describe('MATU-116 (H1, C10): la guarda del detalle no mira el rol', () => {
+  /** Quien «Se informa»: un pedido que no pagó y uno que pagó (4790); el servidor da su detalle. */
+  const seInforma = (seguimiento: Respuesta) => (linea: string): Respuesta | null => {
+    if (linea === `GET /v1/personas-cuidadas/${PERSONA_ID}/pedidos`) return { status: 200, cuerpo: lista([filaObservador(), filaPagaste()]) }
+    if (linea === `GET /v1/pedidos/${PEDIDO_2}/seguimiento`) return seguimiento
+    if (linea === `GET /v1/pedidos/${PEDIDO_2}/pago`) return { status: 200, cuerpo: pago({ pedido_id: PEDIDO_2, comprobante: comprobante({ referencia: '4790' }) }) }
+    if (linea === `GET /v1/pedidos/${PEDIDO_2}/retractos`) return { status: 200, cuerpo: retractos() }
+    return null
+  }
+
+  it('quien «Se informa» abre el pedido que pagó y se queda en el detalle; no vuelve a la lista', async () => {
+    const pedidas = apiApp('observador', { otras: seInforma({ status: 200, cuerpo: seguimientoEntregado({ puede_cancelar: false, cancelar_motivo: 'rol' }) }) })
+    abrirApp('/insumos/tus-pedidos')
+    await userEvent.click(await screen.findByRole('button', { name: /^Pedido 4790/ }, { timeout: 5000 }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Pedido 4790' }, { timeout: 5000 })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Cómo va' })).toBeVisible()
+    expect(window.location.pathname).toBe('/insumos/tus-pedidos/pedido')
+    expect(pedidas).toContain(`GET /v1/pedidos/${PEDIDO_2}/seguimiento`)
+  })
+
+  it('si el servidor dice 404 (no lo pagó), el detalle dice «No encontramos este pedido.»', async () => {
+    apiApp('observador', { otras: seInforma({ status: 404, cuerpo: { type: '/errores/no-encontrado', status: 404 } }) })
+    abrirApp('/insumos/tus-pedidos')
+    await userEvent.click(await screen.findByRole('button', { name: /^Pedido 4790/ }, { timeout: 5000 }))
+    expect(await screen.findByText('No encontramos este pedido.', {}, { timeout: 5000 })).toBeVisible()
+    expect(window.location.pathname).toBe('/insumos/tus-pedidos/pedido')
+  })
+
+  it('sin el pedido en memoria (al recargar), cualquier rol vuelve a la lista, sin aviso', async () => {
+    apiApp('observador', { otras: seInforma({ status: 200, cuerpo: seguimientoEntregado() }) })
+    abrirApp('/insumos/tus-pedidos/pedido')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tus pedidos' }, { timeout: 5000 })).toBeVisible()
+    await waitFor(() => expect(window.location.pathname).toBe('/insumos/tus-pedidos'))
   })
 })

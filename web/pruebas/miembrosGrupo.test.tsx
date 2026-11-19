@@ -191,8 +191,8 @@ describe('Quiénes forman el grupo', () => {
     await userEvent.click(macizos[0] as HTMLElement)
     expect(window.location.pathname).toBe('/grupo/invitar')
 
-    // 10.10: nunca un correo ni un celular.
-    expect(document.body.textContent).not.toMatch(/@|\+56/)
+    // 10.10: nunca un correo ni un celular de alguien del grupo. MATU-116 (T5): el único correo es el de MATU.
+    expect(document.body.textContent!.replaceAll('cuidaconmatu@gmail.com', '')).not.toMatch(/@|\+56/)
     expect(pedidas.find((p) => p.linea.endsWith('/miembros'))?.grupo).toBe(GRUPO_ID)
   })
 
@@ -430,9 +430,23 @@ describe('Cambiar el rol', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Cambiar tu rol' }))
     await userEvent.click(enDialogo().getByRole('radio', { name: 'Se informa' }))
     expect(enDialogo().getByText(/También dejarás de ver la ficha\./)).toBeVisible()
+    // MATU-116 (T6): al pasar a «Se informa», con la capa 3, justo después de la ficha.
+    expect(enDialogo().getByText(/También dejarás de ver la ficha\. Los pedidos que pagaste los seguirás viendo, con lo que pagaste\. Se cortan/)).toBeVisible()
+    await userEvent.click(enDialogo().getByRole('radio', { name: 'Paga' }))
+    expect(enDialogo().queryByText(/Los pedidos que pagaste/)).toBeNull()
     await userEvent.click(enDialogo().getByRole('radio', { name: 'Cuida' }))
     expect(enDialogo().queryByText(/También dejarás de ver la ficha/)).toBeNull()
+    expect(enDialogo().queryByText(/Los pedidos que pagaste/)).toBeNull()
     expect(enDialogo().getByText(/Si creaste invitaciones que nadie ha usado, se anulan\./)).toBeVisible()
+  })
+
+  it('MATU-116 (T6): sin la capa 3, pasar a «Se informa» no dice lo de los pedidos pagados', async () => {
+    api()
+    abrir('admin', { capa3: false })
+    await userEvent.click(await screen.findByRole('button', { name: 'Cambiar tu rol' }))
+    await userEvent.click(enDialogo().getByRole('radio', { name: 'Se informa' }))
+    expect(enDialogo().getByText(/También dejarás de ver la ficha\./)).toBeVisible()
+    expect(enDialogo().queryByText(/Los pedidos que pagaste/)).toBeNull()
   })
 
   it('cuidadora a «Se informa»: sin la frase de las invitaciones (no administra)', async () => {
@@ -717,10 +731,12 @@ describe('Salir del grupo', () => {
       'Si creaste invitaciones que nadie ha usado, se anulan.',
       'Para volver, alguien que administra el grupo tiene que invitarte de nuevo.',
     ])
-    // v1.3: el correo, como texto y sin enlace, con los comprobantes porque la capa 3 está encendida.
-    const correo = enDialogo().getByText('Si después necesitas lo que hiciste en el grupo o los comprobantes de tus pagos, pídelos a cuidaconmatu@gmail.com.')
+    // MATU-116 (T5): con la capa 3, los pagos siguen en «Tus datos», y el correo es un enlace en la frase.
+    const t5 = 'Tus pagos los seguirás viendo en «Tus datos». Si después necesitas lo que hiciste en el grupo o el detalle de un pedido, pídelo a cuidaconmatu@gmail.com.'
+    const correo = enDialogo().getByText((_, el) => el?.tagName === 'P' && el.textContent === t5)
     expect(correo).toHaveClass('text-tenue', 'break-words')
-    expect(enDialogo().queryByRole('link')).toBeNull()
+    expect(within(correo).getByRole('link', { name: 'cuidaconmatu@gmail.com' })).toHaveAttribute('href', 'mailto:cuidaconmatu@gmail.com')
+    expect(enDialogo().queryByText(/comprobantes de tus pagos/)).toBeNull()
     expect(enDialogo().getByRole('button', { name: 'Quedarme' })).toBeVisible()
     await userEvent.click(enDialogo().getByRole('button', { name: 'Salir del grupo' }))
     await waitFor(() => expect(window.location.pathname).toBe('/'))
@@ -748,11 +764,26 @@ describe('Salir del grupo', () => {
     expect(await enDialogo().findByText('El grupo necesita alguien que lo administre. Primero da ese rol a otra persona.')).toBeVisible()
   })
 
+  it('MATU-116 (T5, especificación 3): la sección también dice que los pagos siguen en «Tus datos»', async () => {
+    api()
+    abrir('cuidador')
+    const seccion = await screen.findByRole('region', { name: 'Salir del grupo' })
+    await within(seccion).findByRole('button', { name: 'Salir del grupo' })
+    const t5 = within(seccion).getByText((_, el) => el?.tagName === 'P' && el.textContent?.startsWith('Tus pagos los seguirás viendo en «Tus datos».') === true)
+    expect(t5).toHaveTextContent('Tus pagos los seguirás viendo en «Tus datos». Si después necesitas lo que hiciste en el grupo o el detalle de un pedido, pídelo a cuidaconmatu@gmail.com.')
+    expect(within(t5).getByRole('link', { name: 'cuidaconmatu@gmail.com' })).toBeVisible()
+  })
+
   it('v1.3: sin la capa 3 el correo no nombra los pagos, y quien no administra no ve lo de las invitaciones', async () => {
     api()
     abrir('cuidador', { capa3: false })
-    await userEvent.click(await within(await screen.findByRole('region', { name: 'Salir del grupo' })).findByRole('button', { name: 'Salir del grupo' }))
+    const seccion = within(await screen.findByRole('region', { name: 'Salir del grupo' }))
+    // MATU-116: sin la capa 3, ni la sección ni la pregunta dicen T5.
+    expect(seccion.getByText('Si después necesitas lo que hiciste en el grupo, pídelo a cuidaconmatu@gmail.com.')).toBeVisible()
+    expect(seccion.queryByText(/Tus pagos los seguirás viendo/)).toBeNull()
+    await userEvent.click(await seccion.findByRole('button', { name: 'Salir del grupo' }))
     expect(enDialogo().getByText('Si después necesitas lo que hiciste en el grupo, pídelo a cuidaconmatu@gmail.com.')).toBeVisible()
+    expect(enDialogo().queryByText(/Tus pagos los seguirás viendo/)).toBeNull()
     expect(enDialogo().queryByText(/invitaciones que nadie ha usado/)).toBeNull()
   })
 

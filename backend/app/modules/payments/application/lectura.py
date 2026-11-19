@@ -230,5 +230,13 @@ def estado_del_pago(
     )
 
 
+def pago_el_pedido(repositorio: RepositorioPagos, pedido_id: uuid.UUID, usuario_id: uuid.UUID) -> bool:
+    """MATU-116 (C5): si esa cuenta pagó el pedido (su participación cobró algo). Con la RLS de la 0032, el observador
+    ve solo su propia participación, y solo en los pedidos que pagó."""
+    cargo = repositorio.cargo_de(pedido_id)
+    participacion = None if cargo is None else repositorio.participacion_de(cargo.id, usuario_id)
+    return participacion is not None and participacion.monto_cobrado > 0
+
+
 def vista_observador(pedido: PedidoCobro) -> PagoObservador:
     return PagoObservador(pedido_id=pedido.id, estado="pagado" if pedido.pagado_en is not None else "sin_pagar")

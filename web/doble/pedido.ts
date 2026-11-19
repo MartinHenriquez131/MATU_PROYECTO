@@ -780,7 +780,8 @@ function vistaDevolucion(d: DevolucionDoble, u: UsuarioPedido) {
 
 /** `PagoVista` o `PagoVistaObservador` (decisión 236). La tarjeta, el código y el correo, solo para quien pagó. */
 function vistaPago(p: Pedido, rol: Rol, u: UsuarioPedido) {
-  if (rol === 'observador') return { pedido_id: p.id, estado: p.pagado ? 'pagado' : 'sin_pagar' }
+  // MATU-116 (C5): en un pedido que pagó, el observador recibe `PagoVista` como quien paga.
+  if (rol === 'observador' && !(p.pagado && p.pagado.quien === u.id)) return { pedido_id: p.id, estado: p.pagado ? 'pagado' : 'sin_pagar' }
   const vs = ventasDe(p)
   const ultima = vs[vs.length - 1]
   const devoluciones = (p.devoluciones ?? []).map((d) => vistaDevolucion(d, u))

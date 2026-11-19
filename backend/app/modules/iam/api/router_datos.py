@@ -87,7 +87,7 @@ def ver_datos_propios(
         pagos = copia.bloque_cuenta(copia.BLOQUE_PAGOS)
         assert grupos is not None and avisos is not None
         de_avisos = avisos(ctx)
-        # Los pagos al final: fijan y limpian app.grupo_id dentro de la transacción (decisión 371)
+        # MATU-116 (decisión 475): los pagos, con las funciones definer de la 0032, sin fijar app.grupo_id
         de_pagos = None if pagos is None else pagos(ctx)
         cuerpo = CopiaDatosCuenta.model_validate(
             {

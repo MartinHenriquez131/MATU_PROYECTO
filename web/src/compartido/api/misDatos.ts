@@ -65,6 +65,8 @@ export type EventoCuentaCopia = S['EventoCuentaCopia']
 export type AvisoEnviadoCopia = S['AvisoEnviadoCopia']
 export type PagoCuentaCopia = S['PagoCuentaCopia']
 export type CondicionesCopia = S['CondicionesCopia']
+/** MATU-116 (2.3): lo que pidió devolver; de un grupo que dejó, con `grupo` y `productos` en `null`. */
+export type RetractoCuentaCopia = S['RetractoCuentaCopia']
 
 // ---------------------------------------------------------------- pedir la copia
 

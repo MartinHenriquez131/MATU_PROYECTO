@@ -3,7 +3,7 @@
 // Solo datos sintéticos: nombres de ejemplo, teléfonos de la serie 5555 y correos en example.org.
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { vi } from 'vitest'
-import type { CopiaDatosCuenta, CopiaDatosPersona } from '../src/compartido/api/misDatos'
+import type { CopiaDatosCuenta, CopiaDatosPersona, RetractoCuentaCopia } from '../src/compartido/api/misDatos'
 import { apiFamilia } from '../src/compartido/api/sesion'
 
 /** 12/11/2026 a las 10:14 de Chile (UTC−3 en verano). */
@@ -291,17 +291,30 @@ export function copiaCuenta(cambios: Partial<CopiaDatosCuenta> = {}): CopiaDatos
     envio_simulado: true,
     retractos: null,
     pagos: [
-      { grupo: 'Familia Soto', referencia: '4821', pagado_en: '2026-11-08T11:24:00-03:00', cobrado: 37_260, devuelto: 5_290, tarjeta: { tipo: 'credito', ultimos4: '4242', cuotas: 3 }, codigo_autorizacion: '1213', pago_de_prueba: true },
-      { grupo: 'Familia Soto', referencia: '4910', pagado_en: '2026-11-09T11:24:00-03:00', cobrado: 10_480, devuelto: 0, tarjeta: { tipo: 'debito', ultimos4: '0019', cuotas: 0 }, codigo_autorizacion: null, pago_de_prueba: false },
-      { grupo: 'Familia Soto', referencia: null, pagado_en: '2026-11-10T11:24:00-03:00', cobrado: 10_480, devuelto: 10_480, tarjeta: null, codigo_autorizacion: null, pago_de_prueba: false },
+      { grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: '4821', pagado_en: '2026-11-08T11:24:00-03:00', cobrado: 37_260, devuelto: 5_290, tarjeta: { tipo: 'credito', ultimos4: '4242', cuotas: 3 }, codigo_autorizacion: '1213', pago_de_prueba: true },
+      { grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: '4910', pagado_en: '2026-11-09T11:24:00-03:00', cobrado: 10_480, devuelto: 0, tarjeta: { tipo: 'debito', ultimos4: '0019', cuotas: 0 }, codigo_autorizacion: null, pago_de_prueba: false },
+      { grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: null, pagado_en: '2026-11-10T11:24:00-03:00', cobrado: 10_480, devuelto: 10_480, tarjeta: null, codigo_autorizacion: null, pago_de_prueba: false },
     ],
     condiciones_aceptadas: [
-      { grupo: 'Familia Soto', referencia: '4821', version: '1.0', huella: 'c'.repeat(64), aceptadas_en: '2026-11-08T11:20:00-03:00' },
-      { grupo: 'Familia Soto', referencia: null, version: '1.0', huella: 'd'.repeat(64), aceptadas_en: '2026-11-11T11:20:00-03:00' },
+      { grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: '4821', version: '1.0', huella: 'c'.repeat(64), aceptadas_en: '2026-11-08T11:20:00-03:00' },
+      { grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: null, version: '1.0', huella: 'd'.repeat(64), aceptadas_en: '2026-11-11T11:20:00-03:00' },
     ],
     ...cambios,
   }
 }
+
+/** MATU-116: lo que pidió devolver la cuenta (`RetractoCuentaCopia`), de un grupo en que sigue. */
+export const retractoCuenta = (cambios: Partial<RetractoCuentaCopia> = {}): RetractoCuentaCopia => ({
+  grupo: 'Familia Soto',
+  sigue_en_el_grupo: true,
+  referencia: '4790',
+  estado: 'devuelto',
+  solicitado_en: '2026-11-12T09:00:00-03:00',
+  resuelto_en: '2026-11-15T09:00:00-03:00',
+  motivo_rechazo: null,
+  productos: ['Suplemento vainilla x12'],
+  ...cambios,
+})
 
 export interface Respuesta {
   status: number

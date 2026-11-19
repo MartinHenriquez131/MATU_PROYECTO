@@ -15,9 +15,11 @@ type S = components['schemas']
 
 export type FilaPedido = S['PedidoPagadoFila']
 export type FilaObservador = S['PedidoPagadoFilaObservador']
+/** MATU-116 (C5): la fila del observador en un pedido que pagó, la de quien paga con `vista: 'pagaste'`. */
+export type FilaPagaste = S['PedidoPagadoFilaPagaste']
 export type ListaPedidos = S['ListaPedidosPagados'] | S['ListaPedidosPagadosObservador']
 export type EstadoFamilia = FilaPedido['estado']
-export type Seguimiento = S['SeguimientoPedido']
+export type Seguimiento = S['SeguimientoPedido'] | S['SeguimientoPedidoPagaste']
 export type ParteDelPedido = S['ParteDelPedido']
 export type Retractos = S['RetractosDelPedido']
 export type LineaParaRetracto = S['LineaParaRetracto']
@@ -27,8 +29,16 @@ export type EstadoPedidoVista = S['EstadoPedidoVista']
 export type MotivoCancelar = FilaPedido['cancelar_motivo']
 export type MotivoArrepentirse = FilaPedido['arrepentirse_motivo']
 
-/** La fila de quien ve el pago trae la referencia; la del observador, no (decisión 436). */
-export const esFilaCompleta = (f: FilaPedido | FilaObservador): f is FilaPedido => 'referencia' in f && typeof (f as FilaPedido).referencia === 'string'
+/**
+ * La fila de quien ve el pago trae la referencia; la del observador, no (decisión 436). MATU-116 (C10):
+ * en la lista del observador cada fila trae `vista`, y la forma la decide ese dato del servidor, nunca
+ * el rol en memoria: `pagaste` es la fila de quien paga y `se_informa` la de MATU-113.
+ */
+export const esFilaCompleta = (f: FilaPedido | FilaObservador | FilaPagaste): f is FilaPedido | FilaPagaste =>
+  'vista' in f ? f.vista === 'pagaste' : 'referencia' in f && typeof (f as FilaPedido).referencia === 'string'
+
+/** MATU-116 (T1): la fila que la API marca como pagada por quien lee. Solo la trae la lista del observador. */
+export const esFilaPagaste = (f: FilaPedido | FilaObservador | FilaPagaste): f is FilaPagaste => 'vista' in f && f.vista === 'pagaste'
 
 const enc = encodeURIComponent
 
@@ -45,7 +55,7 @@ export async function listarPedidos(personaId: string, cursor: string | null = n
   return (await apiFamilia.get<ListaPedidos>(`/v1/personas-cuidadas/${enc(personaId)}/pedidos`, { params })).data
 }
 
-/** `GET /v1/pedidos/{id}/seguimiento` (decisión 438). El observador recibe 404. */
+/** `GET /v1/pedidos/{id}/seguimiento` (decisión 438). El observador recibe 404, salvo en un pedido que pagó (MATU-116). */
 export async function leerSeguimiento(pedidoId: string): Promise<Seguimiento> {
   return (await apiFamilia.get<Seguimiento>(`/v1/pedidos/${enc(pedidoId)}/seguimiento`)).data
 }
