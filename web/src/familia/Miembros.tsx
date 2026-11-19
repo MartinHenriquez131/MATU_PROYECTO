@@ -29,6 +29,8 @@ import {
 } from '../compartido/api/familia'
 import { esVencida } from '../compartido/api/sesion'
 import { Boton } from '../compartido/ui/Boton'
+import { EnlaceEnFrase } from '../compartido/ui/Enlaces'
+import { CORREO_CONTACTO } from '../compartido/contacto'
 import { nombreDeAutor } from './autor'
 import { useFamilia } from './estado'
 import { esTipo } from './insumosComun'
@@ -484,7 +486,18 @@ function DialogoRol({
   const avisos: string[] = mismo
     ? []
     : dejoDeAdministrar
-      ? [CR.dejasDeAdministrar, ...(pierdoFicha ? [CR.tambienDejasLaFicha, [SALIR.seCortan, misEnlaces].filter(Boolean).join(' ')] : []), SE_ANULAN.propia]
+      ? [
+          CR.dejasDeAdministrar,
+          ...(pierdoFicha
+            ? [
+                CR.tambienDejasLaFicha,
+                // MATU-116 (T6): al pasar a «Se informa», con la capa 3. No depende de si pagó algo (C10).
+                ...(elegido === 'observador' && capa3 === true ? [CR.seguirasViendoTusPedidos] : []),
+                [SALIR.seCortan, misEnlaces].filter(Boolean).join(' '),
+              ]
+            : []),
+          SE_ANULAN.propia,
+        ]
       : !propia && elegido === 'admin'
         ? [CR.seraAdmin(miembro.nombre)]
         : pierdeFicha
@@ -791,7 +804,7 @@ function DialogoAnular({
 // ---------------------------------------------------------------- 7.2 y 7.3 Salir del grupo
 
 export function SalirDelGrupo({ datos, pilas }: { datos: DatosMiembros; pilas: readonly string[] }) {
-  const { grupo, rol, alEntrar, fijar } = useFamilia()
+  const { grupo, rol, alEntrar, fijar, capa3 } = useFamilia()
   const { carga, miembros, meSacaron } = datos
   const [abierto, setAbierto] = useState(false)
   const [enfocar, setEnfocar] = useState<{ id: string } | null>(null)
@@ -814,6 +827,10 @@ export function SalirDelGrupo({ datos, pilas }: { datos: DatosMiembros; pilas: r
     cuerpo = (
       <>
         <p className="max-w-prose text-base">{SALIR.texto(grupo.nombre)}</p>
+        {/* MATU-116 (T5, especificación 3): también en la sección, junto a la frase a la que acompaña. */}
+        <p className="max-w-prose text-base break-words">
+          <PideloA capa3={capa3 === true} />
+        </p>
         <Boton id="salir-boton" variante="peligro" className="self-start" onClick={() => setAbierto(true)}>
           {SALIR.boton}
         </Boton>
@@ -926,9 +943,26 @@ function DialogoSalir({
           { texto: SALIR.paraVolver },
         ]}
       />
-      {/* 7.2 (v1.3): para todos los roles, el correo como texto, sin enlace. */}
-      <p className="text-base text-tenue break-words">{SALIR.pideloA(capa3 === true)}</p>
+      {/* 7.2 (v1.3): para todos los roles. MATU-116 (T5): con la capa 3, el correo en un enlace. */}
+      <p className="text-base text-tenue break-words">
+        <PideloA capa3={capa3 === true} />
+      </p>
     </DialogoGrupo>
+  )
+}
+
+/** Lo que se pide por correo al salir: T5 con la capa 3 (el correo en `EnlaceEnFrase`) o el de la v1.3 sin ella. */
+function PideloA({ capa3 }: { capa3: boolean }) {
+  if (!capa3) return <>{SALIR.pideloASinCapa3}</>
+  const [antes, despues] = SALIR.pideloAConCapa3
+  return (
+    <>
+      {antes}
+      <EnlaceEnFrase href={`mailto:${CORREO_CONTACTO}`} className="[overflow-wrap:anywhere]">
+        {CORREO_CONTACTO}
+      </EnlaceEnFrase>
+      {despues}
+    </>
   )
 }
 

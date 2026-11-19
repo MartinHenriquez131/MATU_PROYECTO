@@ -153,6 +153,8 @@ export const CAMBIAR_ROL = {
   dejasDeAdministrar: 'Dejarás de administrar el grupo. Para volver a hacerlo, otra persona que administra tendrá que dártelo.', // [NUEVO]
   /** 6.3 (v1.3): en mi fila, si además paso a «Paga» o «Se informa». [NUEVO v1.3] */
   tambienDejasLaFicha: 'También dejarás de ver la ficha.',
+  /** MATU-116 (T6): solo al pasar tu propio rol a «Se informa», con la capa 3, después de la anterior. [T6] */
+  seguirasViendoTusPedidos: 'Los pedidos que pagaste los seguirás viendo, con lo que pagaste.',
   /** 6.3 (v1.3): otra persona deja de administrar y sigue viendo la ficha (de admin a cuida). [NUEVO v1.3] */
   dejaraDeAdministrar: (nombre: string) => `${nombre} dejará de administrar el grupo.`,
   guardar: 'Guardar el cambio', // [ANALISTA]
@@ -214,11 +216,13 @@ export const SALIR = {
   fichaQueda: (pilas: readonly string[]) => `Lo que escribiste en la ficha queda, porque es parte del cuidado de ${pilasO(pilas)}.`, // [NUEVO]
   paraVolver: 'Para volver, alguien que administra el grupo tiene que invitarte de nuevo.', // [NUEVO]
   quedarme: 'Quedarme', // [ANALISTA]
-  /** 7.2 (v1.3): bajo la lista, para todos los roles. El correo va como texto, sin enlace. [NUEVO v1.3] */
-  pideloA: (capa3: boolean) =>
-    capa3
-      ? `Si después necesitas lo que hiciste en el grupo o los comprobantes de tus pagos, pídelos a ${CORREO_CONTACTO}.`
-      : `Si después necesitas lo que hiciste en el grupo, pídelo a ${CORREO_CONTACTO}.`,
+  /** 7.2 (v1.3): bajo la lista, para todos los roles, sin la capa 3. El correo va como texto, sin enlace. [NUEVO v1.3] */
+  pideloASinCapa3: `Si después necesitas lo que hiciste en el grupo, pídelo a ${CORREO_CONTACTO}.`,
+  /**
+   * MATU-116 (T5, especificación 3): con la capa 3, en la sección y en la pregunta. Partido para el
+   * correo, que va en `EnlaceEnFrase`. Reemplaza el de la v1.3. [T5]
+   */
+  pideloAConCapa3: ['Tus pagos los seguirás viendo en «Tus datos». Si después necesitas lo que hiciste en el grupo o el detalle de un pedido, pídelo a ', '.'] as const,
   ocupado: 'Saliendo del grupo…', // [NUEVO]
   hecho: (grupo: string, n: number) => [`Saliste de ${grupo}.`, cortamos(n)].filter(Boolean).join(' '), // [NUEVO]
   errRed: 'No pudimos sacarte del grupo. Revisa tu conexión y vuelve a intentarlo. Sigues en el grupo.', // [NUEVO]

@@ -95,6 +95,7 @@ def test_tus_datos_de_quien_pago_trae_su_pago_y_sus_condiciones(
     cuerpo = respuesta.json()
     [pago] = cuerpo["pagos"]
     assert pago["grupo"] == familia.grupo.nombre and pago["cobrado"] == TOTAL and pago["devuelto"] == 0
+    assert pago["sigue_en_el_grupo"] is True
     assert pago["tarjeta"] == {"tipo": "credito", "ultimos4": "2032", "cuotas": 0}
     # F3 (decisión 402): el código de su propio pago, el mismo de su comprobante
     assert pago["codigo_autorizacion"] == _codigo(pago["referencia"]) and pago["codigo_autorizacion"]
@@ -106,6 +107,37 @@ def test_tus_datos_de_quien_pago_trae_su_pago_y_sus_condiciones(
         if nombre not in familia.admin.nombre and nombre not in familia.grupo.nombre:
             assert nombre not in respuesta.text
     assert token not in respuesta.text and not _claves(cuerpo) & DE_LA_VENTA
+
+
+@pytest.mark.rf("RNF-07")
+def test_tus_datos_de_quien_pago_y_salio_del_grupo_trae_su_pago_sin_el_nombre_del_grupo(
+    entorno_pedido: EntornoPedido, pasarela_falsa: PasarelaFalsa
+) -> None:
+    """MATU-116 (J2, C4 y H6): quien pagó y salió del grupo sigue viendo su pago y las condiciones que aceptó, con el
+    nombre del grupo en null (nunca "") y sigue_en_el_grupo en false. Antes de la 0032 no aparecía (CL-68)."""
+    e = entorno_pedido
+    familia, _, _ = _pagado(e, pasarela_falsa)
+    cuidador = familia.miembros["cuidador"].usuario
+    with psycopg.connect(DSN, autocommit=True) as cx:
+        # Queda otro admin, como exige la salida por la API
+        cx.execute("UPDATE membresia SET rol = 'admin' WHERE usuario_id = %s AND grupo_id = %s",
+                   (cuidador.id, familia.grupo.id))
+        cx.execute("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE usuario_id = %s"
+                   " AND grupo_id = %s", (familia.admin.id, familia.grupo.id))
+
+    respuesta = e.iam.cliente.get("/v1/yo/datos", headers={"Authorization": f"Bearer {e.token(familia.admin)}"})
+
+    assert respuesta.status_code == 200, respuesta.text
+    cuerpo = respuesta.json()
+    [pago] = cuerpo["pagos"]
+    assert (pago["grupo"], pago["sigue_en_el_grupo"], pago["cobrado"]) == (None, False, TOTAL)
+    assert pago["referencia"] and pago["tarjeta"]["ultimos4"] == "2032"
+    [condiciones] = cuerpo["condiciones_aceptadas"]
+    assert (condiciones["grupo"], condiciones["sigue_en_el_grupo"]) == (None, False)
+    assert familia.grupo.nombre not in respuesta.text
+    # Quien sigue en el grupo y no pagó, nada de ese pago
+    otra = e.iam.cliente.get("/v1/yo/datos", headers={"Authorization": f"Bearer {e.token(cuidador)}"})
+    assert otra.json()["pagos"] == []
 
 
 def test_tus_datos_de_quien_no_pago_no_trae_pagos(entorno_pedido: EntornoPedido, pasarela_falsa: PasarelaFalsa) -> None:

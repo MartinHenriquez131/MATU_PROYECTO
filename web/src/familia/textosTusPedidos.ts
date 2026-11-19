@@ -33,6 +33,8 @@ export const TUS_PEDIDOS = {
   errLista: 'No pudimos traer tus pedidos. Revisa tu conexión y vuelve a intentarlo.', // [L 38]
   /** 3.4: el [AJUSTE] sin «Pagado ·», que ya dice la etiqueta de cada fila. */
   observador: (pila: string) => `Quien administra el grupo, quien cuida a ${pila} y quien paga ven el detalle.`, // [L 38] [AJUSTE]
+  /** MATU-116 (1.4): bajo la frase de «Se informa», si la lista trae una fila que pagó quien lee. */
+  dePedidosQuePagaste: 'De los pedidos que pagaste, ves el detalle y puedes arrepentirte de la compra.', // [T1]
   productosBorrados: 'De este pedido guardamos solo lo que se pagó y lo que se devolvió.', // [L 38]
 
   // 2.3 y 2.4: el bloque al final de «Pedido» y el comprobante de la vuelta

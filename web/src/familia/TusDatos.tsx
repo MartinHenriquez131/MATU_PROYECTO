@@ -12,7 +12,9 @@ import {
   type DispositivoCopia,
   type EventoCuentaCopia,
   type PagoCuentaCopia,
+  type RetractoCuentaCopia,
 } from '../compartido/api/misDatos'
+import { CORREO_CONTACTO } from '../compartido/contacto'
 import type { EventoCuenta } from '../compartido/api/familia'
 import { Boton } from '../compartido/ui/Boton'
 import type { EntradaIndice } from '../compartido/ui/Indice'
@@ -23,6 +25,8 @@ import { useFamilia } from './estado'
 import { navegar } from './ruteo'
 import { CUENTA_PROPIA } from './textos'
 import { pesos } from './textosCatalogo'
+import { MOTIVO_RECHAZO_FAMILIA, TUS_PEDIDOS as TP } from './textosTusPedidos'
+import { EtiquetaRetracto } from './TusPedidos'
 import { MIEMBROS, ROL } from './textosInvitar'
 import { MIS_DATOS as T } from './textosMisDatos'
 import { Cola, Etiqueta, Nota, Pagina, Volver } from './ui'
@@ -36,6 +40,7 @@ import {
   DiaDeInstante,
   enNoventaDias,
   FechaHora,
+  FraseConCorreo,
   FraseNoventa,
   PanelDescarga,
   PorDia,
@@ -100,6 +105,7 @@ export function TusDatos() {
 function Copia({ datos }: { datos: CopiaDatosCuenta }) {
   const conPagos = !!datos.pagos?.length
   const conCondiciones = !!datos.condiciones_aceptadas?.length
+  const conDevoluciones = !!datos.retractos?.length
   const B = T.bloquesCuenta
   const entradas: EntradaIndice[] = [
     { id: 'tu-cuenta', texto: B.cuenta },
@@ -110,6 +116,7 @@ function Copia({ datos }: { datos: CopiaDatosCuenta }) {
     { id: 'tus-avisos', texto: B.avisos },
     { id: 'avisos-enviados', texto: B.avisosEnviados },
     ...(conPagos ? [{ id: 'tus-pagos', texto: B.pagos }] : []),
+    ...(conDevoluciones ? [{ id: 'lo-que-pediste-devolver', texto: B.devoluciones }] : []),
     ...(conCondiciones ? [{ id: 'condiciones', texto: B.condiciones }] : []),
   ]
   return (
@@ -208,6 +215,16 @@ function Copia({ datos }: { datos: CopiaDatosCuenta }) {
           <ul className={SUPERFICIE}>
             {datos.pagos!.map((p, i) => (
               <Pago key={`${p.referencia}-${i}`} p={p} />
+            ))}
+          </ul>
+        </Bloque>
+      )}
+      {/* MATU-116 (2.3, H5): después de «Tus pagos»; sin ninguno, ni el bloque ni su entrada en el índice. */}
+      {conDevoluciones && (
+        <Bloque id="lo-que-pediste-devolver" titulo={B.devoluciones}>
+          <ul className={SUPERFICIE}>
+            {datos.retractos!.map((r, i) => (
+              <Devolucion key={`${r.referencia}-${r.solicitado_en}-${i}`} r={r} />
             ))}
           </ul>
         </Bloque>
@@ -430,7 +447,8 @@ function Pago({ p }: { p: PagoCuentaCopia }) {
       </p>
       <p className="max-w-prose text-base break-words">
         <span className="cifras">{pesos(p.cobrado)}</span>
-        {T.enGrupo(p.grupo)}
+        {/* MATU-116 (2.2, P3 del QA): decide solo `sigue_en_el_grupo`; con `false` nunca se muestra `grupo`. `""` se trata como sin grupo. */}
+        {p.sigue_en_el_grupo && p.grupo ? T.enGrupo(p.grupo) : T.enGrupoQueDejaste}
       </p>
       <p className="max-w-prose text-base break-words">
         {p.tarjeta ? (
@@ -462,13 +480,15 @@ function Pago({ p }: { p: PagoCuentaCopia }) {
 }
 
 function Condiciones({ c }: { c: CondicionesCopia }) {
+  // MATU-116 (2.4/N7, P3 del QA): decide solo `sigue_en_el_grupo`; con `false` nunca se muestra `grupo`.
+  const grupo = c.sigue_en_el_grupo && c.grupo ? c.grupo : T.unGrupoQueDejaste
   return (
     <li className="flex min-w-0 flex-col gap-1 py-4">
       <p className="font-bold">
         {T.versionEl(c.version)[0]}
         <FechaHora iso={c.aceptadas_en} fin="." />
       </p>
-      <p className="max-w-prose text-base break-words">{c.referencia ? T.paraPedido(c.grupo, c.referencia) : T.paraPedidoSinPagar(c.grupo)}</p>
+      <p className="max-w-prose text-base break-words">{c.referencia ? T.paraPedido(grupo, c.referencia) : T.paraPedidoSinPagar(grupo)}</p>
       <p className="max-w-prose text-base text-tenue break-all">
         {T.huella}
         {c.huella}
@@ -477,3 +497,53 @@ function Condiciones({ c }: { c: CondicionesCopia }) {
   )
 }
 
+// ---------------------------------------------------------------- MATU-116 (2.3) Lo que pediste devolver
+
+/** Sin montos (el contrato no los trae: están en «Tus pagos»), sin el nombre de la persona cuidada. */
+function Devolucion({ r }: { r: RetractoCuentaCopia }) {
+  return (
+    <li className="flex min-w-0 flex-col gap-1 py-4">
+      <h3 className="text-lg font-bold break-words">
+        {r.referencia ? (
+          <>
+            {TP.pedidoRef('')}
+            <span className="cifras">{r.referencia}</span>
+          </>
+        ) : (
+          <>
+            {T.devolucionDel}
+            <DiaDeInstante iso={r.solicitado_en} />
+          </>
+        )}
+      </h3>
+      <EtiquetaRetracto estado={r.estado} resueltoEn={r.resuelto_en} />
+      <p className="text-base text-tenue">
+        {T.loPediste[0]}
+        <DiaDeInstante iso={r.solicitado_en} fin={T.loPediste[1]} />
+      </p>
+      {r.estado === 'rechazado' && r.resuelto_en && (
+        <p className="text-base text-tenue">
+          {T.respondimos[0]}
+          <DiaDeInstante iso={r.resuelto_en} fin={T.respondimos[1]} />
+        </p>
+      )}
+      {/* MATU-116 (P3 de la revisión): una sola señal, `sigue_en_el_grupo`, para el grupo y para T4. */}
+      <p className="max-w-prose text-base break-words">{r.sigue_en_el_grupo && r.grupo ? T.enGrupoFrase(r.grupo) : T.enGrupoQueDejasteFrase}</p>
+      {/* T4 (C3): de un grupo del que salió, la API no trae los productos. */}
+      {!r.sigue_en_el_grupo ? (
+        <p className="max-w-prose text-base">
+          <FraseConCorreo partes={T.productosPideloA} correo={CORREO_CONTACTO} />
+        </p>
+      ) : r.productos?.length ? (
+        <ul className="list-disc ps-5 text-base marker:text-tenue">
+          {r.productos.map((nombre, i) => (
+            <li key={`${nombre}-${i}`} className="break-words">
+              {nombre}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {r.estado === 'rechazado' && r.motivo_rechazo && <p className="max-w-prose text-base">{MOTIVO_RECHAZO_FAMILIA[r.motivo_rechazo]}</p>}
+    </li>
+  )
+}

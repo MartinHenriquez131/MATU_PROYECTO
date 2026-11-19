@@ -1867,3 +1867,103 @@ def test_0031_operacion_sin_cuentas_y_baja_al_esquema_de_0030(base_desechable):
     for parte, filas_0030 in esquema_0030.items():
         assert despues[parte] == filas_0030, f"downgrade no restaura {parte}: {set(filas_0030) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0033 (MATU-122): operación lee solo lo que usa
+
+_SALEN_0033 = {"direccion": {"direccion_operacion_leer"}, "grupo_familiar": {"grupo_operacion"},
+               "pedido_entrega": {"entrega_operacion_leer"}, "usuario_comercio": {"usuario_comercio_operacion"}}
+_ENTRAN_0033 = {"direccion": {"direccion_no_operacion"}, "grupo_familiar": {"grupo_no_operacion"},
+                "usuario_comercio": {"usuario_comercio_operacion_crear", "usuario_comercio_operacion_editar",
+                                     "usuario_comercio_operacion_leer"}}
+# Las políticas que no son TO matu_owner y miran app.rol = 'operacion', después de la 0033 (docstring de la migración)
+_TRAS_0033 = {
+    tabla: (POLITICAS_OPERACION_0031.get(tabla, set()) - _SALEN_0033.get(tabla, set())) | _ENTRAN_0033.get(tabla, set())
+    for tabla in POLITICAS_OPERACION_0031.keys() | _ENTRAN_0033.keys()
+}
+POLITICAS_OPERACION_0033 = {tabla: politicas for tabla, politicas in _TRAS_0033.items() if politicas}
+# Las nuevas que miran un marcador: solo las funciones de matu_owner
+POLITICAS_MATU_OWNER_0033 = {
+    ("pedido_entrega", "entrega_conservacion_leer", "SELECT"),
+    ("pedido_entrega", "entrega_conservacion_borrar", "DELETE"),
+    ("participacion", "participacion_conservacion_leer", "SELECT"),
+    ("participacion", "participacion_solicitante_leer", "SELECT"),
+    ("invitacion", "invitacion_conservacion_leer", "SELECT"),
+    ("invitacion", "invitacion_conservacion_borrar", "DELETE"),
+}
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_0033_operacion_lee_lo_que_usa_y_baja_al_esquema_de_0032(base_desechable):
+    alembic("upgrade", "0032")
+    esquema_0032 = catalogo()
+    alembic("upgrade", "0033")
+
+    # C1, C2 y C3: salen las cuatro
+    quitadas = consultar("SELECT policyname FROM pg_policies WHERE policyname IN ('usuario_comercio_operacion',"
+                         " 'direccion_operacion_leer', 'entrega_operacion_leer', 'grupo_operacion')")
+    assert quitadas == []
+    # C8: la lista de las políticas de operación que quedan, la del docstring
+    filas = consultar("SELECT tablename, policyname FROM pg_policies WHERE roles::text <> '{matu_owner}'"
+                      " AND coalesce(qual, '') || coalesce(with_check, '') LIKE '%''operacion''%'")
+    quedan: dict[str, set[str]] = {}
+    for tabla, politica in filas:
+        quedan.setdefault(tabla, set()).add(politica)
+    assert quedan == POLITICAS_OPERACION_0033
+    # Las de un marcador, solo TO matu_owner
+    nuevas = {(t, n, c) for t, n, c, r in consultar(
+        "SELECT tablename, policyname, cmd, roles::text FROM pg_policies WHERE roles::text = '{matu_owner}'"
+        " AND policyname IN (" + ", ".join(f"'{n}'" for _, n, _ in POLITICAS_MATU_OWNER_0033) + ")")}
+    assert nuevas == POLITICAS_MATU_OWNER_0033
+    # C1: las cuentas de los comercios ficticios, TO matu_app y sin DELETE
+    comercio = consultar("SELECT policyname, roles::text, cmd FROM pg_policies WHERE tablename = 'usuario_comercio'"
+                         " AND policyname LIKE 'usuario_comercio_operacion%'")
+    assert set(comercio) == {("usuario_comercio_operacion_leer", "{matu_app}", "SELECT"),
+                             ("usuario_comercio_operacion_crear", "{matu_app}", "INSERT"),
+                             ("usuario_comercio_operacion_editar", "{matu_app}", "UPDATE")}
+    for cmd, qual, check in consultar("SELECT cmd, qual, with_check FROM pg_policies"
+                                      " WHERE policyname LIKE 'usuario_comercio_operacion%'"):
+        assert all("c.ficticio" in x for x in {"SELECT": (qual,), "INSERT": (check,), "UPDATE": (qual, check)}[cmd])
+    # (e) y (f): las restrictivas, TO matu_app
+    restrictivas = set(consultar("SELECT tablename, policyname, roles::text FROM pg_policies"
+                                 " WHERE permissive = 'RESTRICTIVE' AND policyname IN ('direccion_no_operacion',"
+                                 " 'grupo_no_operacion')"))
+    assert restrictivas == {("direccion", "direccion_no_operacion", "{matu_app}"),
+                            ("grupo_familiar", "grupo_no_operacion", "{matu_app}")}
+    # C4: la devolución, TO matu_app, sin cuenta y con el grupo del contexto
+    for _, roles, qual in consultar("SELECT policyname, roles::text, qual FROM pg_policies"
+                                    " WHERE policyname IN ('participacion_operacion_leer',"
+                                    " 'participacion_operacion_editar')"):
+        assert roles == "{matu_app}" and "app_usuario() IS NULL" in qual and "app_grupo()" in qual
+    fuentes = dict(consultar("SELECT proname, prosrc FROM pg_proc WHERE proname IN ('operacion_solicitante_retracto',"
+                             " 'invitacion_conservar')"))
+    assert "set_config('app.funcion', 'solicitante_retracto', true)" in fuentes["operacion_solicitante_retracto"]
+    assert "set_config('app.funcion', 'invitacion_conservar', true)" in fuentes["invitacion_conservar"]
+    # Observación 3 del QA: las dos cambian app.funcion, y son VOLATILE
+    volatilidad = ("SELECT proname, provolatile FROM pg_proc WHERE proname IN ('operacion_solicitante_retracto',"
+                   " 'invitacion_conservar')")
+    assert dict(consultar(volatilidad)) == {"operacion_solicitante_retracto": "v", "invitacion_conservar": "v"}
+    # C5
+    [(qual,)] = consultar("SELECT qual FROM pg_policies WHERE policyname = 'incidencia_familia'")
+    assert "app_escribe_plan()" in qual
+    # C7: el trigger, y su función sin EXECUTE para PUBLIC
+    assert consultar("SELECT tgname FROM pg_trigger WHERE tgrelid = 'comercio'::regclass"
+                     " AND tgname = 'comercio_ficticio_fijo'") == [("comercio_ficticio_fijo",)]
+    acl = {nombre: a for nombre, a in consultar(
+        "SELECT proname, proacl::text FROM pg_proc WHERE proname IN ('comercio_ficticio_fijo',"
+        " 'operacion_solicitante_retracto', 'invitacion_conservar')")}
+    assert acl["comercio_ficticio_fijo"] == "{matu_owner=X/matu_owner}"
+    assert set(acl["operacion_solicitante_retracto"].strip("{}").split(",")) == {"matu_owner=X/matu_owner",
+                                                                                  "matu_app=X/matu_owner"}
+    assert set(acl["invitacion_conservar"].strip("{}").split(",")) == {"matu_owner=X/matu_owner",
+                                                                        "matu_scheduler=X/matu_owner"}
+
+    # C9: la bajada deja el catálogo como en la 0032
+    alembic("downgrade", "0032")
+    despues = catalogo()
+    for parte, filas_0032 in esquema_0032.items():
+        assert despues[parte] == filas_0032, f"downgrade no restaura {parte}: {set(filas_0032) ^ set(despues[parte])}"
+    # catalogo() no mira la volatilidad: la de la 0032
+    assert dict(consultar(volatilidad)) == {"operacion_solicitante_retracto": "s", "invitacion_conservar": "v"}
+    alembic("upgrade", "head")

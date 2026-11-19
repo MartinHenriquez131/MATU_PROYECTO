@@ -3,11 +3,12 @@
 - ``pedidos`` de «Datos de {nombre_pila}»: los pedidos de la persona con sus líneas, la dirección copiada **sin el
   teléfono de contacto**, y el pago: estado, cuándo, quién pagó (nombre), lo cobrado, lo devuelto y las devoluciones.
   Nunca el token, la orden de compra, la sesión, el código de autorización ni datos de la tarjeta.
-- ``pagos`` de «Tus datos»: los pagos de esta cuenta (tipo de tarjeta, últimos 4 dígitos y cuotas) y las condiciones
-  que aceptó, por grupo, sin el nombre de la persona ni los productos (decisión 379).
+- ``pagos`` de «Tus datos»: los pagos de esta cuenta (tipo de tarjeta, últimos 4 dígitos y cuotas), sus retractos y
+  las condiciones que aceptó, en todos sus grupos, también los que dejó (MATU-116, decisión 475), sin el nombre de la
+  persona (decisión 379). Los lee con las funciones definer de la 0032, sin fijar app.grupo_id.
 
 Vive en payments porque lee el pago con sus repositorios, y payments puede importar ordering y care_circle. app/main.py
-los registra solo si el paquete está (la capa 3 se puede quitar: D-54-15 a). Corren como matu_app con la RLS de hoy.
+los registra solo si el paquete está (la capa 3 se puede quitar: D-54-15 a). Corren como matu_app, con RLS.
 """
 
 import uuid
@@ -229,87 +230,73 @@ def pedidos(ctx: ContextoCopia) -> list[dict[str, Any]]:
 
 # --- «Tus datos» --------------------------------------------------------------------------------------------------
 
-_MIS_GRUPOS = text(
-    "SELECT g.id, g.nombre FROM membresia m JOIN grupo_familiar g ON g.id = m.grupo_id"
-    " WHERE m.usuario_id = app_usuario() AND m.estado = 'activa' ORDER BY m.unido_en, m.id"
-)
-_FIJAR_GRUPO = text("SELECT set_config('app.grupo_id', :grupo_id, true)")
-# Lo cobrado es lo que se aprobó en la tarjeta; lo devuelto, las anulaciones aprobadas de esa venta
+# MATU-116 (J5, decisión 475): las funciones definer de la 0032 devuelven solo lo de la cuenta en contexto, en todos sus
+# grupos, también los que dejó, sin grupo_id. Ya no se fija app.grupo_id (reemplaza las decisiones 360 y 371)
 _MIS_PAGOS = text(
-    "SELECT pe.referencia, t.cerrada_en, t.creado_en, t.monto, t.tipo_tarjeta, t.ultimos4, t.cuotas,"
-    " t.codigo_autorizacion,"
-    " (SELECT COALESCE(sum(a.monto), 0) FROM transaccion_pasarela a WHERE a.venta_id = t.id"
-    "  AND a.tipo = 'anulacion' AND a.estado = 'aprobada') AS devuelto"
-    " FROM transaccion_pasarela t JOIN participacion pa ON pa.id = t.participacion_id"
-    " JOIN cargo c ON c.id = t.cargo_id JOIN pedido pe ON pe.id = c.pedido_id"
-    " WHERE t.tipo = 'venta' AND t.estado = 'aprobada' AND pa.usuario_id = app_usuario()"
-    " AND pe.grupo_id = :grupo_id"
-    " ORDER BY COALESCE(t.cerrada_en, t.creado_en) DESC, t.id DESC"
+    "SELECT referencia, pagado_en, cobrado, devuelto, tipo_tarjeta, ultimos4, cuotas, codigo_autorizacion, grupo,"
+    " sigue_en_el_grupo FROM cuenta_pagos()"
 )
-# MATU-63 (R3): los retractos que pidió esta cuenta, con los productos
 _MIS_RETRACTOS = text(
-    "SELECT r.id, pe.referencia, r.estado, r.solicitado_en, r.resuelto_en, r.motivo_rechazo FROM retracto r"
-    " JOIN pedido pe ON pe.id = r.pedido_id WHERE r.grupo_id = :grupo_id AND r.solicitado_por = app_usuario()"
-    " ORDER BY r.solicitado_en DESC, r.id DESC"
+    "SELECT referencia, estado, solicitado_en, resuelto_en, motivo_rechazo, productos, grupo, sigue_en_el_grupo"
+    " FROM cuenta_retractos()"
 )
 _MIS_CONDICIONES = text(
-    "SELECT pe.referencia, pe.condiciones_version, pe.condiciones_huella, pe.condiciones_aceptadas_en FROM pedido pe"
-    " WHERE pe.grupo_id = :grupo_id AND pe.condiciones_aceptadas_por = app_usuario()"
-    " ORDER BY pe.condiciones_aceptadas_en DESC, pe.id DESC"
+    "SELECT referencia, version, huella, aceptadas_en, grupo, sigue_en_el_grupo FROM cuenta_condiciones()"
 )
+
+
+def _grupo(f: Any) -> str | None:
+    """C4: el nombre del grupo, solo si la membresía sigue activa; si no, null («Un grupo del que saliste»)."""
+    return f.grupo if f.sigue_en_el_grupo else None
 
 
 def pagos_de_la_cuenta(ctx: ContextoCopiaCuenta) -> dict[str, Any]:
-    """Los pagos y las condiciones de esta cuenta, grupo por grupo, con las políticas de hoy y sin una nueva
-    (decisión 371): dentro de la transacción se fija cada grupo del que es miembro activo y al final se limpia.
-    Quien salió de un grupo no ve aquí lo de ese grupo (CL-68): lo pide por correo."""
-    pagos: list[dict[str, Any]] = []
-    condiciones: list[dict[str, Any]] = []
-    retractos: list[dict[str, Any]] = []
+    """Los pagos, los retractos y las condiciones de esta cuenta, en todos sus grupos, también de los que salió
+    (MATU-116, J2 y J3). De un grupo del que salió: sin el nombre del grupo, y los retractos sin productos (C3 y C4)."""
     prueba = _pago_de_prueba()
-    grupos = ctx.sesion.execute(_MIS_GRUPOS).all()
-    try:
-        for g in grupos:
-            ctx.sesion.execute(_FIJAR_GRUPO, {"grupo_id": str(g.id)})
-            for f in ctx.sesion.execute(_MIS_PAGOS, {"grupo_id": g.id}).all():
-                tarjeta = None
-                if f.tipo_tarjeta is not None and f.ultimos4 is not None:
-                    tarjeta = {"tipo": f.tipo_tarjeta, "ultimos4": f.ultimos4, "cuotas": int(f.cuotas or 0)}
-                pagos.append(
-                    {
-                        "grupo": g.nombre,
-                        "referencia": f.referencia,
-                        "pagado_en": en_chile(f.cerrada_en or f.creado_en),
-                        "cobrado": int(f.monto),
-                        "devuelto": int(f.devuelto),
-                        "tarjeta": tarjeta,
-                        # F3 (decisión 402): el de su propio pago, como en su comprobante. Nunca en «Datos de»
-                        "codigo_autorizacion": f.codigo_autorizacion,
-                        "pago_de_prueba": prueba,
-                    }
-                )
-            for r in ctx.sesion.execute(_MIS_RETRACTOS, {"grupo_id": g.id}).all():
-                retractos.append(
-                    {
-                        "grupo": g.nombre,
-                        "referencia": r.referencia,
-                        "estado": r.estado,
-                        "solicitado_en": en_chile(r.solicitado_en),
-                        "resuelto_en": en_chile_o_nada(r.resuelto_en),
-                        "motivo_rechazo": r.motivo_rechazo,
-                        "productos": [f.nombre for f in ctx.sesion.execute(_LINEAS_RETRACTO, {"retracto_id": r.id})],
-                    }
-                )
-            for f in ctx.sesion.execute(_MIS_CONDICIONES, {"grupo_id": g.id}).all():
-                condiciones.append(
-                    {
-                        "grupo": g.nombre,
-                        "referencia": f.referencia,
-                        "version": f.condiciones_version,
-                        "huella": f.condiciones_huella,
-                        "aceptadas_en": en_chile(f.condiciones_aceptadas_en),
-                    }
-                )
-    finally:
-        ctx.sesion.execute(_FIJAR_GRUPO, {"grupo_id": ""})
+    pagos = []
+    for f in ctx.sesion.execute(_MIS_PAGOS).all():
+        tarjeta = None
+        if f.tipo_tarjeta is not None and f.ultimos4 is not None:
+            tarjeta = {"tipo": f.tipo_tarjeta, "ultimos4": f.ultimos4, "cuotas": int(f.cuotas or 0)}
+        pagos.append(
+            {
+                "grupo": _grupo(f),
+                "sigue_en_el_grupo": bool(f.sigue_en_el_grupo),
+                # C2: sin el pedido (se guarda 2 años y el pago 6), null: la pantalla dice «Pago del {fecha}»
+                "referencia": f.referencia,
+                "pagado_en": en_chile(f.pagado_en),
+                "cobrado": int(f.cobrado),
+                "devuelto": int(f.devuelto),
+                "tarjeta": tarjeta,
+                # F3 (decisión 402): el de su propio pago, como en su comprobante. Nunca en «Datos de»
+                "codigo_autorizacion": f.codigo_autorizacion,
+                "pago_de_prueba": prueba,
+            }
+        )
+    retractos = [
+        {
+            "grupo": _grupo(r),
+            "sigue_en_el_grupo": bool(r.sigue_en_el_grupo),
+            "referencia": r.referencia,
+            "estado": r.estado,
+            "solicitado_en": en_chile(r.solicitado_en),
+            "resuelto_en": en_chile_o_nada(r.resuelto_en),
+            "motivo_rechazo": r.motivo_rechazo,
+            # C3: de un grupo del que salió, null (T4: «Los productos los puedes pedir a {correo}.»)
+            "productos": list(r.productos) if r.sigue_en_el_grupo and r.productos is not None else None,
+        }
+        for r in ctx.sesion.execute(_MIS_RETRACTOS).all()
+    ]
+    condiciones = [
+        {
+            "grupo": _grupo(f),
+            "sigue_en_el_grupo": bool(f.sigue_en_el_grupo),
+            "referencia": f.referencia,
+            "version": f.version,
+            "huella": f.huella,
+            "aceptadas_en": en_chile(f.aceptadas_en),
+        }
+        for f in ctx.sesion.execute(_MIS_CONDICIONES).all()
+    ]
     return {"pagos": pagos, "condiciones_aceptadas": condiciones, "retractos": retractos}

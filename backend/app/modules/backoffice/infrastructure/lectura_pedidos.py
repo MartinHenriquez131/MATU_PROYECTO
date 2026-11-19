@@ -1,7 +1,7 @@
 """Adaptador SQL de LecturaPedidos (MATU-92), en la transacción de la petición (sesion_de_grupo), sin migración.
 
-RLS acota todo al grupo. El observador lee el pedido, sus líneas y sus partes, pero no el cargo, la participación ni
-los retractos (cargo_familia_leer y retracto_familia_leer piden app_ve_entrega): el caso de uso no se los pide.
+RLS acota todo al grupo. El observador lee el pedido, sus líneas y sus partes; el cargo, su participación y los
+retractos, solo de los pedidos que pagó (MATU-116, migración 0032: «o pagó este pedido»), y nunca la entrega.
 Nunca lee ``codigo_*`` ni la referencia opaca de la parte (C15), ni nada de la cuenta del encargado.
 """
 
