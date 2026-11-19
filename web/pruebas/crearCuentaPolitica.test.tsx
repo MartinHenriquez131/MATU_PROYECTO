@@ -71,18 +71,21 @@ describe('Crear cuenta: la casilla de la política', () => {
     expect(casilla.closest('label')).toContainElement(enlace)
   })
 
-  it('el enlace de la frase lleva el área táctil en un span aria-hidden, sin relleno vertical (MATU-126, 3)', () => {
+  it('el enlace de la frase lleva el área táctil en un span en línea con py-3.5, sin relleno en el enlace (MATU-127, 11.2)', () => {
     responderPolitica()
     render(<CrearCuenta />)
     const enlace = screen.getByRole('link', { name: 'política de privacidad (se abre en otra pestaña)' })
     const clases = enlace.className.split(/\s+/)
     expect(clases).toContain('relative')
-    // El ::after de MATU-75 ya no está: el área es un span que se mide con getBoundingClientRect.
+    // El ::after de MATU-75 ya no está: el área es un span que se mide con getClientRects.
     expect(clases.some((c) => c.startsWith('after:'))).toBe(false)
-    // −0,875 rem arriba y abajo más la línea de 17 px: unos 51 px de alto, como un botón.
+    // 0,875 rem arriba y abajo más la línea de 17 px, en cada renglón: unos 51 px, como un botón.
+    // En línea y sin aria-hidden: se parte con la frase y envuelve al texto (la casilla tiene 3 renglones).
     const area = enlace.querySelector('[data-area-tactil]')
-    expect(area).toHaveAttribute('aria-hidden', 'true')
-    expect(area).toHaveClass('absolute', 'inset-x-0', '-inset-y-3.5')
+    expect(area?.parentElement).toBe(enlace)
+    expect(area).toHaveClass('py-3.5')
+    expect(area).not.toHaveClass('absolute')
+    expect(area).not.toHaveAttribute('aria-hidden')
     // Sin `py-*`: el contorno del foco sigue al texto y no tacha los renglones vecinos.
     expect(clases.some((c) => /^py-/.test(c))).toBe(false)
   })
