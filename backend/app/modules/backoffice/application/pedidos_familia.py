@@ -12,18 +12,23 @@ Vive en backoffice porque junta el pedido y sus partes (ordering, fulfillment) c
   dice la base (pagados_por, con RLS de la 0032), nunca el cliente. Los pedidos que no pagó siguen con su fila de
   observador, y su detalle responde 404.
 - Lo que el servidor decide (C7, C10): ``puede_cancelar`` y ``puede_arrepentirse``, con su motivo cuando no.
+- MATU-128 (R2 y R3, C5): «Lo que pasó con tu pedido» (``lo_que_paso``) lo recibe solo quien pagó ese pedido, en
+  cualquier rol, mientras siga activo en el grupo. Lo decide ``pagados_por``, nunca el rol: quien no pagó recibe 404
+  en cualquier rol (el admin y el cuidador siguen viendo lo anotado en «Datos de»). La base lo vuelve a exigir
+  (pedido_lo_que_paso, 0036). No se audita (C7, decisión 52).
 - Conservación (C27): un pedido que cumplió 2 años desde su cierre (regla de ``ordering/domain/seguimiento.py``) no
-  aparece en ``listar`` y responde 404 en ``seguimiento`` y en ``para_devolver`` (GET …/retractos), es decir, solo en
-  las rutas 1 a 3 de «Tus pedidos». Nada más lo filtra: GET …/pago, los POST de cancelar y arrepentirse y la copia de
-  «Tus datos» (MATU-54) siguen mostrando lo guardado, porque esconderlo sin borrarlo le negaría a la persona el acceso
-  a lo que MATU todavía tiene. Quitarlo de verdad es el borrado de MATU-89.
+  aparece en ``listar`` y responde 404 en ``seguimiento``, en ``para_devolver`` (GET …/retractos) y en
+  ``lo_que_paso``, que es parte del detalle, es decir, solo en las rutas de «Tus pedidos». Nada más lo filtra:
+  GET …/pago, los POST de cancelar y arrepentirse y la copia de «Tus datos» (MATU-54) siguen mostrando lo guardado,
+  porque esconderlo sin borrarlo le negaría a la persona el acceso a lo que MATU todavía tiene. Quitarlo de verdad es
+  el borrado de MATU-89.
 """
 
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol
+from typing import Literal, Protocol
 
 from app.modules.fulfillment.domain.despacho import EstadoParte, MotivoNoCancelar, motivo_no_cancelar
 from app.modules.ordering.domain.estados import Estado
@@ -125,6 +130,36 @@ class LecturaPedidos(Protocol):
 
     def envio_pedido(self, pedido_id: uuid.UUID) -> bool:
         """Si un retracto no rechazado ya incluye el envío."""
+        ...
+
+
+TipoCosaAnotada = Literal[
+    "faltante", "entrega_fallida", "reclamo_familia", "cobro_sin_respuesta", "devolucion_pendiente", "otro"
+]
+EstadoCosaAnotada = Literal["abierta", "en_gestion", "resuelta"]
+
+
+@dataclass(frozen=True)
+class CosaAnotada:
+    """Lo que el equipo de MATU anotó de un pedido, ya descifrado. Sin el id de la incidencia, quién la anotó ni a
+    quién se asignó (C2). ``nota`` y ``resolucion`` en None con ``nota_disponible`` en False: la clave se destruyó con
+    los datos de la persona (decisión 471)."""
+
+    tipo: TipoCosaAnotada
+    estado: EstadoCosaAnotada
+    anotado_en: datetime
+    resuelto_en: datetime | None
+    nota: str | None = field(repr=False)
+    resolucion: str | None = field(repr=False)
+    nota_disponible: bool
+
+
+class NotasDelPedido(Protocol):
+    """Implementación: NotasDelPedidoSQL (backoffice/infrastructure/lo_que_paso_sql.py), con pedido_lo_que_paso."""
+
+    def del_pedido(self, pedido_id: uuid.UUID) -> list[CosaAnotada]:
+        """Lo anotado de un pedido que pagó quien está en el contexto, del más antiguo al más reciente. Lanza
+        NotasNoDisponibles (app/shared) si hay algo que descifrar y no se puede: la ruta responde 503."""
         ...
 
 
@@ -316,6 +351,28 @@ def seguimiento(
         raise PedidoNoEncontrado()
     [pedido] = _armar([c], lectura, rol, usuario_id, ahora)
     return pedido
+
+
+def lo_que_paso(
+    lectura: LecturaPedidos,
+    notas: NotasDelPedido,
+    rol: str,
+    usuario_id: uuid.UUID,
+    pedido_id: uuid.UUID,
+    ahora: datetime,
+) -> list[CosaAnotada]:
+    """MATU-128 (C5): «Lo que pasó con tu pedido», solo para quien pagó ese pedido, en cualquier rol. De un pedido
+    que no pagó, de otro grupo, vencido o sin pagar: 404, nunca 403. Sin nada anotado, la lista vacía (E4). Del más
+    antiguo al más reciente (E5)."""
+    if rol not in ROLES_QUE_LEEN:
+        raise PedidoNoEncontrado()
+    c = lectura.cabecera(pedido_id)
+    if c is None or not _vigente(c, ahora):
+        raise PedidoNoEncontrado()
+    # Quién la recibe lo decide la base con lo que pagó cada cuenta, nunca el rol
+    if c.id not in lectura.pagados_por([c.id], usuario_id):
+        raise PedidoNoEncontrado()
+    return sorted(notas.del_pedido(c.id), key=lambda x: x.anotado_en)
 
 
 def para_devolver(

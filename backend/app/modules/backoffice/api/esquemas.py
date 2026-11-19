@@ -489,3 +489,32 @@ class SeguimientoPedidoPagaste(_Estricto):
     arrepentirse_motivo: Annotated[MotivoNoArrepentirseApi | None, Field(description=_DESCRIPCION_ARREPENTIRSE)]
     plazo_hasta: datetime | None
     plazo_correo_hasta: datetime | None
+
+
+# --- MATU-128: «Lo que pasó con tu pedido», para quien lo pagó -----------------------------------------------------
+
+
+class CosaAnotadaVista(_Estricto):
+    """Una cosa que el equipo de MATU anotó del pedido y cómo se resolvió. Los mismos siete campos de LoQuePasoCopia
+    («Datos de»). Nunca el id de la incidencia, quién del equipo la anotó, a quién se asignó ni su versión."""
+
+    tipo: Literal["faltante", "entrega_fallida", "reclamo_familia", "cobro_sin_respuesta", "devolucion_pendiente",
+                  "otro"]
+    estado: Literal["abierta", "en_gestion", "resuelta"]
+    anotado_en: datetime
+    resuelto_en: datetime | None
+    nota: Annotated[str | None, Field(description="Lo anotado; null si nota_disponible es false")]
+    resolucion: Annotated[str | None, Field(description="Cómo se resolvió; null si no se resolvió o si nota_disponible"
+                                                        " es false")]
+    nota_disponible: Annotated[bool, Field(description=(
+        "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la"
+        " resolución vienen null y ya no se pueden leer"
+    ))]
+
+
+class LoQuePasoDelPedido(_Estricto):
+    """GET /v1/grupos/{grupo_id}/pedidos/{pedido_id}/lo-que-paso (MATU-128, C5): lo que el equipo de MATU anotó de un
+    pedido que pagó quien pregunta, del más antiguo al más reciente según anotado_en (E5). Vacía si no hay nada
+    anotado (E4)."""
+
+    lo_que_paso: list[CosaAnotadaVista]
