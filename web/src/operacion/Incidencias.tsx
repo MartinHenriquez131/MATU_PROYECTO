@@ -318,13 +318,19 @@ function DetalleIncidencia({ id, onVolver, onCambio }: { id: string; onVolver: (
         )}
       </section>
       {i.estado === 'resuelta' ? (
-        <section aria-labelledby="incidencia-resuelta" className="flex flex-col gap-1">
-          <h2 id="incidencia-resuelta" className="text-lg font-bold">
-            {T.comoSeResolvio}
-          </h2>
-          {notaDisponible && i.resolucion && <p className="max-w-prose whitespace-pre-line break-words">{i.resolucion}</p>}
-          {resuelta && <p className="cifras text-base whitespace-normal text-tenue">{T.resueltaEl(resuelta.fecha, resuelta.hora)}</p>}
-        </section>
+        // MATU-115 (P3 de Martín): sin resolución que mostrar (vacía o con la nota borrada), no hay título
+        // «Cómo se resolvió» sin contenido; queda solo cuándo se resolvió.
+        notaDisponible && i.resolucion?.trim() ? (
+          <section aria-labelledby="incidencia-resuelta" className="flex flex-col gap-1">
+            <h2 id="incidencia-resuelta" className="text-lg font-bold">
+              {T.comoSeResolvio}
+            </h2>
+            <p className="max-w-prose whitespace-pre-line break-words">{i.resolucion}</p>
+            {resuelta && <p className="cifras text-base whitespace-normal text-tenue">{T.resueltaEl(resuelta.fecha, resuelta.hora)}</p>}
+          </section>
+        ) : (
+          resuelta && <p className="cifras text-base whitespace-normal text-tenue">{T.resueltaEl(resuelta.fecha, resuelta.hora)}</p>
+        )
       ) : resolviendo ? (
         <form noValidate onSubmit={(e) => void resolver(e)} className="flex flex-col gap-3">
           <AyudaNota id="ayuda-resolucion" />
