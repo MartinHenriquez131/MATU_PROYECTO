@@ -175,6 +175,52 @@ def test_serializa_como_el_archivo_versionado() -> None:
     assert texto == '{\n  "info": {\n    "title": "Configuración"\n  }\n}\n'
 
 
+def _ruta(resumen: str) -> dict[str, Any]:
+    return {"get": {"summary": resumen, "responses": {"200": {"description": "OK"}}}}
+
+
+def test_escribir_conserva_el_orden_del_archivo_y_suma_lo_nuevo_al_final(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Hallazgo del 19-11 en MATU-79: --escribir sobre un archivo que no coincide reordenaba todo el contrato. Con un
+    archivo en orden B, A y una ruta nueva en la API (que las da en orden A, B, C), B y A quedan como estaban, C va al
+    final y solo cambian las líneas de lo que cambió."""
+    archivo = tmp_path / "openapi.json"
+    previo = {
+        "openapi": "3.1.0",
+        "paths": {"/v1/b": _ruta("B"), "/v1/a": _ruta("A")},
+        "components": {"schemas": {"Zeta": {"type": "object", "required": ["y", "x"]}, "Alfa": {"type": "string"}}},
+    }
+    archivo.write_text(exportar_contrato.serializar(previo), encoding="utf-8", newline="\n")
+    api = {
+        "components": {"schemas": {"Alfa": {"type": "string"}, "Beta": {"type": "integer"},
+                                   "Zeta": {"required": ["y", "x"], "type": "object"}}},
+        "paths": {"/v1/a": _ruta("A"), "/v1/b": _ruta("B"), "/v1/c": _ruta("C")},
+        "openapi": "3.1.0",
+    }
+    monkeypatch.setattr(exportar_contrato, "ARCHIVO", archivo)
+    monkeypatch.setattr(exportar_contrato, "RAIZ", tmp_path)
+    monkeypatch.setattr(exportar_contrato, "exportar", lambda: api)
+
+    assert exportar_contrato.main(["--escribir"]) == 0
+    escrito = json.loads(archivo.read_text(encoding="utf-8"))
+    assert list(escrito) == ["openapi", "paths", "components"]
+    assert list(escrito["paths"]) == ["/v1/b", "/v1/a", "/v1/c"]
+    assert list(escrito["components"]["schemas"]) == ["Zeta", "Alfa", "Beta"]
+    assert list(escrito["components"]["schemas"]["Zeta"]) == ["type", "required"]
+    assert escrito["components"]["schemas"]["Zeta"]["required"] == ["y", "x"]  # las listas no se reordenan
+    assert exportar_contrato.diferencias(api, escrito) == []
+    # En el texto, el mismo orden
+    texto = archivo.read_text(encoding="utf-8")
+    assert texto.index('"/v1/b"') < texto.index('"/v1/a"') < texto.index('"/v1/c"')
+    # Con el archivo ya al día, --escribir no lo toca
+    antes = archivo.stat().st_mtime_ns
+    capsys.readouterr()
+    assert exportar_contrato.main(["--escribir"]) == 0
+    assert "no se reescribe" in capsys.readouterr().out
+    assert archivo.stat().st_mtime_ns == antes
+
+
 def _archivo(cubiertas: int, total: int) -> dict[str, Any]:
     return {"summary": {"covered_lines": cubiertas, "num_statements": total}}
 
