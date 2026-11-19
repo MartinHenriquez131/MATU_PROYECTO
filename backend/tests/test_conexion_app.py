@@ -84,6 +84,7 @@ def test_la_app_conserva_lo_que_usa_de_indice_token_y_usuario() -> None:
     assert all(permisos), permisos
 
 
+@requiere_base
 @pytest.mark.rf("RF-38")
 @pytest.mark.rf("Ley-21.719")
 def test_la_app_no_lee_el_contacto_de_las_cuentas() -> None:
@@ -92,8 +93,11 @@ def test_la_app_no_lee_el_contacto_de_las_cuentas() -> None:
     columnas = [("usuario", c) for c in ("email", "telefono", "celular_verificado_en", "celular_canal")]
     columnas.append(("acceso_relevo", "otorgado_a_telefono"))
     with obtener_engine().connect() as cx:
-        legibles = [(t, c) for t, c in columnas if cx.execute(
-            text("SELECT has_column_privilege(:t, :c, 'SELECT')"), {"t": t, "c": c}).scalar()]
+        legibles = [
+            (t, c)
+            for t, c in columnas
+            if cx.execute(text("SELECT has_column_privilege(:t, :c, 'SELECT')"), {"t": t, "c": c}).scalar()
+        ]
         cx.rollback()
     assert legibles == []
 
