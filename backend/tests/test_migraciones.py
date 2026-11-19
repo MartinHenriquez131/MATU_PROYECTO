@@ -1990,8 +1990,9 @@ def test_0034_politicas_de_contacto_y_baja_al_esquema_de_0033(base_desechable):
     alembic("upgrade", "0033")
     esquema_0033 = catalogo()
     acl_0033 = consultar(_ACL_0034)
-    columnas_acceso = {c for (c,) in consultar("SELECT column_name FROM information_schema.columns"
-                                               " WHERE table_name = 'acceso_relevo'")}
+    columnas_acceso = {
+        c for (c,) in consultar("SELECT column_name FROM information_schema.columns WHERE table_name = 'acceso_relevo'")
+    }
     alembic("upgrade", "0034")
 
     # A1: matu_app no lee el contacto de ninguna cuenta; el resto de lo que leía sigue
@@ -2000,38 +2001,58 @@ def test_0034_politicas_de_contacto_y_baja_al_esquema_de_0033(base_desechable):
     assert {"id", "nombre", "estado", "eliminado_en", "es_operacion", "creado_en"} <= legibles
     # La cuenta sigue cambiando su celular y su contraseña (UPDATE por columna, como desde la 0020)
     assert _columnas_con("usuario", "UPDATE") == {
-        "password_hash", "telefono", "celular_verificado_en", "celular_canal", "actualizado_en"}
+        "password_hash",
+        "telefono",
+        "celular_verificado_en",
+        "celular_canal",
+        "actualizado_en",
+    }
     # A4: acceso_relevo sin SELECT de tabla, con todas las columnas menos el teléfono
     assert _privilegios("acceso_relevo") == {"INSERT"}
     assert _columnas_con("acceso_relevo", "SELECT") == columnas_acceso - {"otorgado_a_telefono"}
     # A7 y D3: notificacion sin DELETE, UPDATE solo de estado, error y enviada_en, y ninguna política ALL
     assert _privilegios("notificacion") == {"SELECT", "INSERT"}
     assert _columnas_con("notificacion", "UPDATE") == {"estado", "error", "enviada_en"}
-    politicas = {(n, c, r) for n, c, r in consultar(
-        "SELECT policyname, cmd, roles::text FROM pg_policies WHERE tablename = 'notificacion'")}
+    politicas = {
+        (n, c, r)
+        for n, c, r in consultar(
+            "SELECT policyname, cmd, roles::text FROM pg_policies WHERE tablename = 'notificacion'"
+        )
+    }
     assert not [p for p in politicas if p[1] == "ALL"]
     assert {p for p in politicas if p[0].startswith("notificacion_sistema")} == {
-        ("notificacion_sistema_leer", "SELECT", "{matu_app}"), ("notificacion_sistema_crear", "INSERT", "{matu_app}"),
-        ("notificacion_sistema_editar", "UPDATE", "{matu_app}")}
-    for qual, check in consultar("SELECT coalesce(qual, ''), coalesce(with_check, '') FROM pg_policies"
-                                 " WHERE policyname LIKE 'notificacion_sistema_%'"):
+        ("notificacion_sistema_leer", "SELECT", "{matu_app}"),
+        ("notificacion_sistema_crear", "INSERT", "{matu_app}"),
+        ("notificacion_sistema_editar", "UPDATE", "{matu_app}"),
+    }
+    for qual, check in consultar(
+        "SELECT coalesce(qual, ''), coalesce(with_check, '') FROM pg_policies"
+        " WHERE policyname LIKE 'notificacion_sistema_%'"
+    ):
         for expresion in filter(None, (qual, check)):
             assert "'sistema'" in expresion and "app_usuario() IS NULL" in expresion and "app_grupo()" in expresion
     # A3: la política del marcador, solo TO matu_owner
     assert consultar("SELECT roles::text, cmd, qual FROM pg_policies WHERE policyname = 'usuario_aviso_correo'") == [
-        ("{matu_owner}", "SELECT", "(current_setting('app.funcion'::text, true) = 'aviso_correo'::text)")]
+        ("{matu_owner}", "SELECT", "(current_setting('app.funcion'::text, true) = 'aviso_correo'::text)")
+    ]
     # A2, A3 y A5: definer de matu_owner, search_path fijo, EXECUTE solo para matu_app, VOLATILE la que fija app.funcion
-    funciones = {n: (d, v, c, a, o) for n, d, v, c, a, o in consultar(
-        "SELECT proname, prosecdef, provolatile, proconfig, proacl::text, pg_get_userbyid(proowner) FROM pg_proc"
-        " WHERE proname IN ('cuenta_contacto_propia', 'aviso_correo', 'acceso_relevo_telefono')")}
+    funciones = {
+        n: (d, v, c, a, o)
+        for n, d, v, c, a, o in consultar(
+            "SELECT proname, prosecdef, provolatile, proconfig, proacl::text, pg_get_userbyid(proowner) FROM pg_proc"
+            " WHERE proname IN ('cuenta_contacto_propia', 'aviso_correo', 'acceso_relevo_telefono')"
+        )
+    }
     assert set(funciones) == set(FUNCIONES_0034)
     for nombre, (definer, volatilidad, config, acl, dueno) in funciones.items():
         assert definer and dueno == "matu_owner", nombre
         assert volatilidad == FUNCIONES_0034[nombre], nombre
         assert config == ["search_path=pg_catalog, public, pg_temp"], nombre
         assert set(acl.strip("{}").split(",")) == {"matu_owner=X/matu_owner", "matu_app=X/matu_owner"}, nombre
-    assert "set_config('app.funcion', 'aviso_correo', true)" in consultar(
-        "SELECT prosrc FROM pg_proc WHERE proname = 'aviso_correo'")[0][0]
+    assert (
+        "set_config('app.funcion', 'aviso_correo', true)"
+        in consultar("SELECT prosrc FROM pg_proc WHERE proname = 'aviso_correo'")[0][0]
+    )
 
     # La bajada deja el catálogo, y los ACL de tabla y de columna, como en la 0033
     alembic("downgrade", "0033")
@@ -2040,7 +2061,10 @@ def test_0034_politicas_de_contacto_y_baja_al_esquema_de_0033(base_desechable):
         assert despues[parte] == filas_0033, f"downgrade no restaura {parte}: {set(filas_0033) ^ set(despues[parte])}"
     assert consultar(_ACL_0034) == acl_0033
     assert consultar("SELECT cmd, roles::text FROM pg_policies WHERE policyname = 'notificacion_sistema'") == [
-        ("ALL", "{public}")]
-    assert consultar("SELECT count(*) FROM pg_proc WHERE proname IN ('cuenta_contacto_propia', 'aviso_correo',"
-                     " 'acceso_relevo_telefono')") == [(0,)]
+        ("ALL", "{public}")
+    ]
+    assert consultar(
+        "SELECT count(*) FROM pg_proc WHERE proname IN ('cuenta_contacto_propia', 'aviso_correo',"
+        " 'acceso_relevo_telefono')"
+    ) == [(0,)]
     alembic("upgrade", "head")

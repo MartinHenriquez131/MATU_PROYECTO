@@ -5545,8 +5545,11 @@ CONTACTO_79C = ("email", "telefono", "celular_verificado_en", "celular_canal")
 def test_79c_nadie_lee_el_contacto_de_una_cuenta_desde_la_base(cx, columna):
     """T1 (A1, hallazgo a): ni un miembro del grupo, ni el sistema con el grupo, ni la propia cuenta leen el correo o el
     celular directo de usuario. El nombre, que usan los listados, sigue."""
-    for contexto in ({"usuario_id": U_OBS_A, "grupo_id": G_A}, {"rol": "sistema", "grupo_id": G_A},
-                     {"usuario_id": U_ADMIN_A, "grupo_id": G_A}):
+    for contexto in (
+        {"usuario_id": U_OBS_A, "grupo_id": G_A},
+        {"rol": "sistema", "grupo_id": G_A},
+        {"usuario_id": U_ADMIN_A, "grupo_id": G_A},
+    ):
         como(cx, **contexto)
         with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
             cx.execute(f"SELECT {columna} FROM usuario WHERE id = %s", (U_ADMIN_A,))
@@ -5576,8 +5579,12 @@ def test_79c_aviso_correo_solo_al_sistema_y_de_un_miembro_activo(cx):
     assert cx.execute(correo, (U_PAG2_A,)).fetchone() == ("pag2.a@x.cl",)
     cx.execute("RESET ROLE")
     # Con la familia, con operación, con el sistema y una cuenta, o sin grupo: NULL
-    for contexto in ({"usuario_id": U_ADMIN_A, "grupo_id": G_A}, {"rol": "operacion", "grupo_id": G_A},
-                     {"rol": "sistema", "grupo_id": G_A, "usuario_id": U_ADMIN_A}, {"rol": "sistema"}):
+    for contexto in (
+        {"usuario_id": U_ADMIN_A, "grupo_id": G_A},
+        {"rol": "operacion", "grupo_id": G_A},
+        {"rol": "sistema", "grupo_id": G_A, "usuario_id": U_ADMIN_A},
+        {"rol": "sistema"},
+    ):
         como(cx, **contexto)
         assert cx.execute(correo, (U_ADMIN_A,)).fetchone() == (None,), contexto
         cx.execute("RESET ROLE")
@@ -5596,19 +5603,25 @@ def test_79c_cuenta_contacto_propia_devuelve_solo_la_cuenta_del_contexto(cx):
     celular sin verificar cuando matu_app lo cambia (A8)."""
     cx.execute("UPDATE usuario SET telefono = '+56900000079' WHERE id = %s", (U_OBS_A,))
     cx.execute("UPDATE usuario SET celular_verificado_en = now() WHERE id = %s", (U_OBS_A,))
-    propia = ("SELECT id, email, telefono, celular_verificado_en IS NOT NULL, celular_canal"
-              " FROM cuenta_contacto_propia()")
+    propia = (
+        "SELECT id, email, telefono, celular_verificado_en IS NOT NULL, celular_canal FROM cuenta_contacto_propia()"
+    )
     como(cx, usuario_id=U_OBS_A, grupo_id=G_A)
     assert cx.execute(propia).fetchall() == [(U_OBS_A, "obs.a@x.cl", "+56900000079", True, "sms")]
     # La función no tiene parámetro: otra cuenta no sale ni filtrando por su id
     assert cx.execute("SELECT 1 FROM cuenta_contacto_propia() WHERE id = %s", (U_ADMIN_A,)).fetchall() == []
     # El trigger invoker lee NEW y OLD, sin permisos por columna
-    assert cx.execute("UPDATE usuario SET telefono = '+56900000080' WHERE id = app_usuario() RETURNING id"
-                      ).fetchall() == [(U_OBS_A,)]
+    assert cx.execute(
+        "UPDATE usuario SET telefono = '+56900000080' WHERE id = app_usuario() RETURNING id"
+    ).fetchall() == [(U_OBS_A,)]
     assert cx.execute(propia).fetchall() == [(U_OBS_A, "obs.a@x.cl", "+56900000080", False, "sms")]
     cx.execute("RESET ROLE")
-    for contexto in ({"rol": "sistema", "grupo_id": G_A}, {"rol": "operacion"},
-                     {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE}, {}):
+    for contexto in (
+        {"rol": "sistema", "grupo_id": G_A},
+        {"rol": "operacion"},
+        {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE},
+        {},
+    ):
         como(cx, **contexto)
         assert cx.execute(propia).fetchall() == [], contexto
         cx.execute("RESET ROLE")
@@ -5646,8 +5659,12 @@ def test_79c_el_telefono_del_relevo_solo_para_admin_y_cuidador(cx):
         assert cx.execute(telefono, (ACC_VIGENTE,)).fetchone() == ("+56911111111",), usuario
         cx.execute("RESET ROLE")
     # Otro grupo, operación, el sistema y el propio relevo: NULL
-    for contexto in ({"usuario_id": U_ADMIN_B, "grupo_id": G_B}, {"rol": "operacion", "grupo_id": G_A},
-                     {"rol": "sistema", "grupo_id": G_A}, {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE}):
+    for contexto in (
+        {"usuario_id": U_ADMIN_B, "grupo_id": G_B},
+        {"rol": "operacion", "grupo_id": G_A},
+        {"rol": "sistema", "grupo_id": G_A},
+        {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE},
+    ):
         como(cx, **contexto)
         assert cx.execute(telefono, (ACC_VIGENTE,)).fetchone() == (None,), contexto
         cx.execute("RESET ROLE")
@@ -5673,11 +5690,16 @@ def test_79c_el_telefono_del_relevo_solo_para_admin_y_cuidador(cx):
     from app.modules.care_plan.infrastructure.efecto_retiro import _ACCESOS_SIN_NOMBRE_NI_TELEFONO
 
     [(ahora,)] = cx.execute("SELECT now()").fetchall()
-    cx.execute(_sql_de(_ACCESOS_SIN_NOMBRE_NI_TELEFONO),
-               {"persona_id": P_A, "grupo_id": G_A, "ahora": ahora, "fijo": NOMBRE_BORRADO})
+    cx.execute(
+        _sql_de(_ACCESOS_SIN_NOMBRE_NI_TELEFONO),
+        {"persona_id": P_A, "grupo_id": G_A, "ahora": ahora, "fijo": NOMBRE_BORRADO},
+    )
     cx.execute("RESET ROLE")
-    vaciados = cx.execute("SELECT count(*) FROM acceso_relevo WHERE plan_id = %s AND otorgado_a_telefono IS NULL"
-                          " AND telefono_borrado_en IS NOT NULL", (PLAN_A,)).fetchone()
+    vaciados = cx.execute(
+        "SELECT count(*) FROM acceso_relevo WHERE plan_id = %s AND otorgado_a_telefono IS NULL"
+        " AND telefono_borrado_en IS NOT NULL",
+        (PLAN_A,),
+    ).fetchone()
     assert vaciados == (3,)
 
 
@@ -5690,18 +5712,32 @@ def test_79c_el_sistema_no_borra_ni_reescribe_el_registro_de_avisos(cx):
     como(cx, rol="sistema", grupo_id=G_A)
     with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
         cx.execute("DELETE FROM notificacion WHERE grupo_id = %s", (G_A,))
-    for cambio in ("canal = 'push'", "plantilla = 'otra'", "creada_en = now()", f"usuario_id = '{U_PAG_A}'",
-                   f"grupo_id = '{G_B}'", "evento_id = 80"):
+    for cambio in (
+        "canal = 'push'",
+        "plantilla = 'otra'",
+        "creada_en = now()",
+        f"usuario_id = '{U_PAG_A}'",
+        f"grupo_id = '{G_B}'",
+        "evento_id = 80",
+    ):
         with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
             cx.execute(f"UPDATE notificacion SET {cambio} WHERE id = %s", (propios[0],))
-    assert cx.execute("UPDATE notificacion SET estado = 'enviada', error = NULL, enviada_en = now() WHERE id = %s"
-                      " RETURNING id", (propios[0],)).fetchall() == [(propios[0],)]
+    assert cx.execute(
+        "UPDATE notificacion SET estado = 'enviada', error = NULL, enviada_en = now() WHERE id = %s RETURNING id",
+        (propios[0],),
+    ).fetchall() == [(propios[0],)]
     assert {r[0] for r in cx.execute("SELECT id FROM notificacion WHERE id = ANY(%s)", (propios,))} == set(propios)
-    cx.execute("INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla) VALUES"
-               " (%s, %s, 81, 'correo', 'quiebre_proximo')", (U_ADMIN_A, G_A))
+    cx.execute(
+        "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla) VALUES"
+        " (%s, %s, 81, 'correo', 'quiebre_proximo')",
+        (U_ADMIN_A, G_A),
+    )
     with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
-        cx.execute("INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla) VALUES"
-                   " (%s, %s, 81, 'correo', 'quiebre_proximo')", (U_ADMIN_B, G_B))
+        cx.execute(
+            "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla) VALUES"
+            " (%s, %s, 81, 'correo', 'quiebre_proximo')",
+            (U_ADMIN_B, G_B),
+        )
     cx.execute("RESET ROLE")
     # Con una cuenta en el contexto, el sistema no ve las del grupo (la cuenta ve solo las suyas)
     como(cx, rol="sistema", grupo_id=G_A, usuario_id=U_PAG_A)

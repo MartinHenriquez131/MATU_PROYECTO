@@ -193,8 +193,13 @@ def test_escribir_conserva_el_orden_del_archivo_y_suma_lo_nuevo_al_final(
     }
     archivo.write_text(exportar_contrato.serializar(previo), encoding="utf-8", newline="\n")
     api = {
-        "components": {"schemas": {"Alfa": {"type": "string"}, "Beta": {"type": "integer"},
-                                   "Zeta": {"required": ["y", "x"], "type": "object"}}},
+        "components": {
+            "schemas": {
+                "Alfa": {"type": "string"},
+                "Beta": {"type": "integer"},
+                "Zeta": {"required": ["y", "x"], "type": "object"},
+            }
+        },
         "paths": {"/v1/a": _ruta("A"), "/v1/b": _ruta("B"), "/v1/c": _ruta("C")},
         "openapi": "3.1.0",
     }
