@@ -227,18 +227,23 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
     lineas: [
       linea('Pañal adulto talla M', 'paquete de 30', 'Farmacia Los Aromos (comercio ficticio)', 2, 13_990, 'otro_comercio'),
       linea('Toallitas húmedas', 'paquete de 80', 'Farmacia Los Aromos (comercio ficticio)', 1, 5_290, 'quitar'),
+      linea('Crema protectora', 'pote de 200 g', 'Farmacia Los Aromos (comercio ficticio)', 2, 6_490, 'otro_comercio'),
     ],
-    subtotal_productos: 33_270,
+    subtotal_productos: 46_250,
     costo_envio: 3_990,
-    total: 37_260,
+    total: 50_240,
     entrega,
     pago: {
       estado: 'devuelto_parcial',
       pagado_en: chile(hace(4 * DIA + 150)),
       pagado_por: persona('Rodrigo Soto'),
-      cobrado: 37_260,
-      devuelto: 5_290,
-      devoluciones: [{ motivo: 'producto_no_entregado', producto: 'Toallitas húmedas', monto: 5_290, estado: 'hecha', solicitada_en: chile(hace(3 * DIA)), hecha_en: chile(hace(3 * DIA - 30)) }],
+      cobrado: 50_240,
+      devuelto: 19_280,
+      devoluciones: [
+        { motivo: 'producto_no_entregado', producto: 'Toallitas húmedas', monto: 5_290, estado: 'hecha', solicitada_en: chile(hace(3 * DIA)), hecha_en: chile(hace(3 * DIA - 30)) },
+        // MATU-115 (1.6): la devolución en dinero por arrepentimiento, «… porque se pidió devolver …».
+        { motivo: 'retracto', producto: 'Pañal adulto talla M', monto: 13_990, estado: 'hecha', solicitada_en: chile(hace(DIA + 60)), hecha_en: chile(hace(DIA)) },
+      ],
       pago_de_prueba: true,
     },
     precios_de_ejemplo: true,
@@ -252,9 +257,30 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
         nota: 'El comercio avisó que no tenía las toallitas húmedas.',
         resolucion: 'Se devolvieron las toallitas a la misma tarjeta.',
       },
+      // MATU-115 (P3 de Martín): la clave de las notas se destruyó (decisión 471): sin nota ni resolución,
+      // y la pantalla dice «La nota ya no está disponible: se borró con los datos de la persona.».
+      {
+        tipo: 'otro',
+        estado: 'resuelta',
+        anotado_en: chile(hace(3 * DIA)),
+        resuelto_en: chile(hace(3 * DIA - 90)),
+        nota: null,
+        resolucion: null,
+        nota_disponible: false,
+      },
     ],
-    // MATU-81 (H2 del analista): un retracto que no se aceptó, con su motivo (`motivo_rechazo`).
+    // MATU-81 (H2 del analista) y MATU-115 (1.4): «Lo que se pidió devolver» en sus tres estados, con los
+    // dos motivos por los que no se aceptó y uno pedido con el envío.
     retractos: [
+      {
+        estado: 'devuelto',
+        solicitado_en: chile(hace(3 * DIA)),
+        plazo_hasta: chile(hace(-7 * DIA)),
+        incluye_envio: false,
+        resuelto_en: chile(hace(DIA)),
+        motivo_rechazo: null,
+        lineas: [{ producto: 'Pañal adulto talla M', cantidad: 1 }],
+      },
       {
         estado: 'rechazado',
         solicitado_en: chile(hace(2 * DIA)),
@@ -264,10 +290,29 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
         motivo_rechazo: 'sello_abierto',
         lineas: [{ producto: 'Pañal adulto talla M', cantidad: 1 }],
       },
+      {
+        estado: 'rechazado',
+        solicitado_en: chile(hace(2 * DIA - 60)),
+        plazo_hasta: chile(hace(-8 * DIA)),
+        incluye_envio: false,
+        resuelto_en: chile(hace(DIA - 60)),
+        motivo_rechazo: 'producto_no_recibido',
+        lineas: [{ producto: 'Crema protectora', cantidad: 1 }],
+      },
+      {
+        estado: 'solicitado',
+        solicitado_en: chile(hace(120)),
+        plazo_hasta: chile(hace(-8 * DIA)),
+        incluye_envio: true,
+        resuelto_en: null,
+        motivo_rechazo: null,
+        lineas: [{ producto: 'Crema protectora', cantidad: 1 }],
+      },
     ],
   }
   if (modo !== 'datos-pedidos') return [entregado]
-  const base = { lineas: [linea('Guantes desechables', 'caja de 100', 'Farmacia Los Aromos (comercio ficticio)', 1, 6_490, 'otro_comercio')], subtotal_productos: 6_490, costo_envio: 3_990, entrega, precios_de_ejemplo: true, lo_que_paso: [] }
+  // MATU-115 (P2 de Martín): el contrato exige `retractos` en todo pedido; sin pedidos devueltos, la lista vacía.
+  const base = { lineas: [linea('Guantes desechables', 'caja de 100', 'Farmacia Los Aromos (comercio ficticio)', 1, 6_490, 'otro_comercio')], subtotal_productos: 6_490, costo_envio: 3_990, entrega, precios_de_ejemplo: true, lo_que_paso: [], retractos: [] }
   return [
     { ...base, referencia: null, estado: 'borrador', creado_en: chile(hace(30)), total_confirmado_en: null, total: null, pago: null },
     { ...base, referencia: null, estado: 'total_confirmado', creado_en: chile(hace(DIA)), total_confirmado_en: chile(hace(DIA - 5)), total: 10_480, pago: { estado: 'pendiente', pagado_en: null, pagado_por: null, cobrado: 0, devuelto: 0, devoluciones: [], pago_de_prueba: true } },
