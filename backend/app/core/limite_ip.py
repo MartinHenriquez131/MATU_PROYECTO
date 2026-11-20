@@ -148,7 +148,8 @@ def obtener_pepper_limites() -> bytes | None:
 
 @lru_cache
 def _contador_redis() -> ContadorVentana:
-    return ContadorVentanaRedis(redis.Redis.from_url(obtener_configuracion().redis_url, socket_timeout=2))
+    url = obtener_configuracion().redis_url.get_secret_value()
+    return ContadorVentanaRedis(redis.Redis.from_url(url, socket_timeout=2))
 
 
 def obtener_contador_ventana() -> ContadorVentana:

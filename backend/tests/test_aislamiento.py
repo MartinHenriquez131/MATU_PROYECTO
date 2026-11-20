@@ -411,7 +411,7 @@ def sesiones_app():
 
     from app.core.config import obtener_configuracion
 
-    url = obtener_configuracion().database_url
+    url = obtener_configuracion().database_url.get_secret_value()
     if not url:
         pytest.skip("DATABASE_URL no está definida")
     engine = create_engine(url, pool_size=1, max_overflow=0)

@@ -2,7 +2,7 @@
 // acción que sigue. Nunca muestra de quién es, a dónde va, montos ni el código. Las marcas se
 // guardan al elegir (interfaz optimista: se pueden cambiar hasta «Listo para retirar» y no mueven
 // dinero, O4); empezar, terminar y el código esperan la respuesta.
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useReducer, useRef, useState } from 'react'
 import { Check, PackageX, TriangleAlert } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import {
@@ -85,17 +85,22 @@ export function DetallePedido({
   /**
    * P1 de la revisión visual: el foco va a un elemento cuando ya está montado. Un `setTimeout` corría
    * antes de que React pintara la nota (o con el botón ya desmontado), y el foco caía en `body`.
-   * El efecto corre después de cada render y espera hasta que el elemento exista.
+   * El efecto corre después de cada render y espera hasta que el elemento exista. El pedido pendiente
+   * va en una referencia (MATU-79): soltarlo no necesita otro render.
    */
-  const [foco, setFoco] = useState<{ id: string; selector?: string } | null>(null)
-  const pedirFoco = (id: string, selector?: string) => setFoco({ id, selector })
+  const foco = useRef<{ id: string; selector?: string } | null>(null)
+  const [, repintar] = useReducer((n: number) => n + 1, 0)
+  const pedirFoco = useCallback((id: string, selector?: string) => {
+    foco.current = { id, selector }
+    repintar()
+  }, [])
   useEffect(() => {
-    if (!foco) return
-    const el = document.getElementById(foco.id)
-    const objetivo = foco.selector ? el?.querySelector<HTMLElement>(foco.selector) : el
+    if (!foco.current) return
+    const el = document.getElementById(foco.current.id)
+    const objetivo = foco.current.selector ? el?.querySelector<HTMLElement>(foco.current.selector) : el
     if (!objetivo) return
     objetivo.focus()
-    setFoco(null)
+    foco.current = null
   })
 
   const mostrar = useCallback((p: ParteVista, version: string | null) => {
@@ -134,6 +139,10 @@ export function DetallePedido({
     [parteId, mostrar, onCambio, comun],
   )
 
+  // MATU-79: la carga va en un evento de efecto: lee el `cargar` del último render sin volver a correr
+  // el efecto cuando cambia `onCambio`.
+  const cargarDesdeEfecto = useEffectEvent((motivo: 'abrir') => cargar(motivo))
+
   useEffect(() => {
     setParte(null)
     setFallo(null)
@@ -142,19 +151,20 @@ export function DetallePedido({
     setErrorAccion(false)
     setErrorLinea({})
     setRecienSinNinguno(false)
-    setFoco(null)
-    void cargar('abrir').then((p) => {
+    foco.current = null
+    void cargarDesdeEfecto('abrir').then((p) => {
       // P1-1: si el foco quedó en el cuerpo (la fila elegida se desmontó en el teléfono), vuelve al `h1`.
-      if (p && (document.activeElement === document.body || !document.activeElement)) setFoco({ id: 'titulo-pagina' })
+      if (p && (document.activeElement === document.body || !document.activeElement)) pedirFoco('titulo-pagina')
     })
     const r = relojes.current
     return () => Object.values(r).forEach((t) => window.clearTimeout(t))
-    // Solo al elegir otra parte.
-  }, [parteId])
+    // Solo al elegir otra parte: `pedirFoco` no cambia entre renders.
+  }, [parteId, pedirFoco])
 
   // 5.5: la lista trae la parte en otro estado (se canceló, u operación generó un código nuevo).
+  // MATU-79: solo corre cuando cambia `estadoAfuera`; la parte, el resumen y `ocupado` se leen en un evento de efecto.
   const estadoAfuera = resumen ? `${resumen.estado}:${resumen.estado_codigo}` : null
-  useEffect(() => {
+  const verCambioAfuera = useEffectEvent(() => {
     if (!parte || !resumen || ocupado) return
     if (resumen.estado === parte.estado && resumen.estado_codigo === parte.estado_codigo) return
     if (resumen.estado === 'cancelada' && parte.estado !== 'cancelada') {
@@ -162,7 +172,8 @@ export function DetallePedido({
       anunciar(PEDIDOS.seCancelo(parte.referencia), 'alert')
     }
     void cargar('afuera')
-  }, [estadoAfuera])
+  })
+  useEffect(() => verCambioAfuera(), [estadoAfuera])
 
   /** 409 o 412: se vuelve a pedir la parte y se dice que cambió (6.9). */
   const conflicto = (x: unknown): boolean => {

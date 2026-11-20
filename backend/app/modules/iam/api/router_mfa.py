@@ -55,7 +55,7 @@ DETALLE_MFA_REQUERIDO = "Escribe el código de 6 cifras de la app de tu teléfon
 
 @lru_cache
 def _redis() -> "redis.Redis":
-    return redis.Redis.from_url(obtener_configuracion().redis_url, socket_timeout=2)
+    return redis.Redis.from_url(obtener_configuracion().redis_url.get_secret_value(), socket_timeout=2)
 
 
 def obtener_almacen_mfa() -> AlmacenMfa:

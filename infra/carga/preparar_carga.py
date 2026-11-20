@@ -225,7 +225,7 @@ def main(argv: Sequence[str] = ()) -> int:
         print(motivo, file=sys.stderr)
         return 2
     # Antes de conectar, y sin mostrar la URL: un .env con ENTORNO=local que apunte a Railway se detiene aquí
-    motivo = motivo_por_la_base(configuracion.database_url)
+    motivo = motivo_por_la_base(configuracion.database_url.get_secret_value())
     if motivo is not None:
         print(motivo, file=sys.stderr)
         return 2

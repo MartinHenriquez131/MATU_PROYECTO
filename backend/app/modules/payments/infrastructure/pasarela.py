@@ -34,10 +34,10 @@ def pasarela_desde(config: Configuracion) -> PasarelaWebpay | None:
         from app.modules.payments.infrastructure.pasarela_transbank import PasarelaTransbank
 
         if config.pasarela_pago == "produccion":
-            assert config.webpay_llave is not None
+            assert config.webpay_codigo_comercio is not None and config.webpay_llave is not None
             return PasarelaTransbank(
                 produccion=True,
-                codigo_comercio=config.webpay_codigo_comercio,
+                codigo_comercio=config.webpay_codigo_comercio.get_secret_value(),
                 llave=config.webpay_llave.get_secret_value(),
             )
         return PasarelaTransbank(produccion=False)
