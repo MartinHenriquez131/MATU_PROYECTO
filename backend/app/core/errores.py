@@ -11,7 +11,11 @@ Dos reglas de privacidad:
 
 MATU-80 (K1 del TESTER del 20-11): si el pool de conexiones está lleno y una petición espera más de
 DB_POOL_TIMEOUT, la API responde 503 /errores/servicio-no-disponible con Retry-After, en vez del 500
-genérico. Nada se escribió: la petición no llegó a tener conexión.
+genérico. El tiempo se agota al pedir la conexión, antes de empezar la transacción que la necesitaba:
+esa transacción no corrió ni hizo commit. Una petición puede abrir varias transacciones seguidas (por
+ejemplo, la vuelta de Webpay busca la venta y después la cierra), y las que ya hicieron commit quedan
+hechas. Por eso el 503 no promete que la petición no escribió nada: reintentarla sigue las mismas reglas
+que repetir cualquier petición (Idempotency-Key, ETag o el token de la venta, en las rutas que los usan).
 
 Los type son URI relativas bajo /errores/. El catálogo definitivo de type de la ficha y del
 relevo lo fija el contrato de MATU-09.

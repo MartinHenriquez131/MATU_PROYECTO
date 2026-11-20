@@ -49,7 +49,7 @@ def config(fabrica: Fabrica) -> Any:
 
 @pytest.fixture
 def con_scheduler(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    monkeypatch.setattr(tareas, "fabrica_de_rol", lambda url, rol: fabrica_scheduler())
+    monkeypatch.setattr(tareas, "fabrica_de_rol", lambda url, rol, config=None: fabrica_scheduler())
     yield
 
 
@@ -205,7 +205,7 @@ def test_main_lleva_operacion_alta_a_su_tarea_y_sin_scheduler_falla_nombrando_la
     monkeypatch.setattr(tareas, "operacion_alta", doble)
     assert tareas.main(["operacion-alta"]) == 0 and len(llamadas) == 1
     monkeypatch.undo()
-    monkeypatch.setattr(tareas, "fabrica_de_rol", lambda url, rol: None)
+    monkeypatch.setattr(tareas, "fabrica_de_rol", lambda url, rol, config=None: None)
     logs = io.StringIO()
     assert tareas.operacion_alta(stream=logs, consola=io.StringIO(), preguntar=_respuestas(), config=config) == 1
     assert '"falta": "SCHEDULER_DATABASE_URL"' in logs.getvalue()
