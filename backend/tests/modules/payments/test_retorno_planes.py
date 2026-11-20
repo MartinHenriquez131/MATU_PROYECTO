@@ -16,9 +16,9 @@ from typing import Any
 
 import psycopg
 import pytest
-from sqlalchemy import event, text
+from sqlalchemy import Engine, event, text
 
-from app.core.db import obtener_engine
+from app.core.db import obtener_fabrica_sesiones
 from app.modules.payments.infrastructure.pasarela_falsa import PasarelaFalsa
 from app.modules.payments.infrastructure.repositorio_pagos import _VENTA_ID
 from tests.base_datos import DSN, requiere_base
@@ -32,6 +32,14 @@ _PREPARADA = text(
     "SELECT generic_plans, custom_plans FROM pg_prepared_statements WHERE statement LIKE :inicio || '%'"
     " AND statement LIKE '%t.id = $1'"
 )
+
+
+def _engine_de_la_api() -> Engine:
+    """El engine de la fábrica que usa la API (obtener_fabrica_sesiones). No se pide a obtener_engine: otra prueba puede
+    haber limpiado su caché sin la de fabrica_sesiones, y la API seguiría con el engine anterior."""
+    engine = obtener_fabrica_sesiones().kw["bind"]
+    assert isinstance(engine, Engine)
+    return engine
 
 
 def _venta_pagada(e: EntornoPedido, pasarela: PasarelaFalsa) -> tuple[uuid.UUID, uuid.UUID]:
@@ -59,7 +67,7 @@ def test_la_vuelta_aprobada_escribe_la_venta_dos_veces(
         if sentencia.startswith("UPDATE transaccion_pasarela"):
             escrituras.append(sentencia)
 
-    engine = obtener_engine()
+    engine = _engine_de_la_api()
     event.listen(engine, "before_cursor_execute", anotar)
     try:
         vuelta = sin_sesion_volver(e, {"token_ws": token})
@@ -86,7 +94,7 @@ def test_el_plan_de_la_venta_se_reutiliza_y_no_cruza_familias(
     grupo_b, venta_b = _venta_pagada(e, pasarela_falsa)
 
     # Una conexión nueva, tres transacciones: el plan que se prepara con la familia A sirve a la B
-    engine = obtener_engine()
+    engine = _engine_de_la_api()
     engine.dispose()
     with engine.connect() as conexion:
         with conexion.begin():
@@ -104,6 +112,6 @@ def test_el_plan_de_la_venta_se_reutiliza_y_no_cruza_familias(
 
 
 def test_la_conexion_de_la_api_usa_el_plan_generico() -> None:
-    with obtener_engine().connect() as conexion:
+    with _engine_de_la_api().connect() as conexion:
         assert conexion.execute(text("SHOW plan_cache_mode")).scalar_one() == "force_generic_plan"
         assert conexion.connection.dbapi_connection.prepare_threshold == 0  # type: ignore[union-attr]
