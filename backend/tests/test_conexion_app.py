@@ -63,14 +63,16 @@ def test_la_app_no_borra_tokens_ni_cuentas_ni_lee_la_contrasena(sentencia: str) 
 @requiere_base
 @pytest.mark.rf("RF-05")
 def test_la_app_conserva_lo_que_usa_de_indice_token_y_usuario() -> None:
-    """Lo que la API sí hace hoy: leer e insertar tokens, cortar uno, y leer la cuenta sin la contraseña."""
+    """Lo que la API sí hace hoy: leer e insertar tokens, cortar uno, y leer la cuenta sin la contraseña. Desde MATU-79
+    (0034, A1 y A2) el correo y el celular de la propia cuenta salen de cuenta_contacto_propia(), y matu_app ya no los
+    lee directo (lo verifica test_la_app_no_lee_el_contacto_de_las_cuentas)."""
     with obtener_engine().connect() as cx:
         permisos = cx.execute(
             text(
                 "SELECT has_table_privilege('indice_token', 'SELECT'), has_table_privilege('indice_token', 'INSERT'),"
                 " has_column_privilege('indice_token', 'revocado_en', 'UPDATE'),"
-                " has_column_privilege('usuario', 'email', 'SELECT'),"
-                " has_column_privilege('usuario', 'telefono', 'SELECT'),"
+                " has_column_privilege('usuario', 'nombre', 'SELECT'),"
+                " has_function_privilege('cuenta_contacto_propia()', 'EXECUTE'),"
                 " has_column_privilege('usuario', 'password_hash', 'UPDATE'),"
                 " has_column_privilege('usuario', 'telefono', 'UPDATE'),"
                 " has_column_privilege('usuario', 'celular_verificado_en', 'UPDATE'),"
@@ -80,6 +82,24 @@ def test_la_app_conserva_lo_que_usa_de_indice_token_y_usuario() -> None:
         ).one()
         cx.rollback()
     assert all(permisos), permisos
+
+
+@requiere_base
+@pytest.mark.rf("RF-38")
+@pytest.mark.rf("Ley-21.719")
+def test_la_app_no_lee_el_contacto_de_las_cuentas() -> None:
+    """MATU-79 (0034, A1 y A4): matu_app no tiene SELECT sobre el contacto de usuario ni sobre el teléfono
+    del relevo."""
+    columnas = [("usuario", c) for c in ("email", "telefono", "celular_verificado_en", "celular_canal")]
+    columnas.append(("acceso_relevo", "otorgado_a_telefono"))
+    with obtener_engine().connect() as cx:
+        legibles = [
+            (t, c)
+            for t, c in columnas
+            if cx.execute(text("SELECT has_column_privilege(:t, :c, 'SELECT')"), {"t": t, "c": c}).scalar()
+        ]
+        cx.rollback()
+    assert legibles == []
 
 
 # MATU-74 (migración 0022, H2): las funciones de las tareas son de matu_scheduler y matu_publisher. La API, con

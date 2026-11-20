@@ -67,6 +67,32 @@ def diferencias(esperado: Any, actual: Any, ruta: str = "") -> list[str]:
     return []
 
 
+def ordenar_como(actual: Any, previo: Any) -> Any:
+    """El contrato de la API con el orden de claves del archivo versionado (hallazgo del 19-11 en MATU-79).
+
+    En cada objeto, las claves que ya estaban van en el orden del archivo y las nuevas van al final, en orden
+    alfabético; las que ya no existen salen. Las listas conservan el orden de la API (parameters, required, enum y
+    allOf tienen significado), y cada elemento toma el orden de claves del que tenía la misma posición. Así --escribir
+    cambia solo las líneas que de verdad cambian, y dos ramas que agregan rutas distintas no reordenan el archivo."""
+    if isinstance(actual, dict):
+        anterior = previo if isinstance(previo, dict) else {}
+        claves = [c for c in anterior if c in actual] + sorted(c for c in actual if c not in anterior)
+        return {c: ordenar_como(actual[c], anterior.get(c)) for c in claves}
+    if isinstance(actual, list):
+        lista = previo if isinstance(previo, list) else []
+        return [ordenar_como(v, lista[i] if i < len(lista) else None) for i, v in enumerate(actual)]
+    return actual
+
+
+def escribir(actual: dict[str, Any], archivo: Path) -> bool:
+    """Escribe el contrato con el orden del archivo que ya existe. Si coincide por contenido, no lo toca (False)."""
+    previo = json.loads(archivo.read_text(encoding="utf-8")) if archivo.exists() else {}
+    if archivo.exists() and not diferencias(previo, actual):
+        return False
+    archivo.write_text(serializar(ordenar_como(actual, previo)), encoding="utf-8", newline="\n")
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--escribir", action="store_true", help="regenera docs/api/openapi.json en vez de comparar")
@@ -77,11 +103,11 @@ def main(argv: list[str] | None = None) -> int:
     cambios = diferencias(esperado, actual)
     if args.escribir:
         # La comparación es por contenido, no por orden de claves: si ya coincide, el archivo no se toca y no
-        # aparece una diferencia de solo orden que choque con otras ramas
-        if not cambios:
+        # aparece una diferencia de solo orden que choque con otras ramas. Si no coincide, se escribe con el orden del
+        # archivo (ordenar_como): solo cambian las líneas que cambian (hallazgo del 19-11)
+        if not escribir(actual, ARCHIVO):
             print("docs/api/openapi.json ya coincide con la API: no se reescribe")
             return 0
-        ARCHIVO.write_text(serializar(actual), encoding="utf-8", newline="\n")
         print(f"Escrito {ARCHIVO.relative_to(RAIZ).as_posix()}: {len(actual.get('paths', {}))} rutas")
         return 0
 

@@ -162,7 +162,8 @@ _DIRECCION = text(
     " FROM persona_cuidada p JOIN direccion d ON d.id = p.direccion_entrega_id AND d.grupo_id = p.grupo_id"
     " WHERE p.id = :persona_id AND p.grupo_id = :grupo_id AND p.eliminado_en IS NULL"
 )
-_CELULAR = text("SELECT telefono FROM usuario WHERE id = app_usuario() AND celular_verificado_en IS NOT NULL")
+# MATU-79 (0034, A2): el celular verificado de la propia cuenta
+_CELULAR = text("SELECT telefono FROM cuenta_contacto_propia() WHERE celular_verificado_en IS NOT NULL")
 # MATU-63 (D-63-7): stock menos lo apartado por otras familias, para confirmar (oferta_disponible, migración 0029)
 _DISPONIBLE = text("SELECT comercio_id, producto_id, disponible FROM oferta_disponible(:comercios, :ahora)")
 

@@ -1967,3 +1967,196 @@ def test_0033_operacion_lee_lo_que_usa_y_baja_al_esquema_de_0032(base_desechable
     # catalogo() no mira la volatilidad: la de la 0032
     assert dict(consultar(volatilidad)) == {"operacion_solicitante_retracto": "s", "invitacion_conservar": "v"}
     alembic("upgrade", "head")
+
+
+# ---- 0034 (MATU-79, parte 3): el contacto de las cuentas y del relevo, y el registro de avisos
+
+CONTACTO_0034 = {"email", "telefono", "celular_verificado_en", "celular_canal"}
+FUNCIONES_0034 = {"cuenta_contacto_propia": "s", "aviso_correo": "v", "acceso_relevo_telefono": "s"}
+# catalogo() mira information_schema.column_privileges; esto mira además los ACL tal cual, de tabla y de columna
+_ACL_0034 = """
+    SELECT c.relname, NULL::text, c.relacl::text FROM pg_class c
+     WHERE c.relname IN ('usuario', 'acceso_relevo', 'notificacion') AND c.relnamespace = 'public'::regnamespace
+    UNION ALL
+    SELECT c.relname, a.attname::text, a.attacl::text FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+     WHERE c.relname IN ('usuario', 'acceso_relevo', 'notificacion') AND c.relnamespace = 'public'::regnamespace
+       AND a.attnum > 0 AND NOT a.attisdropped AND a.attacl IS NOT NULL
+    ORDER BY 1, 2 NULLS FIRST"""
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_0034_politicas_de_contacto_y_baja_al_esquema_de_0033(base_desechable):
+    alembic("upgrade", "0033")
+    esquema_0033 = catalogo()
+    acl_0033 = consultar(_ACL_0034)
+    columnas_acceso = {
+        c for (c,) in consultar("SELECT column_name FROM information_schema.columns WHERE table_name = 'acceso_relevo'")
+    }
+    alembic("upgrade", "0034")
+
+    # A1: matu_app no lee el contacto de ninguna cuenta; el resto de lo que leía sigue
+    legibles = _columnas_con("usuario", "SELECT")
+    assert not CONTACTO_0034 & legibles
+    assert {"id", "nombre", "estado", "eliminado_en", "es_operacion", "creado_en"} <= legibles
+    # La cuenta sigue cambiando su celular y su contraseña (UPDATE por columna, como desde la 0020)
+    assert _columnas_con("usuario", "UPDATE") == {
+        "password_hash",
+        "telefono",
+        "celular_verificado_en",
+        "celular_canal",
+        "actualizado_en",
+    }
+    # A4: acceso_relevo sin SELECT de tabla, con todas las columnas menos el teléfono
+    assert _privilegios("acceso_relevo") == {"INSERT"}
+    assert _columnas_con("acceso_relevo", "SELECT") == columnas_acceso - {"otorgado_a_telefono"}
+    # A7 y D3: notificacion sin DELETE, UPDATE solo de estado, error y enviada_en, y ninguna política ALL
+    assert _privilegios("notificacion") == {"SELECT", "INSERT"}
+    assert _columnas_con("notificacion", "UPDATE") == {"estado", "error", "enviada_en"}
+    politicas = {
+        (n, c, r)
+        for n, c, r in consultar(
+            "SELECT policyname, cmd, roles::text FROM pg_policies WHERE tablename = 'notificacion'"
+        )
+    }
+    assert not [p for p in politicas if p[1] == "ALL"]
+    assert {p for p in politicas if p[0].startswith("notificacion_sistema")} == {
+        ("notificacion_sistema_leer", "SELECT", "{matu_app}"),
+        ("notificacion_sistema_crear", "INSERT", "{matu_app}"),
+        ("notificacion_sistema_editar", "UPDATE", "{matu_app}"),
+    }
+    for qual, check in consultar(
+        "SELECT coalesce(qual, ''), coalesce(with_check, '') FROM pg_policies"
+        " WHERE policyname LIKE 'notificacion_sistema_%'"
+    ):
+        for expresion in filter(None, (qual, check)):
+            assert "'sistema'" in expresion and "app_usuario() IS NULL" in expresion and "app_grupo()" in expresion
+    # A3: la política del marcador, solo TO matu_owner
+    assert consultar("SELECT roles::text, cmd, qual FROM pg_policies WHERE policyname = 'usuario_aviso_correo'") == [
+        ("{matu_owner}", "SELECT", "(current_setting('app.funcion'::text, true) = 'aviso_correo'::text)")
+    ]
+    # A2, A3 y A5: definer de matu_owner, search_path fijo, EXECUTE solo para matu_app, VOLATILE la que fija app.funcion
+    funciones = {
+        n: (d, v, c, a, o)
+        for n, d, v, c, a, o in consultar(
+            "SELECT proname, prosecdef, provolatile, proconfig, proacl::text, pg_get_userbyid(proowner) FROM pg_proc"
+            " WHERE proname IN ('cuenta_contacto_propia', 'aviso_correo', 'acceso_relevo_telefono')"
+        )
+    }
+    assert set(funciones) == set(FUNCIONES_0034)
+    for nombre, (definer, volatilidad, config, acl, dueno) in funciones.items():
+        assert definer and dueno == "matu_owner", nombre
+        assert volatilidad == FUNCIONES_0034[nombre], nombre
+        assert config == ["search_path=pg_catalog, public, pg_temp"], nombre
+        assert set(acl.strip("{}").split(",")) == {"matu_owner=X/matu_owner", "matu_app=X/matu_owner"}, nombre
+    assert (
+        "set_config('app.funcion', 'aviso_correo', true)"
+        in consultar("SELECT prosrc FROM pg_proc WHERE proname = 'aviso_correo'")[0][0]
+    )
+
+    # La bajada deja el catálogo, y los ACL de tabla y de columna, como en la 0033
+    alembic("downgrade", "0033")
+    despues = catalogo()
+    for parte, filas_0033 in esquema_0033.items():
+        assert despues[parte] == filas_0033, f"downgrade no restaura {parte}: {set(filas_0033) ^ set(despues[parte])}"
+    assert consultar(_ACL_0034) == acl_0033
+    assert consultar("SELECT cmd, roles::text FROM pg_policies WHERE policyname = 'notificacion_sistema'") == [
+        ("ALL", "{public}")
+    ]
+    assert consultar(
+        "SELECT count(*) FROM pg_proc WHERE proname IN ('cuenta_contacto_propia', 'aviso_correo',"
+        " 'acceso_relevo_telefono')"
+    ) == [(0,)]
+    alembic("upgrade", "head")
+
+
+# ---- 0035 (MATU-124): cada conservación ve y borra solo con su propio marcador
+
+# Las políticas que no son TO matu_owner y miran app.rol = 'operacion', después de la 0035: sale direccion_no_operacion
+# (direccion_solo_familia mira app.rol = 'ninguno')
+POLITICAS_OPERACION_0035 = {tabla: politicas - {"direccion_no_operacion"} for tabla, politicas in
+                            POLITICAS_OPERACION_0033.items() if politicas - {"direccion_no_operacion"}}
+# Las definer que cambian app.funcion y eran STABLE (H8), y las de la conservación (C2)
+VOLATILES_0035 = ("operacion_cuenta_activa", "cuenta_es_operacion", "operacion_buscar_cuenta", "app_pago_el_pedido",
+                  "cuenta_pagos", "cuenta_retractos", "cuenta_condiciones", "pago_resolver_venta")
+MARCADORES_0035 = {"pedido_conservar": "pedido_conservar", "consumo_conservar": "consumo_conservar",
+                   "iam_conservar": "iam_conservar", "quiebre_conservar": "quiebre_conservar",
+                   "relevo_conservar": "relevo_conservar", "plan_destruir_claves": "plan_destruir_claves",
+                   "pago_resolver_venta": "pago_resolver_venta",
+                   "operacion_solicitante_retracto": "solicitante_retracto", "app_pago_el_pedido": "pago_propio"}
+TRIGGERS_0035 = ("transaccion_borrado_acotado", "transicion_solo_insercion", "pedido_escritura_del_pago")
+# catalogo() no mira la volatilidad, ni proconfig ni los permisos de las funciones: esto sí
+_FUNCIONES_0035 = """
+    SELECT p.oid::regprocedure::text, p.provolatile, p.prosecdef, p.proconfig::text, p.proacl::text,
+           pg_get_userbyid(p.proowner)
+      FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
+       AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+     ORDER BY 1"""
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_0035_conservacion_con_su_marcador_y_baja_al_esquema_de_0034(base_desechable):
+    alembic("upgrade", "0034")
+    esquema_0034 = catalogo()
+    funciones_0034 = consultar(_FUNCIONES_0035)
+    assert dict(consultar("SELECT proname, provolatile FROM pg_proc WHERE proname = ANY(%s)"
+                          % ("ARRAY[" + ", ".join(f"'{f}'" for f in VOLATILES_0035) + "]"))) == dict.fromkeys(
+        VOLATILES_0035, "s")
+    alembic("upgrade", "0035")
+
+    # C1 y D4: toda política TO matu_owner mira su marcador, salvo la del relevo; ninguna mira app.conservacion
+    filas = consultar("SELECT policyname, coalesce(qual, '') || ' ' || coalesce(with_check, '') FROM pg_policies"
+                      " WHERE 'matu_owner' = ANY(roles)")
+    assert {n for n, e in filas if "current_setting('app.funcion'" not in e} == {"consentimiento_autorizacion_relevo"}
+    for nombre, expresion in filas:
+        if "'operacion'" in expresion or "'sistema'" in expresion:
+            assert "current_setting('app.funcion'" in expresion, nombre
+    assert consultar("SELECT policyname FROM pg_policies WHERE coalesce(qual, '') || coalesce(with_check, '')"
+                     " LIKE '%app.conservacion%'") == []
+    [(consentimiento,)] = consultar("SELECT qual FROM pg_policies WHERE policyname = 'consentimiento_conservacion'")
+    assert "plan_destruir_claves" in consentimiento and "consumo_conservar" in consentimiento
+    [(aviso,)] = consultar("SELECT qual FROM pg_policies WHERE policyname = 'usuario_aviso_correo'")
+    assert "'sistema'" in aviso and "app_usuario() IS NULL" in aviso and "membresia" in aviso
+    # C6: la dirección, solo para una sesión de familia
+    direccion = consultar("SELECT policyname, permissive, roles::text, cmd, qual, with_check FROM pg_policies"
+                          " WHERE tablename = 'direccion' AND permissive = 'RESTRICTIVE'")
+    familia = "((app_rol() = 'ninguno'::text) AND (app_usuario() IS NOT NULL))"
+    assert direccion == [("direccion_solo_familia", "RESTRICTIVE", "{matu_app}", "ALL", familia, familia)]
+    # La lista de las políticas de operación que no son de matu_owner (la de la 0033 sin direccion_no_operacion)
+    quedan: dict[str, set[str]] = {}
+    for tabla, politica in consultar("SELECT tablename, policyname FROM pg_policies WHERE roles::text <> '{matu_owner}'"
+                                     " AND coalesce(qual, '') || coalesce(with_check, '') LIKE '%''operacion''%'"):
+        quedan.setdefault(tabla, set()).add(politica)
+    assert quedan == POLITICAS_OPERACION_0035
+    # C2, C5 y C7: cada función fija su marcador y devuelve el anterior; VOLATILE la que usa set_config
+    fuentes = dict(consultar("SELECT proname, prosrc FROM pg_proc WHERE pronamespace = 'public'::regnamespace"))
+    for funcion, marca in MARCADORES_0035.items():
+        assert f"set_config('app.funcion', '{marca}', true)" in fuentes[funcion], funcion
+        assert "set_config('app.funcion', COALESCE(v_antes, ''), true)" in fuentes[funcion], funcion
+    assert not [f for f, s in fuentes.items() if "app.conservacion" in s]
+    for funcion in TRIGGERS_0035:
+        assert "current_setting('app.funcion', true) = 'pedido_conservar'" in fuentes[funcion], funcion
+    assert consultar("SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND prosecdef"
+                     " AND provolatile <> 'v' AND prosrc LIKE '%set_config%'") == []
+    # Los triggers siguen en sus tablas, con las mismas funciones
+    assert {t for (t,) in consultar("SELECT tgfoid::regproc::text FROM pg_trigger WHERE NOT tgisinternal"
+                                    " AND tgfoid::regproc::text = ANY(%s)" % (
+                                        "ARRAY[" + ", ".join(f"'{t}'" for t in TRIGGERS_0035) + "]"))} == set(
+        TRIGGERS_0035)
+    # Ni los permisos, ni el dueño, ni el search_path de ninguna función cambian; solo la volatilidad de las de H8
+    despues = {f[0]: f for f in consultar(_FUNCIONES_0035)}
+    for antes in funciones_0034:
+        firma, volatilidad = antes[0], antes[1]
+        nombre = firma.split("(")[0]
+        assert despues[firma][2:] == antes[2:], firma
+        assert despues[firma][1] == ("v" if nombre in VOLATILES_0035 else volatilidad), firma
+
+    # C8: la bajada deja el catálogo, la volatilidad, los permisos y los triggers como en la 0034, sin borrar filas
+    alembic("downgrade", "0034")
+    despues_baja = catalogo()
+    for parte, filas_0034 in esquema_0034.items():
+        assert despues_baja[parte] == filas_0034, (
+            f"downgrade no restaura {parte}: {set(filas_0034) ^ set(despues_baja[parte])}")
+    assert consultar(_FUNCIONES_0035) == funciones_0034
+    alembic("upgrade", "head")
