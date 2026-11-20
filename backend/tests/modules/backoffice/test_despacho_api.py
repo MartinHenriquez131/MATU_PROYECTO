@@ -471,7 +471,7 @@ def test_operacion_genera_el_codigo_desde_la_consola_y_vence_solo(despacho: Desp
     parte, etag = _parte(d, pedido)
     _preparar_todo(d, parte, etag)
     config = obtener_configuracion().model_copy(update={"codigo_retiro_secreto": SecretStr(SECRETO_CODIGO.decode())})
-    monkeypatch.setattr(tareas, "fabrica_de_rol", lambda url, rol: fabrica_scheduler())
+    monkeypatch.setattr(tareas, "fabrica_de_rol", lambda url, rol, config=None: fabrica_scheduler())
     logs, consola = io.StringIO(), io.StringIO()
     assert tareas.codigo_retiro(parte, stream=logs, consola=consola, reloj=d.e.iam.reloj, config=config) == 0
     [codigo] = re.findall(r"\b[0-9]{6}\b", consola.getvalue())

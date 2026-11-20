@@ -188,12 +188,12 @@ def test_el_engine_de_las_tareas_lleva_un_tope_de_conexion(monkeypatch: pytest.M
         update={"database_url": SecretStr("postgresql+psycopg://u@db.invalid/x")}
     )
     tareas.fabrica_tareas(config)
-    assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S}
+    assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S, "options": "-c jit=off"}
     assert 0 < tareas.TIEMPO_CONEXION_S <= 10
     # Las conexiones de los roles de las tareas llevan el mismo tope
     for rol in (tareas.ROL_SCHEDULER, tareas.ROL_PUBLISHER):
         assert tareas.fabrica_de_rol(f"postgresql+psycopg://{rol}@db.invalid/x", rol) is not None
-        assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S}
+        assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S, "options": "-c jit=off"}
 
 
 def test_con_la_base_inalcanzable_la_tarea_falla_pronto(caplog: pytest.LogCaptureFixture) -> None:

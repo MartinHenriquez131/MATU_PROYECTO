@@ -9,21 +9,38 @@ Dos reglas de privacidad:
 - Un 500 no expone el mensaje de la excepción. Los mensajes de la base pueden incluir
   valores de las filas, por ejemplo un email duplicado.
 
+MATU-80 (K1 del TESTER del 20-11): si el pool de conexiones está lleno y una petición espera más de
+DB_POOL_TIMEOUT, la API responde 503 /errores/servicio-no-disponible con Retry-After, en vez del 500
+genérico. El tiempo se agota al pedir la conexión, antes de empezar la transacción que la necesitaba:
+esa transacción no corrió ni hizo commit. Una petición puede abrir varias transacciones seguidas (por
+ejemplo, la vuelta de Webpay busca la venta y después la cierra), y las que ya hicieron commit quedan
+hechas. Por eso el 503 no promete que la petición no escribió nada: reintentarla sigue las mismas reglas
+que repetir cualquier petición (Idempotency-Key, ETag o el token de la venta, en las rutas que los usan).
+
 Los type son URI relativas bajo /errores/. El catálogo definitivo de type de la ficha y del
 relevo lo fija el contrato de MATU-09.
 """
 
+import logging
 from http import HTTPStatus
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import TimeoutError as PoolAgotado
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.cabeceras import CABECERAS_RELEVO, PREFIJO_RELEVO
 
 TIPO_PROBLEMA = "application/problem+json"
+
+log = logging.getLogger("matu.api")
+
+# MATU-80 (K1): los segundos que pide esperar el 503 del pool lleno. Corto: el pool se libera en cuanto termina la
+# petición que tiene la conexión
+RETRY_AFTER_POOL_S = 5
+DETALLE_POOL_AGOTADO = "MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos."
 
 TITULOS: dict[int, str] = {
     400: "Petición inválida",
@@ -169,6 +186,19 @@ async def _manejar_validacion(request: Request, exc: Exception) -> JSONResponse:
     return respuesta_problema(request, 422, detalle="Revisa los campos indicados", errores=errores)
 
 
+async def _manejar_pool_agotado(request: Request, exc: Exception) -> JSONResponse:
+    # MATU-80 (K1): sin el mensaje de SQLAlchemy (nombra el tamaño del pool, nunca datos, pero no aporta), solo el
+    # evento. La línea de la petición del MiddlewareRequestId lleva el request_id y el estado 503
+    assert isinstance(exc, PoolAgotado)
+    log.warning("pool de conexiones agotado", extra={"evento": "pool_agotado"})
+    return respuesta_problema(
+        request,
+        503,
+        detalle=DETALLE_POOL_AGOTADO,
+        headers={"Retry-After": str(RETRY_AFTER_POOL_S), "Cache-Control": "no-store"},
+    )
+
+
 async def _manejar_inesperado(request: Request, exc: Exception) -> JSONResponse:
     # El MiddlewareRequestId ya registró la traza, con su request_id y sin el mensaje.
     # Este manejador corre en ServerErrorMiddleware, por fuera de los demás middlewares: las cabeceras del
@@ -185,4 +215,5 @@ def registrar_manejadores(app: FastAPI) -> None:
     app.add_exception_handler(ErrorMATU, _manejar_error_matu)
     app.add_exception_handler(StarletteHTTPException, _manejar_http)
     app.add_exception_handler(RequestValidationError, _manejar_validacion)
+    app.add_exception_handler(PoolAgotado, _manejar_pool_agotado)
     app.add_exception_handler(Exception, _manejar_inesperado)

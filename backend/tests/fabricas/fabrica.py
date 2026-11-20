@@ -190,7 +190,9 @@ class Fabrica:
     (por ejemplo ``Fabrica(pepper=entorno_iam.pepper)``).
     """
 
-    dsn: str = DSN
+    # MATU-80 (QA, P3): fuera del repr. MATU_TEST_DSN lleva la contraseña del superusuario de pruebas, y pytest
+    # imprime el repr de los fixtures en la traza de cualquier prueba que falla
+    dsn: str = field(default=DSN, repr=False)
     pepper: bytes = field(default_factory=lambda: secrets.token_bytes(32))
     # (tabla, id) en orden de creación
     creados: list[tuple[str, uuid.UUID]] = field(default_factory=list)

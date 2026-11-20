@@ -79,6 +79,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Configuracion, obtener_configuracion
+from app.core.db import argumentos_conexion, opciones_pool
 from app.core.logs import configurar_logs, request_id_actual
 from app.modules.care_circle.infrastructure import tarea_conservacion_invitaciones
 from app.modules.care_plan.infrastructure import tarea_conservacion_relevo, tarea_destruccion
@@ -271,12 +272,12 @@ HORARIOS: dict[str, str] = {
 TIEMPO_CONEXION_S = 10
 
 
-def _fabrica(url: str) -> sessionmaker[Session]:
-    # MATU-79: hide_parameters, como el engine de la API (app/core/db.py). Vale para matu_app, matu_scheduler y
-    # matu_publisher, que salen todos de aquí
-    engine = create_engine(
-        url, pool_pre_ping=True, hide_parameters=True, connect_args={"connect_timeout": TIEMPO_CONEXION_S}
-    )
+def _fabrica(url: str, config: Configuracion) -> sessionmaker[Session]:
+    # MATU-79 y MATU-80 (K1): las opciones del engine de la API (app/core/db.py), con el pool de DB_POOL_SIZE,
+    # DB_MAX_OVERFLOW y DB_POOL_TIMEOUT, pool_pre_ping y hide_parameters. Vale para matu_app, matu_scheduler y
+    # matu_publisher, que salen todos de aquí. Una tarea usa una conexión a la vez: el pool abre solo las que pide.
+    # MATU-80 (K2): con el JIT de PostgreSQL apagado, como la API (app/core/db.py, OPCIONES_SESION)
+    engine = create_engine(url, **opciones_pool(config), connect_args=argumentos_conexion(TIEMPO_CONEXION_S))
     return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
@@ -287,10 +288,10 @@ def fabrica_tareas(config: Configuracion) -> sessionmaker[Session]:
     url = config.database_url.get_secret_value()
     if not url:
         raise RuntimeError("Falta DATABASE_URL")
-    return _fabrica(url)
+    return _fabrica(url, config)
 
 
-def fabrica_de_rol(url: str, rol: str) -> sessionmaker[Session] | None:
+def fabrica_de_rol(url: str, rol: str, config: Configuracion | None = None) -> sessionmaker[Session] | None:
     """La fábrica de un rol de las tareas, o None si su variable está vacía o la URL es de otro usuario.
 
     Con None, la tarea que la pide falla con FaltaConexion: una URL de matu_app copiada en SCHEDULER_DATABASE_URL
@@ -301,7 +302,9 @@ def fabrica_de_rol(url: str, rol: str) -> sessionmaker[Session] | None:
         usuario = make_url(url).username
     except Exception:  # noqa: BLE001 - una URL que no se lee cuenta como ausente, sin dejar su texto
         return None
-    return _fabrica(url) if usuario == rol else None
+    if usuario != rol:
+        return None
+    return _fabrica(url, config or obtener_configuracion())
 
 
 def _instante(reloj: Reloj) -> str:
@@ -382,7 +385,7 @@ def codigo_retiro(
     config = config or obtener_configuracion()
     configurar_logs(config.log_nivel, stream)
     extra: dict[str, object] = {"tarea": "codigo_retiro", "corrida": str(uuid.uuid4())}
-    fabrica = fabrica_de_rol(config.scheduler_database_url.get_secret_value(), ROL_SCHEDULER)
+    fabrica = fabrica_de_rol(config.scheduler_database_url.get_secret_value(), ROL_SCHEDULER, config)
     if fabrica is None:
         log.error("tarea", extra={**extra, "resultado": FALLO, "falta": VARIABLE_DE[ROL_SCHEDULER]})
         return SALIDA_FALLO
@@ -424,7 +427,7 @@ def operacion_alta(
     config = config or obtener_configuracion()
     configurar_logs(config.log_nivel, stream)
     extra: dict[str, object] = {"tarea": "operacion_alta", "corrida": str(uuid.uuid4())}
-    fabrica = fabrica_de_rol(config.scheduler_database_url.get_secret_value(), ROL_SCHEDULER)
+    fabrica = fabrica_de_rol(config.scheduler_database_url.get_secret_value(), ROL_SCHEDULER, config)
     if fabrica is None:
         log.error("tarea", extra={**extra, "resultado": FALLO, "falta": VARIABLE_DE[ROL_SCHEDULER]})
         return SALIDA_FALLO
@@ -468,8 +471,8 @@ def main(argv: Sequence[str] | None = None, *, stream: TextIO | None = None) -> 
         config=config,
         fabrica=fabrica,
         reloj=RelojSistema(),
-        fabrica_scheduler=fabrica_de_rol(config.scheduler_database_url.get_secret_value(), ROL_SCHEDULER),
-        fabrica_publisher=fabrica_de_rol(config.publisher_database_url.get_secret_value(), ROL_PUBLISHER),
+        fabrica_scheduler=fabrica_de_rol(config.scheduler_database_url.get_secret_value(), ROL_SCHEDULER, config),
+        fabrica_publisher=fabrica_de_rol(config.publisher_database_url.get_secret_value(), ROL_PUBLISHER, config),
     )
     return correr(nombres, contexto)
 

@@ -44,7 +44,7 @@ def test_el_engine_de_la_api_oculta_los_parametros(
 
 def test_los_engines_de_las_tareas_ocultan_los_parametros() -> None:
     # matu_app, matu_scheduler y matu_publisher salen todos de _fabrica
-    engine = tareas._fabrica(URL_SINTETICA).kw["bind"]
+    engine = tareas._fabrica(URL_SINTETICA, obtener_configuracion()).kw["bind"]
     assert engine.hide_parameters is True
 
 
