@@ -42,13 +42,30 @@ def opciones_pool(config: Configuracion) -> dict[str, Any]:
     }
 
 
+# MATU-80 (K2 del TESTER del 20-11): cada conexión de la API y de las tareas abre su sesión con el JIT de PostgreSQL
+# apagado. Las políticas RLS de las tablas del pago se expanden en planes de más de 200 subplanes; cuando
+# transaccion_pasarela pasa de unas 300 filas, el costo estimado supera jit_above_cost (100 000) y PostgreSQL compila
+# cada consulta con LLVM: 2,5 a 7 s por consulta (medido en matu_wt62), contra 15 a 25 ms sin JIT. Con 10 usuarios, la
+# vuelta de Webpay tardaba 20 s de mediana. El JIT sirve para consultas analíticas largas, no para las de MATU
+OPCIONES_SESION = "-c jit=off"
+
+
+def argumentos_conexion(connect_timeout: int | None = None) -> dict[str, Any]:
+    """Los connect_args de psycopg de un motor de MATU (MATU-80, K2): las opciones de la sesión (OPCIONES_SESION) y,
+    si se da, el tope para conectar en segundos (connect_timeout de libpq, el de las tareas)."""
+    argumentos: dict[str, Any] = {"options": OPCIONES_SESION}
+    if connect_timeout is not None:
+        argumentos["connect_timeout"] = connect_timeout
+    return argumentos
+
+
 @lru_cache
 def obtener_engine() -> Engine:
     config = obtener_configuracion()
     url = config.database_url.get_secret_value()
     if not url:
         raise RuntimeError("Falta DATABASE_URL. Copia .env.example a .env y complétalo.")
-    return create_engine(url, **opciones_pool(config))
+    return create_engine(url, **opciones_pool(config), connect_args=argumentos_conexion())
 
 
 @lru_cache

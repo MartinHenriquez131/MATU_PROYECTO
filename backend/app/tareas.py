@@ -79,7 +79,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Configuracion, obtener_configuracion
-from app.core.db import opciones_pool
+from app.core.db import argumentos_conexion, opciones_pool
 from app.core.logs import configurar_logs, request_id_actual
 from app.modules.care_circle.infrastructure import tarea_conservacion_invitaciones
 from app.modules.care_plan.infrastructure import tarea_conservacion_relevo, tarea_destruccion
@@ -275,8 +275,9 @@ TIEMPO_CONEXION_S = 10
 def _fabrica(url: str, config: Configuracion) -> sessionmaker[Session]:
     # MATU-79 y MATU-80 (K1): las opciones del engine de la API (app/core/db.py), con el pool de DB_POOL_SIZE,
     # DB_MAX_OVERFLOW y DB_POOL_TIMEOUT, pool_pre_ping y hide_parameters. Vale para matu_app, matu_scheduler y
-    # matu_publisher, que salen todos de aquí. Una tarea usa una conexión a la vez: el pool abre solo las que pide
-    engine = create_engine(url, **opciones_pool(config), connect_args={"connect_timeout": TIEMPO_CONEXION_S})
+    # matu_publisher, que salen todos de aquí. Una tarea usa una conexión a la vez: el pool abre solo las que pide.
+    # MATU-80 (K2): con el JIT de PostgreSQL apagado, como la API (app/core/db.py, OPCIONES_SESION)
+    engine = create_engine(url, **opciones_pool(config), connect_args=argumentos_conexion(TIEMPO_CONEXION_S))
     return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
