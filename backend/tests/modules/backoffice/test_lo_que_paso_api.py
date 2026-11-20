@@ -225,7 +225,7 @@ def test_e5_en_el_orden_en_que_se_anoto_y_con_la_clave_destruida_no_disponible(d
         "Recibió quien tiene el RUT 7654321-K",
     ],
 )
-def test_r5_la_nota_con_forma_de_correo_o_telefono_responde_422_y_no_se_guarda(despacho: Despacho, texto: str) -> None:
+def test_r5_la_nota_con_forma_de_correo_telefono_o_rut_da_422_y_no_se_guarda(despacho: Despacho, texto: str) -> None:
     """R5 (C9): la consola rechaza una nota o una resolución con forma de correo, de teléfono chileno o de RUT (el RUT,
     decisión de Jorge del 19-11), con 422 nota-con-contacto y un mensaje fijo que no repite el texto, sin guardar
     nada. El texto no va al log."""
