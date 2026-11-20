@@ -43,8 +43,12 @@ def _sin_request_id(cuerpo: dict[str, Any]) -> dict[str, Any]:
 
 
 def _fallidos(d: Despacho, pedido_id: str) -> list[tuple[Any, ...]]:
-    return d.sql("SELECT actor_tipo, actor_ref, grupo_id, persona_cuidada_id, entidad, detalle FROM auditoria"
-                 " WHERE accion = %s AND entidad_id = %s ORDER BY ocurrido_en, id", ACCION, uuid.UUID(pedido_id))
+    return d.sql(
+        "SELECT actor_tipo, actor_ref, grupo_id, persona_cuidada_id, entidad, detalle FROM auditoria"
+        " WHERE accion = %s AND entidad_id = %s ORDER BY ocurrido_en, id",
+        ACCION,
+        uuid.UUID(pedido_id),
+    )
 
 
 def test_c9_el_mismo_422_en_los_cuatro_casos_y_cada_uno_se_audita_sin_el_correo(despacho: Despacho) -> None:
@@ -54,7 +58,8 @@ def test_c9_el_mismo_422_en_los_cuatro_casos_y_cada_uno_se_audita_sin_el_correo(
     r = _por_correo(d, pedido, lineas, familia.admin.email)
     assert r.status_code == 201, r.text
     assert d.sql("SELECT solicitado_por FROM retracto WHERE id = %s", uuid.UUID(r.json()["id"])) == [
-        (familia.admin.id,)]
+        (familia.admin.id,)
+    ]
     otra = d.e.fabrica.familia()
     no_admin = familia.miembros["cuidador"].usuario
     retirado = d.e.fabrica.miembro(familia.grupo, "admin")
@@ -70,8 +75,11 @@ def test_c9_el_mismo_422_en_los_cuatro_casos_y_cada_uno_se_audita_sin_el_correo(
     contador = d.e.iam.limite_ip
     assert contador is not None
     antes = dict(contador.datos)
-    r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos",
-                    {"lineas": lineas, "correo_solicitante": familia.admin.email, "solicitado_por": str(otra.admin.id)})
+    r = d.operacion(
+        "POST",
+        f"/pedidos/{pedido['id']}/retractos",
+        {"lineas": lineas, "correo_solicitante": familia.admin.email, "solicitado_por": str(otra.admin.id)},
+    )
     assert r.status_code == 422
     cuerpos.append(_sin_request_id(r.json()))
     assert contador.datos == antes
@@ -81,12 +89,20 @@ def test_c9_el_mismo_422_en_los_cuatro_casos_y_cada_uno_se_audita_sin_el_correo(
     # J2: cada correo que no calzó (los cuatro) con el grupo y la persona del pedido, sin el correo ni su huella
     filas = _fallidos(d, pedido["id"])
     assert len(filas) == 4
-    assert {f[:5] for f in filas} == {("operacion", d.operador.id, familia.grupo.id, familia.persona.id,  # type: ignore[union-attr]
-                                       "pedido")}
+    assert {f[:5] for f in filas} == {
+        (
+            "operacion",
+            d.operador.id,  # type: ignore[union-attr]
+            familia.grupo.id,
+            familia.persona.id,
+            "pedido",
+        )
+    }
     assert all(f[5] is None for f in filas)
     # Un solicitado_por que no es quien pagó ni admin: el mismo 422, sin auditar (no es un correo)
-    r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos",
-                    {"lineas": lineas, "solicitado_por": str(no_admin.id)})
+    r = d.operacion(
+        "POST", f"/pedidos/{pedido['id']}/retractos", {"lineas": lineas, "solicitado_por": str(no_admin.id)}
+    )
     assert r.status_code == 422 and _sin_request_id(r.json()) == cuerpos[0]
     assert len(_fallidos(d, pedido["id"])) == 4
     # J2: la familia lo ve en el historial de «Datos de» la persona, con la referencia del pedido y sin el correo ni
@@ -96,8 +112,9 @@ def test_c9_el_mismo_422_en_los_cuatro_casos_y_cada_uno_se_audita_sin_el_correo(
     [referencia] = d.sql("SELECT referencia FROM pedido WHERE id = %s", uuid.UUID(pedido["id"]))[0]
     hechos = [h for h in copia.json()["historial"]["hechos"] if h["tipo"] == "matu_intento_un_retracto_por_correo"]
     assert len(hechos) == 4
-    assert all(h["referencia"] == referencia and h["quien"] == {"tipo": "matu", "nombre": None, "activo": None}
-               for h in hechos)
+    assert all(
+        h["referencia"] == referencia and h["quien"] == {"tipo": "matu", "nombre": None, "activo": None} for h in hechos
+    )
     for correo in correos:
         assert correo not in copia.text and correo.lower() not in copia.text.lower()
     assert str(d.operador.id) not in copia.text  # type: ignore[union-attr]
@@ -109,7 +126,8 @@ def test_c8_sin_correo_va_a_nombre_de_quien_pago(despacho: Despacho) -> None:
     r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", {"lineas": lineas})
     assert r.status_code == 201, r.text
     assert d.sql("SELECT solicitado_por FROM retracto WHERE id = %s", uuid.UUID(r.json()["id"])) == [
-        (familia.admin.id,)]
+        (familia.admin.id,)
+    ]
     assert "solicitado_por" not in r.json()
 
 

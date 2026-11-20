@@ -48,16 +48,31 @@ ReferenciaDocumento = Annotated[
     StringConstraints(strip_whitespace=True, max_length=LARGO_MAXIMO_REFERENCIA),
     AfterValidator(_sin_caracteres_de_control),
 ]
-Texto20 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20),
-                    AfterValidator(_sin_caracteres_de_control)]
-Texto40 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40),
-                    AfterValidator(_sin_caracteres_de_control)]
-Texto60 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60),
-                    AfterValidator(_sin_caracteres_de_control)]
-Texto120 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120),
-                     AfterValidator(_sin_caracteres_de_control)]
-Texto200 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200),
-                     AfterValidator(_sin_caracteres_de_control)]
+Texto20 = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=20),
+    AfterValidator(_sin_caracteres_de_control),
+]
+Texto40 = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=40),
+    AfterValidator(_sin_caracteres_de_control),
+]
+Texto60 = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=60),
+    AfterValidator(_sin_caracteres_de_control),
+]
+Texto120 = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=120),
+    AfterValidator(_sin_caracteres_de_control),
+]
+Texto200 = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=200),
+    AfterValidator(_sin_caracteres_de_control),
+]
 
 
 class DireccionNueva(BaseModel):

@@ -195,9 +195,7 @@ def limite_por_ip(limite: LimitePorIp) -> Callable[..., None]:
 DETALLE_TOPE_COPIAS = "Ya pediste los datos varias veces. Vuelve a intentarlo en una hora"
 
 
-def contar_por_cuenta(
-    limite: LimitePorIp, usuario_id: str, pepper: bytes | None, contador: ContadorVentana
-) -> None:
+def contar_por_cuenta(limite: LimitePorIp, usuario_id: str, pepper: bytes | None, contador: ContadorVentana) -> None:
     """Suma una copia de la cuenta y responde 503 (sin PEPPER_LIMITES o sin Redis, falla cerrada) o 429
     ``tope-copias`` con Retry-After. La clave es la huella HMAC del id de la cuenta: el id nunca llega a Redis."""
     if pepper is None:

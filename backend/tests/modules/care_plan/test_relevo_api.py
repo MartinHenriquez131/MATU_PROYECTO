@@ -34,7 +34,14 @@ RUTA = "/v1/personas-cuidadas/{}/plan/accesos-relevo"
 AHORA = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)  # el RelojFijo de las pruebas
 URL = re.compile(r"^https://[^/#]+/r#([A-Za-z0-9_-]{43})$")
 CLAVES_CREADO = {
-    "id", "url", "pin", "campos", "secciones_adicionales", "expira_en", "nombre_relevo", "nombre_pila_persona"
+    "id",
+    "url",
+    "pin",
+    "campos",
+    "secciones_adicionales",
+    "expira_en",
+    "nombre_relevo",
+    "nombre_pila_persona",
 }
 
 
@@ -112,9 +119,7 @@ def test_acceso_guarda_solo_hash(entorno: EntornoRelevo) -> None:
     assert len(_crudo(token)) == 32  # 256 bits
     acceso_id = uuid.UUID(creado["id"])
 
-    fila = _una(
-        "SELECT token_hash, pin_hash, a::text FROM acceso_relevo a WHERE id = %s", acceso_id
-    )
+    fila = _una("SELECT token_hash, pin_hash, a::text FROM acceso_relevo a WHERE id = %s", acceso_id)
     assert fila is not None
     token_hash, pin_hash, fila_texto = fila
     assert bytes(token_hash) == hashlib.sha256(_crudo(token)).digest()
@@ -185,9 +190,10 @@ def test_acceso_con_ficha_incompleta(entorno: EntornoRelevo) -> None:
     assert respuesta.status_code == 201, respuesta.text
     assert respuesta.json()["campos"] == ["rutina", "manejo_situaciones", "red_apoyo"]
     assert respuesta.json()["secciones_adicionales"] == []
-    assert _una(
-        "SELECT modo, completitud_pct FROM plan_cuidado WHERE persona_cuidada_id = %s", vacia.persona.id
-    ) == ("ficha_relevo", 0)
+    assert _una("SELECT modo, completitud_pct FROM plan_cuidado WHERE persona_cuidada_id = %s", vacia.persona.id) == (
+        "ficha_relevo",
+        0,
+    )
     assert _una("SELECT count(*) FROM clave_datos WHERE persona_cuidada_id = %s", vacia.persona.id) == (0,)
 
     # Con un solo campo escrito: el acceso usa el plan existente
@@ -199,8 +205,7 @@ def test_acceso_con_ficha_incompleta(entorno: EntornoRelevo) -> None:
     respuesta = entorno.crear(incompleta.admin, incompleta.grupo.id, incompleta.persona.id, _cuerpo())
     assert respuesta.status_code == 201
     assert _una(
-        "SELECT count(*) FROM acceso_relevo a JOIN plan_cuidado p ON p.id = a.plan_id"
-        " WHERE p.persona_cuidada_id = %s",
+        "SELECT count(*) FROM acceso_relevo a JOIN plan_cuidado p ON p.id = a.plan_id WHERE p.persona_cuidada_id = %s",
         incompleta.persona.id,
     ) == (1,)
 
@@ -212,7 +217,9 @@ def test_acceso_guarda_los_nombres_de_pila_y_el_telefono_normalizado(entorno: En
     familia = entorno.familia()
     cuidador = familia.miembros["cuidador"].usuario
     respuesta = entorno.crear(
-        cuidador, familia.grupo.id, familia.persona.id,
+        cuidador,
+        familia.grupo.id,
+        familia.persona.id,
         # MATU-50: campos deprecado se acepta con los tres base, en cualquier orden, y se ignora
         _cuerpo(nombre_relevo="  Rosa  ", campos=["red_apoyo", "rutina", "manejo_situaciones"], motivo="otro"),
     )
@@ -227,8 +234,13 @@ def test_acceso_guarda_los_nombres_de_pila_y_el_telefono_normalizado(entorno: En
         uuid.UUID(creado["id"]),
     )
     assert fila == (
-        cuidador.id, "Rosa", "+56955550137", familia.persona.nombre_pila, cuidador.nombre.split()[0],
-        ["rutina", "manejo_situaciones", "red_apoyo"], "otro",
+        cuidador.id,
+        "Rosa",
+        "+56955550137",
+        familia.persona.nombre_pila,
+        cuidador.nombre.split()[0],
+        ["rutina", "manejo_situaciones", "red_apoyo"],
+        "otro",
     )
 
 
@@ -361,7 +373,10 @@ def test_lista_con_estado_telefono_por_rol_y_cursor(entorno: EntornoRelevo) -> N
     assert primero["telefono_relevo"] == "+56955550137"
     # Solo el nombre de pila de quien compartió (decisión 35)
     assert primero["otorgado_por"] == {
-        "id": str(familia.admin.id), "nombre": familia.admin.nombre.split()[0], "autor_activo": True}
+        "id": str(familia.admin.id),
+        "nombre": familia.admin.nombre.split()[0],
+        "autor_activo": True,
+    }
     assert primero["usos"] == 0 and primero["ultimo_uso_en"] is None
 
     # El pagador con permiso ve la lista sin la propiedad telefono_relevo
@@ -387,7 +402,9 @@ def test_lista_con_estado_telefono_por_rol_y_cursor(entorno: EntornoRelevo) -> N
 def test_lista_marca_vencido_con_el_reloj(entorno: EntornoRelevo) -> None:
     familia = entorno.familia()
     respuesta = entorno.crear(
-        familia.admin, familia.grupo.id, familia.persona.id,
+        familia.admin,
+        familia.grupo.id,
+        familia.persona.id,
         _cuerpo(expira_en=(AHORA + timedelta(hours=1)).isoformat()),
     )
     assert respuesta.status_code == 201
@@ -415,9 +432,9 @@ def test_declaracion_de_aviso_queda_fechada_con_el_reloj(entorno: EntornoRelevo)
     respuesta = entorno.crear(familia.admin, familia.grupo.id, familia.persona.id, _cuerpo())
     assert respuesta.status_code == 201
     assert "relevo_informado" not in respuesta.json()
-    assert _una(
-        "SELECT relevo_informado_en FROM acceso_relevo WHERE id = %s", uuid.UUID(respuesta.json()["id"])
-    ) == (AHORA,)
+    assert _una("SELECT relevo_informado_en FROM acceso_relevo WHERE id = %s", uuid.UUID(respuesta.json()["id"])) == (
+        AHORA,
+    )
 
 
 def test_lista_no_trae_el_nombre_completo_de_quien_comparte(entorno: EntornoRelevo) -> None:

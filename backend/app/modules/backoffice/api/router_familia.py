@@ -410,7 +410,9 @@ def pedir_retracto(
         raise ErrorMATU(404) from None
     except casos.FueraDePlazo as error:
         raise ErrorMATU(
-            409, tipo="fuera-de-plazo", detalle="Pasó el plazo para arrepentirse de la compra",
+            409,
+            tipo="fuera-de-plazo",
+            detalle="Pasó el plazo para arrepentirse de la compra",
             extension={"plazo_hasta": error.plazo.isoformat()},
         ) from None
     except RetractoInvalido:

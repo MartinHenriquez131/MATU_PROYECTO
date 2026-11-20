@@ -72,7 +72,10 @@ def _evento(
 
 
 def _actual(
-    peticion: PeticionFicha, plan_id: uuid.UUID, seccion: SeccionComplementaria, repositorio: RepositorioFicha,
+    peticion: PeticionFicha,
+    plan_id: uuid.UUID,
+    seccion: SeccionComplementaria,
+    repositorio: RepositorioFicha,
     cifrador: CifradorSecciones,
 ) -> EstadoCampo | None:
     guardada = repositorio.seccion(plan_id, seccion.value)
@@ -90,8 +93,13 @@ def _actual(
 
 
 def _conflicto(
-    peticion: PeticionFicha, plan_id: uuid.UUID | None, seccion: SeccionComplementaria, repositorio: RepositorioFicha,
-    cifrador: CifradorSecciones, auditoria: AuditoriaFicha, ahora: datetime,
+    peticion: PeticionFicha,
+    plan_id: uuid.UUID | None,
+    seccion: SeccionComplementaria,
+    repositorio: RepositorioFicha,
+    cifrador: CifradorSecciones,
+    auditoria: AuditoriaFicha,
+    ahora: datetime,
 ) -> SeccionEnConflicto:
     """La sección vigente, leída y auditada como plan.leer (contrato, decisión 8)."""
     actual = None if plan_id is None else _actual(peticion, plan_id, seccion, repositorio, cifrador)
@@ -125,9 +133,7 @@ def guardar_seccion(
                 peticion, None if plan is None else plan.id, seccion, repositorio, cifrador, auditoria, ahora
             )
     elif plan is None:
-        repositorio.crear_plan(
-            uuid.uuid4(), peticion.grupo_id, peticion.persona_cuidada_id, peticion.usuario_id, ahora
-        )
+        repositorio.crear_plan(uuid.uuid4(), peticion.grupo_id, peticion.persona_cuidada_id, peticion.usuario_id, ahora)
         plan = repositorio.obtener_plan(peticion.persona_cuidada_id)
         if plan is None:
             raise PlanNoDisponible()

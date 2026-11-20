@@ -65,9 +65,10 @@ def test_el_admin_y_quien_pago_pueden_dentro_del_plazo() -> None:
 
 @pytest.mark.rf("R3")
 def test_sin_entregar_no_hay_retracto() -> None:
-    assert motivo_no_arrepentirse(
-        entregado_en=None, ahora=ENTREGA, administra=True, pago=True, disponibles=2
-    ) is M.SIN_ENTREGAR
+    assert (
+        motivo_no_arrepentirse(entregado_en=None, ahora=ENTREGA, administra=True, pago=True, disponibles=2)
+        is M.SIN_ENTREGAR
+    )
 
 
 @pytest.mark.rf("R3")

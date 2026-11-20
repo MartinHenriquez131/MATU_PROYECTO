@@ -31,21 +31,27 @@ def test_borra_a_los_90_dias_de_terminar_la_autorizacion(fabrica: Fabrica) -> No
 
     vieja = fabrica.familia(miembros=())
     fabrica.autorizacion_consumo(
-        vieja.persona, otorgante=vieja.admin, otorgado_en=ahora - timedelta(days=200),
+        vieja.persona,
+        otorgante=vieja.admin,
+        otorgado_en=ahora - timedelta(days=200),
         revocado_en=ahora - timedelta(days=91),
     )
     borrables = [fabrica.perfil_consumo(vieja.persona), fabrica.perfil_consumo(vieja.persona, activo=False)]
 
     reciente = fabrica.familia(miembros=())
     fabrica.autorizacion_consumo(
-        reciente.persona, otorgante=reciente.admin, otorgado_en=ahora - timedelta(days=200),
+        reciente.persona,
+        otorgante=reciente.admin,
+        otorgado_en=ahora - timedelta(days=200),
         revocado_en=ahora - timedelta(days=89),
     )
     dentro_del_plazo = fabrica.perfil_consumo(reciente.persona)
 
     renovada = fabrica.familia(miembros=())
     fabrica.autorizacion_consumo(
-        renovada.persona, otorgante=renovada.admin, otorgado_en=ahora - timedelta(days=300),
+        renovada.persona,
+        otorgante=renovada.admin,
+        otorgado_en=ahora - timedelta(days=300),
         revocado_en=ahora - timedelta(days=200),
     )
     fabrica.autorizacion_consumo(renovada.persona, otorgante=renovada.admin, otorgado_en=ahora - timedelta(days=100))

@@ -52,9 +52,7 @@ def uuid_o_404(valor: str) -> uuid.UUID:
         raise ErrorMATU(404) from None
 
 
-def _autorizar(
-    contexto: ContextoGrupo, persona_id: str, reloj: Reloj, *, bloquear: bool = False
-) -> ConsumoAutorizado:
+def _autorizar(contexto: ContextoGrupo, persona_id: str, reloj: Reloj, *, bloquear: bool = False) -> ConsumoAutorizado:
     persona = persona_con_autorizacion(
         contexto.sesion, contexto.grupo_id, uuid_o_404(persona_id), FINALIDAD_CONSUMO, bloquear=bloquear
     )

@@ -260,8 +260,20 @@ def test_los_cuatro_roles_en_una_familia() -> None:
 
 # lenguaje.md, sección 3 (prohibidos) y lo que se evita en la ficha
 PROHIBIDOS = (
-    "diagnóstico", "diagnostico", "conducta", "incidente", "deterioro", "incontinencia", "paciente", "postrad",
-    "demencia", "alzheimer", "crisis", "episodio", "descompensación", "adulto mayor",
+    "diagnóstico",
+    "diagnostico",
+    "conducta",
+    "incidente",
+    "deterioro",
+    "incontinencia",
+    "paciente",
+    "postrad",
+    "demencia",
+    "alzheimer",
+    "crisis",
+    "episodio",
+    "descompensación",
+    "adulto mayor",
 )
 # La serie +56 9 0000 00xx, que no se asigna a nadie: todas las cuentas y el relevo de ejemplo
 CELULAR_DE_PRUEBA = re.compile(r"^\+569000000\d{2}$")
@@ -332,8 +344,11 @@ def test_el_pin_de_la_semilla_son_4_digitos(monkeypatch: pytest.MonkeyPatch) -> 
 def test_el_enlace_y_el_pin_van_a_un_archivo_que_git_ignora(tmp_path: Path) -> None:
     entregado = SimpleNamespace(token="t" * 43, pin="0137")
     relevo = demo.RelevoSembrado(
-        acceso_id=uuid.uuid4(), grupo="Familia Soto", nombre_relevo="Rosa",
-        expira_en=RelojSistema().ahora() + timedelta(days=7), entregado=entregado,
+        acceso_id=uuid.uuid4(),
+        grupo="Familia Soto",
+        nombre_relevo="Rosa",
+        expira_en=RelojSistema().ahora() + timedelta(days=7),
+        entregado=entregado,
     )
     archivo = tmp_path / "salida" / "relevo-demo.txt"
 
@@ -357,8 +372,11 @@ def test_con_semilla_pin_el_archivo_guarda_solo_el_enlace(tmp_path: Path) -> Non
     # MATU-64 H1: el PIN de SEMILLA_PIN no se escribe; el archivo dice que es ese
     entregado = SimpleNamespace(token="t" * 43, pin="0137")
     relevo = demo.RelevoSembrado(
-        acceso_id=uuid.uuid4(), grupo="Familia Soto", nombre_relevo="Rosa",
-        expira_en=RelojSistema().ahora() + timedelta(days=7), entregado=entregado,
+        acceso_id=uuid.uuid4(),
+        grupo="Familia Soto",
+        nombre_relevo="Rosa",
+        expira_en=RelojSistema().ahora() + timedelta(days=7),
+        entregado=entregado,
     )
     archivo = tmp_path / "salida" / "relevo-demo.txt"
 
@@ -450,8 +468,9 @@ def test_es_idempotente(fabrica: Fabrica, sembradora: Any, catalogo: dict[str, u
     assert [f.usuarios for f in segunda.familias] == [f.usuarios for f in primera.familias]
     assert [f.persona_id for f in segunda.familias] == [f.persona_id for f in primera.familias]
     assert not any(c.creada for c in segunda.cuentas)
-    assert not any(f.persona_creada or f.campos_escritos or f.secciones_escritas or f.insumos_creados
-                   for f in segunda.familias)
+    assert not any(
+        f.persona_creada or f.campos_escritos or f.secciones_escritas or f.insumos_creados for f in segunda.familias
+    )
     assert segunda.alertas_creadas == 0
     # El relevo de ejemplo es el mismo, y su PIN no se vuelve a entregar
     assert segunda.familias[0].relevo.acceso_id == primera.familias[0].relevo.acceso_id
@@ -532,9 +551,10 @@ def test_la_ficha_queda_cifrada_y_descifra_con_su_clave(
         otra = CustodiaKekEntorno(
             SecretStr(base64.b64encode(secrets.token_bytes(32)).decode()), kek_version=1, entorno="pruebas"
         )
-        with pytest.raises(ErrorCifrado), sesion_tenant(
-            fabrica_sesiones(), usuario_id=admin, grupo_id=familia.grupo_id
-        ) as sesion:
+        with (
+            pytest.raises(ErrorCifrado),
+            sesion_tenant(fabrica_sesiones(), usuario_id=admin, grupo_id=familia.grupo_id) as sesion,
+        ):
             leer_ficha(
                 peticion,
                 RepositorioFichaSQL(sesion, familia.grupo_id),
@@ -687,9 +707,9 @@ def test_restablecer_deja_todo_como_recien_sembrado(
     assert _estado(grupos) == recien_sembrado
     # Las personas de antes quedaron borradas como pide MATU-72, con su clave destruida y sus enlaces cortados
     for antes in primera.familias:
-        assert _filas(
-            "SELECT datos_borrados_en IS NOT NULL FROM persona_cuidada WHERE id = %s", antes.persona_id
-        ) == [(True,)]
+        assert _filas("SELECT datos_borrados_en IS NOT NULL FROM persona_cuidada WHERE id = %s", antes.persona_id) == [
+            (True,)
+        ]
         assert _filas(
             "SELECT count(*) FROM acceso_relevo a JOIN plan_cuidado p ON p.id = a.plan_id"
             " WHERE p.persona_cuidada_id = %s AND a.revocado_en IS NULL",
@@ -956,7 +976,9 @@ def _sembrar_con_credenciales(monkeypatch: pytest.MonkeyPatch, falla: Exception 
     def sembrar(sembradora: Any, contrasena: str, productos: Any, *_: Any, **__: Any) -> Any:
         sembradora.cuentas_creadas += 2
         relevo = demo.RelevoSembrado(
-            acceso_id=uuid.uuid4(), grupo="Familia Soto", nombre_relevo="Rosa",
+            acceso_id=uuid.uuid4(),
+            grupo="Familia Soto",
+            nombre_relevo="Rosa",
             expira_en=RelojSistema().ahora() + timedelta(days=7),
             entregado=SimpleNamespace(token=TOKEN_FALSO, pin=PIN_FALSO),
         )

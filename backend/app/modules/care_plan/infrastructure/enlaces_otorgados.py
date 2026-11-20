@@ -44,9 +44,13 @@ class EnlacesOtorgados:
         return {f.otorgado_por: int(f.n) for f in filas}
 
     def cortar_de(self, otorgado_por: uuid.UUID, ahora: datetime, actor_id: uuid.UUID, request_id: str | None) -> int:
-        ids = self._sesion.execute(
-            _DE_LA_PERSONA, {"grupo_id": self._grupo_id, "usuario_id": otorgado_por, "ahora": ahora}
-        ).scalars().all()
+        ids = (
+            self._sesion.execute(
+                _DE_LA_PERSONA, {"grupo_id": self._grupo_id, "usuario_id": otorgado_por, "ahora": ahora}
+            )
+            .scalars()
+            .all()
+        )
         for acceso_id in ids:
             self._accesos.revocar(acceso_id, ahora, actor_id, request_id)
         return len(ids)

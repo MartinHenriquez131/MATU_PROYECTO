@@ -41,12 +41,25 @@ class UnidadQueNoSeUsa:
         raise AssertionError("no debe abrir transacciones con una cuenta inexistente")
 
 
-def _solicitar(reloj: RelojFijo, repositorio: RepositorioVacio, envios: ContadoresEnvioEnMemoria,
-               enviador: EnviadorSimulado, almacen: AlmacenCodigosEnMemoria) -> None:
+def _solicitar(
+    reloj: RelojFijo,
+    repositorio: RepositorioVacio,
+    envios: ContadoresEnvioEnMemoria,
+    enviador: EnviadorSimulado,
+    almacen: AlmacenCodigosEnMemoria,
+) -> None:
     unidad: Any = UnidadQueNoSeUsa()
     solicitar_recuperacion(
-        email="Nadie@Ejemplo.cl ", solo_correo=False, ip="192.0.2.1", peppers=PEPPERS, repositorio=repositorio,
-        unidad=unidad, almacen=almacen, envios=envios, enviador=enviador, reloj=reloj,
+        email="Nadie@Ejemplo.cl ",
+        solo_correo=False,
+        ip="192.0.2.1",
+        peppers=PEPPERS,
+        repositorio=repositorio,
+        unidad=unidad,
+        almacen=almacen,
+        envios=envios,
+        enviador=enviador,
+        reloj=reloj,
     )
 
 
@@ -70,8 +83,13 @@ def test_cuenta_inexistente_cuenta_el_limite_y_no_envia(reloj_fijo: RelojFijo) -
 def test_redis_caido_lanza_y_no_busca(reloj_fijo: RelojFijo) -> None:
     repositorio = RepositorioVacio()
     with pytest.raises(ContadoresNoDisponibles):
-        _solicitar(reloj_fijo, repositorio, ContadoresEnvioEnMemoria(reloj_fijo, caido=True), EnviadorSimulado(),
-                   AlmacenCodigosEnMemoria(reloj_fijo))
+        _solicitar(
+            reloj_fijo,
+            repositorio,
+            ContadoresEnvioEnMemoria(reloj_fijo, caido=True),
+            EnviadorSimulado(),
+            AlmacenCodigosEnMemoria(reloj_fijo),
+        )
     assert repositorio.buscados == 0
 
 
@@ -107,9 +125,17 @@ def test_cambiar_sin_cuenta_falla_igual_y_suma_fallos(reloj_fijo: RelojFijo) -> 
     hasher: Any = None
     with pytest.raises(CodigoInvalido):
         cambiar_contrasena_con_codigo(
-            email="nadie@ejemplo.cl", codigo="123456", contrasena_nueva="x" * 12, ip="192.0.2.1", peppers=PEPPERS,
-            hasher=hasher, repositorio=RepositorioVacio(), unidad=unidad,  # type: ignore[arg-type]
-            almacen=AlmacenCodigosEnMemoria(reloj_fijo), contadores=contadores, enviador=EnviadorSimulado(),
+            email="nadie@ejemplo.cl",
+            codigo="123456",
+            contrasena_nueva="x" * 12,
+            ip="192.0.2.1",
+            peppers=PEPPERS,
+            hasher=hasher,
+            repositorio=RepositorioVacio(),
+            unidad=unidad,  # type: ignore[arg-type]
+            almacen=AlmacenCodigosEnMemoria(reloj_fijo),
+            contadores=contadores,
+            enviador=EnviadorSimulado(),
             reloj=reloj_fijo,
         )
     assert len(contadores.datos) == 2

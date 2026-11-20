@@ -27,12 +27,15 @@ PETICION = PeticionFicha(
 # --- Dominio ---------------------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("accion", "tipo"), [
-    ("relevo.presentar", TipoApertura.PRESENTACION),
-    ("relevo.abrir", TipoApertura.APERTURA),
-    ("relevo.pin_incorrecto", TipoApertura.PIN_INCORRECTO),
-    ("relevo.bloqueo", TipoApertura.BLOQUEO),
-])
+@pytest.mark.parametrize(
+    ("accion", "tipo"),
+    [
+        ("relevo.presentar", TipoApertura.PRESENTACION),
+        ("relevo.abrir", TipoApertura.APERTURA),
+        ("relevo.pin_incorrecto", TipoApertura.PIN_INCORRECTO),
+        ("relevo.bloqueo", TipoApertura.BLOQUEO),
+    ],
+)
 def test_cada_accion_del_relevo_tiene_su_tipo(accion: str, tipo: TipoApertura) -> None:
     assert tipo_de_accion(accion) is tipo
 
@@ -92,7 +95,9 @@ def test_pide_uno_mas_y_traduce_el_tipo() -> None:
     pagina = listar_aperturas(PETICION, FichasFalsas(_plan()), repo, None, 20)  # type: ignore[arg-type]
     assert repo.pedidos == [(PLAN, ACCIONES_DE_APERTURA, None, 21)]
     assert [a.tipo for a in pagina.aperturas] == [
-        TipoApertura.APERTURA, TipoApertura.PIN_INCORRECTO, TipoApertura.PRESENTACION,
+        TipoApertura.APERTURA,
+        TipoApertura.PIN_INCORRECTO,
+        TipoApertura.PRESENTACION,
     ]
     assert all(a.acceso_id == ACCESO and a.nombre_relevo == "Rosa" for a in pagina.aperturas)
     assert pagina.siguiente is None
@@ -125,10 +130,18 @@ def _b64(texto: str) -> str:
     return base64.urlsafe_b64encode(texto.encode()).rstrip(b"=").decode()
 
 
-@pytest.mark.parametrize("cursor", [
-    "%%%", _b64("sin-separador"), _b64("2026-10-31T13:02:00|42"), _b64("2026-10-31T13:02:00+00:00|abc"),
-    _b64("2026-10-31T13:02:00+00:00|0"), _b64("2026-10-31T13:02:00+00:00|-3"), _b64("a|b|c"),
-])
+@pytest.mark.parametrize(
+    "cursor",
+    [
+        "%%%",
+        _b64("sin-separador"),
+        _b64("2026-10-31T13:02:00|42"),
+        _b64("2026-10-31T13:02:00+00:00|abc"),
+        _b64("2026-10-31T13:02:00+00:00|0"),
+        _b64("2026-10-31T13:02:00+00:00|-3"),
+        _b64("a|b|c"),
+    ],
+)
 def test_cursor_invalido_es_422_sin_repetir_el_valor(cursor: str) -> None:
     with pytest.raises(ErrorMATU) as error:
         decodificar_cursor_apertura(cursor)

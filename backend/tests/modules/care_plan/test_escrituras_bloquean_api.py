@@ -76,26 +76,34 @@ class Escritura:
 
 
 ESCRITURAS = {
-    "ficha-campo": Escritura("plan_cuidado", "PUT", "/plan/ficha/rutina", {"texto": "Otra rutina"},
-                             (("If-Match", V1),)),
-    "seccion-agregar": Escritura("plan_cuidado", "PUT", "/plan/secciones/movilidad", {"texto": "Camina con bastón"},
-                                 (("If-None-Match", "*"),)),
-    "seccion-quitar": Escritura("plan_cuidado", "DELETE", "/plan/secciones/alimentacion", None,
-                                (("If-Match", V1),), con_complementaria=True),
-    "compartir": Escritura("plan_cuidado", "POST", "/plan/accesos-relevo", {
-        "nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "otro", "relevo_informado": True}),
-    "consumo-crear": Escritura("consumo", "POST", "/consumo", {
-        "nombre_libre": "Toallas húmedas", "tasa_unidades": 2, "stock_unidades": 40}),
+    "ficha-campo": Escritura(
+        "plan_cuidado", "PUT", "/plan/ficha/rutina", {"texto": "Otra rutina"}, (("If-Match", V1),)
+    ),
+    "seccion-agregar": Escritura(
+        "plan_cuidado", "PUT", "/plan/secciones/movilidad", {"texto": "Camina con bastón"}, (("If-None-Match", "*"),)
+    ),
+    "seccion-quitar": Escritura(
+        "plan_cuidado", "DELETE", "/plan/secciones/alimentacion", None, (("If-Match", V1),), con_complementaria=True
+    ),
+    "compartir": Escritura(
+        "plan_cuidado",
+        "POST",
+        "/plan/accesos-relevo",
+        {"nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "otro", "relevo_informado": True},
+    ),
+    "consumo-crear": Escritura(
+        "consumo", "POST", "/consumo", {"nombre_libre": "Toallas húmedas", "tasa_unidades": 2, "stock_unidades": 40}
+    ),
     "consumo-editar": Escritura("consumo", "PATCH", "/consumo/{perfil}", {"stock_unidades": 30}, (("If-Match", V1),)),
     "consumo-borrar": Escritura("consumo", "DELETE", "/consumo/{perfil}"),
     "consumo-desactivar": Escritura("consumo", "POST", "/consumo/{perfil}/desactivar"),
     "consumo-activar": Escritura("consumo", "POST", "/consumo/{perfil}/activar", perfil_activo=False),
-    "ya-lo-resolvi": Escritura("consumo", "POST", "/consumo/{perfil}/resolver", {"cantidad": 10},
-                               (("If-Match", V1),), con_alerta=True),
+    "ya-lo-resolvi": Escritura(
+        "consumo", "POST", "/consumo/{perfil}/resolver", {"cantidad": 10}, (("If-Match", V1),), con_alerta=True
+    ),
     "no-avisar": Escritura("consumo", "POST", "/consumo/alertas/{alerta}/descartar", con_alerta=True),
     "compre": Escritura("consumo", "POST", "/consumo/{perfil}/reponer", {"cantidad": 10}, (("If-Match", V1),)),
-    "me-quedan": Escritura("consumo", "POST", "/consumo/{perfil}/recontar", {"stock_unidades": 5},
-                           (("If-Match", V1),)),
+    "me-quedan": Escritura("consumo", "POST", "/consumo/{perfil}/recontar", {"stock_unidades": 5}, (("If-Match", V1),)),
 }
 
 
@@ -107,9 +115,11 @@ def _preparar(entorno: EntornoAbrir, escritura: Escritura) -> tuple[FamiliaCread
     familia = entorno.familia_con_ficha()
     cabeceras = entorno.ficha._cabeceras(familia.admin, familia.grupo.id)
     if escritura.con_complementaria:
-        creada = entorno.ficha.iam.cliente.put(PERSONA.format(familia.persona.id) + "/plan/secciones/alimentacion",
-                                               json={"texto": "Come sin sal"}, headers={**cabeceras,
-                                                                                        "If-None-Match": "*"})
+        creada = entorno.ficha.iam.cliente.put(
+            PERSONA.format(familia.persona.id) + "/plan/secciones/alimentacion",
+            json={"texto": "Come sin sal"},
+            headers={**cabeceras, "If-None-Match": "*"},
+        )
         assert creada.status_code == 201, creada.text
     entorno.ficha.fabrica.autorizacion_consumo(familia.persona, otorgante=familia.admin)
     perfil = entorno.ficha.fabrica.perfil_consumo(familia.persona, activo=escritura.perfil_activo)
@@ -128,15 +138,25 @@ def _foto(familia: FamiliaCreada) -> dict[str, Any]:
     """Lo que una escritura cambiaría: secciones, perfiles, compras, accesos y la auditoría del que escribe."""
     persona = familia.persona.id
     return {
-        "secciones": _todas("SELECT s.tipo, s.version FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id"
-                            " WHERE p.persona_cuidada_id = %s ORDER BY 1", persona),
-        "perfiles": _todas("SELECT id, version, activo, stock_unidades FROM perfil_consumo"
-                           " WHERE persona_cuidada_id = %s ORDER BY 1", persona),
-        "reposiciones": _todas("SELECT r.id FROM reposicion r JOIN perfil_consumo p ON p.id = r.perfil_id"
-                               " WHERE p.persona_cuidada_id = %s", persona),
+        "secciones": _todas(
+            "SELECT s.tipo, s.version FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id"
+            " WHERE p.persona_cuidada_id = %s ORDER BY 1",
+            persona,
+        ),
+        "perfiles": _todas(
+            "SELECT id, version, activo, stock_unidades FROM perfil_consumo WHERE persona_cuidada_id = %s ORDER BY 1",
+            persona,
+        ),
+        "reposiciones": _todas(
+            "SELECT r.id FROM reposicion r JOIN perfil_consumo p ON p.id = r.perfil_id WHERE p.persona_cuidada_id = %s",
+            persona,
+        ),
         "accesos": _todas("SELECT id FROM acceso_relevo WHERE grupo_id = %s", familia.grupo.id),
-        "del_que_escribe": _todas("SELECT accion FROM auditoria WHERE grupo_id = %s AND actor_ref = %s",
-                                  familia.grupo.id, _cuidador(familia).id),
+        "del_que_escribe": _todas(
+            "SELECT accion FROM auditoria WHERE grupo_id = %s AND actor_ref = %s",
+            familia.grupo.id,
+            _cuidador(familia).id,
+        ),
     }
 
 
@@ -144,7 +164,8 @@ def _retirar(entorno: EntornoAbrir, familia: FamiliaCreada, sesion: Any, finalid
     registro = RegistroAuditoriaSql(sesion, entorno.reloj)
     retirar_autorizacion(
         SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id, finalidad=finalidad),
-        entorno.reloj, RepositorioRetirosSQL(sesion, familia.grupo.id, registro),
+        entorno.reloj,
+        RepositorioRetirosSQL(sesion, familia.grupo.id, registro),
         efectos_de(sesion, familia.grupo.id, registro),
     )
 
@@ -153,8 +174,10 @@ def _borrar(entorno: EntornoAbrir, familia: FamiliaCreada, sesion: Any, finalida
     registro = RegistroAuditoriaSql(sesion, entorno.reloj)
     borrar_persona(
         SolicitudBorrado(usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id),
-        entorno.reloj, RepositorioBorradoSQL(sesion, familia.grupo.id, registro),
-        RepositorioRetirosSQL(sesion, familia.grupo.id, registro), efectos_de(sesion, familia.grupo.id, registro),
+        entorno.reloj,
+        RepositorioBorradoSQL(sesion, familia.grupo.id, registro),
+        RepositorioRetirosSQL(sesion, familia.grupo.id, registro),
+        efectos_de(sesion, familia.grupo.id, registro),
     )
 
 
@@ -255,8 +278,12 @@ LENTAS = ["me-quedan", "consumo-borrar", "ficha-campo"]
     "sincronizada",
     [
         True,
-        pytest.param(False, marks=pytest.mark.xfail(
-            strict=True, reason="MATU-96: sin sincronizar, el borrado confirma antes de que la escritura lea: 404")),
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(
+                strict=True, reason="MATU-96: sin sincronizar, el borrado confirma antes de que la escritura lea: 404"
+            ),
+        ),
     ],
 )
 @pytest.mark.parametrize("nombre", LENTAS)

@@ -381,8 +381,13 @@ def guardar(
         raise ErrorMATU(
             422,
             detalle="Revisa los campos indicados",
-            errores=[{"campo": "texto", "mensaje": "un campo que nunca se escribió no se crea vacío",
-                      "tipo": "vacio_sin_crear"}],
+            errores=[
+                {
+                    "campo": "texto",
+                    "mensaje": "un campo que nunca se escribió no se crea vacío",
+                    "tipo": "vacio_sin_crear",
+                }
+            ],
         ) from None
     except ErrorCifrado as error:
         raise _error_cifrado(error) from None

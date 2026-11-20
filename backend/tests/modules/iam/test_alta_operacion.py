@@ -37,12 +37,14 @@ def fabrica() -> Iterator[Fabrica]:
 
 @pytest.fixture
 def config(fabrica: Fabrica) -> Any:
-    return obtener_configuracion().model_copy(update={
-        "pepper_email": SecretStr(fabrica.pepper.decode()),
-        "custodia_kek": "entorno_sintetico",
-        "kek_entorno": SecretStr(base64.b64encode(secrets.token_bytes(32)).decode()),
-        "entorno": "pruebas",
-    })
+    return obtener_configuracion().model_copy(
+        update={
+            "pepper_email": SecretStr(fabrica.pepper.decode()),
+            "custodia_kek": "entorno_sintetico",
+            "kek_entorno": SecretStr(base64.b64encode(secrets.token_bytes(32)).decode()),
+            "entorno": "pruebas",
+        }
+    )
 
 
 @pytest.fixture
@@ -85,8 +87,9 @@ def test_el_alta_muestra_la_uri_una_vez_pide_el_codigo_y_guarda_el_secreto_cifra
             return next(preguntas)
         return hotp(capturado["secreto"], paso_de(reloj_fijo.ahora()))
 
-    assert tareas.operacion_alta(stream=logs, consola=consola, preguntar=preguntar, reloj=reloj_fijo,
-                                 config=config) == 0
+    assert (
+        tareas.operacion_alta(stream=logs, consola=consola, preguntar=preguntar, reloj=reloj_fijo, config=config) == 0
+    )
     [uri] = re.findall(r"otpauth://\S+", consola.getvalue())
     assert "otpauth" not in logs.getvalue() and cuenta.email not in logs.getvalue()
     assert str(cuenta.id) not in logs.getvalue() and '"resultado": "ok"' in logs.getvalue()
@@ -95,8 +98,9 @@ def test_el_alta_muestra_la_uri_una_vez_pide_el_codigo_y_guarda_el_secreto_cifra
     cifrador = cifrador_de(config)
     assert cifrador is not None and cifrador.descifrar(bytes(cifrado), cuenta.id) == capturado["secreto"]
     assert uri.count("secret=") == 1
-    assert _sql("SELECT actor_tipo, grupo_id FROM auditoria WHERE accion = 'cuenta.mfa_alta' AND entidad_id = %s",
-                cuenta.id) == [("sistema", None)]
+    assert _sql(
+        "SELECT actor_tipo, grupo_id FROM auditoria WHERE accion = 'cuenta.mfa_alta' AND entidad_id = %s", cuenta.id
+    ) == [("sistema", None)]
 
 
 def test_sin_el_primer_codigo_no_se_guarda_nada(
@@ -104,9 +108,16 @@ def test_sin_el_primer_codigo_no_se_guarda_nada(
 ) -> None:
     cuenta = fabrica.usuario()
     consola = io.StringIO()
-    assert tareas.operacion_alta(stream=io.StringIO(), consola=consola,
-                                 preguntar=_respuestas(cuenta.email, "000000", "000001", "000002"),
-                                 reloj=reloj_fijo, config=config) == 1
+    assert (
+        tareas.operacion_alta(
+            stream=io.StringIO(),
+            consola=consola,
+            preguntar=_respuestas(cuenta.email, "000000", "000001", "000002"),
+            reloj=reloj_fijo,
+            config=config,
+        )
+        == 1
+    )
     assert _sql("SELECT es_operacion, mfa_secreto_cifrado FROM usuario WHERE id = %s", cuenta.id) == [(False, None)]
     assert "No se guardó nada" in consola.getvalue()
 
@@ -116,18 +127,33 @@ def test_c33_una_cuenta_de_familia_no_se_da_de_alta_y_una_que_no_existe_tampoco(
 ) -> None:
     familia = fabrica.familia()
     logs, consola = io.StringIO(), io.StringIO()
-    assert tareas.operacion_alta(stream=logs, consola=consola, preguntar=_respuestas(familia.admin.email),
-                                 reloj=reloj_fijo, config=config) == 1
+    assert (
+        tareas.operacion_alta(
+            stream=logs, consola=consola, preguntar=_respuestas(familia.admin.email), reloj=reloj_fijo, config=config
+        )
+        == 1
+    )
     assert "miembro de una familia" in consola.getvalue() and '"tipo_error": "AltaRechazada"' in logs.getvalue()
-    assert tareas.operacion_alta(stream=logs, consola=consola,
-                                 preguntar=_respuestas(f"nadie.{uuid.uuid4().hex}@ejemplo.cl"), reloj=reloj_fijo,
-                                 config=config) == 1
+    assert (
+        tareas.operacion_alta(
+            stream=logs,
+            consola=consola,
+            preguntar=_respuestas(f"nadie.{uuid.uuid4().hex}@ejemplo.cl"),
+            reloj=reloj_fijo,
+            config=config,
+        )
+        == 1
+    )
     assert "No hay una cuenta con ese correo" in consola.getvalue()
     assert familia.admin.email not in logs.getvalue()
     # Sin la KEK, falla nombrando la variable y sin preguntar
     sin_kek = config.model_copy(update={"custodia_kek": None, "kek_entorno": None})
-    assert tareas.operacion_alta(stream=logs, consola=io.StringIO(), preguntar=_respuestas(), reloj=reloj_fijo,
-                                 config=sin_kek) == 1
+    assert (
+        tareas.operacion_alta(
+            stream=logs, consola=io.StringIO(), preguntar=_respuestas(), reloj=reloj_fijo, config=sin_kek
+        )
+        == 1
+    )
     assert '"falta": "KEK_ENTORNO"' in logs.getvalue()
 
 
@@ -135,14 +161,19 @@ def test_c33_la_base_separa_las_cuentas_de_operacion_de_las_familias_y_los_comer
     familia = fabrica.familia()
     with psycopg.connect(DSN) as cx:
         with pytest.raises(psycopg.errors.CheckViolation), cx.transaction():
-            cx.execute("UPDATE usuario SET es_operacion = true, mfa_secreto_cifrado = '\\x01' WHERE id = %s",
-                       (familia.admin.id,))
+            cx.execute(
+                "UPDATE usuario SET es_operacion = true, mfa_secreto_cifrado = '\\x01' WHERE id = %s",
+                (familia.admin.id,),
+            )
         operador = fabrica.usuario()
-        cx.execute("UPDATE usuario SET es_operacion = true, mfa_secreto_cifrado = '\\x01' WHERE id = %s",
-                   (operador.id,))
+        cx.execute(
+            "UPDATE usuario SET es_operacion = true, mfa_secreto_cifrado = '\\x01' WHERE id = %s", (operador.id,)
+        )
         with pytest.raises(psycopg.errors.CheckViolation), cx.transaction():
-            cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')",
-                       (familia.grupo.id, operador.id))
+            cx.execute(
+                "INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')",
+                (familia.grupo.id, operador.id),
+            )
         cx.rollback()
 
 
@@ -151,8 +182,10 @@ def test_matu_app_no_da_de_alta_ni_lee_el_secreto_de_otra_cuenta() -> None:
     lo de la cuenta del contexto."""
     with psycopg.connect(DSN) as cx:
         cx.execute("SET ROLE matu_app")
-        for llamada in ("SELECT operacion_alta(gen_random_uuid(), '\\x00')",
-                        "SELECT * FROM operacion_buscar_cuenta('\\x00')"):
+        for llamada in (
+            "SELECT operacion_alta(gen_random_uuid(), '\\x00')",
+            "SELECT * FROM operacion_buscar_cuenta('\\x00')",
+        ):
             with pytest.raises(psycopg.errors.InsufficientPrivilege), cx.transaction():
                 cx.execute(llamada)
         cx.execute("SELECT set_config('app.usuario_id', %s, false)", (str(uuid.uuid4()),))

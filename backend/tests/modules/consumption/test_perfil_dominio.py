@@ -170,8 +170,13 @@ def test_desactivar_y_activar_son_idempotentes() -> None:
 @pytest.mark.rf("RF-10")
 @pytest.mark.parametrize(
     ("rol", "lee", "escribe"),
-    [("admin", True, True), ("cuidador", True, True), ("pagador", True, False), ("observador", True, False),
-     ("desconocido", False, False)],
+    [
+        ("admin", True, True),
+        ("cuidador", True, True),
+        ("pagador", True, False),
+        ("observador", True, False),
+        ("desconocido", False, False),
+    ],
 )
 def test_leen_los_cuatro_roles_y_escriben_admin_y_cuidador(rol: str, lee: bool, escribe: bool) -> None:
     assert puede_leer(rol) is lee

@@ -76,7 +76,9 @@ class SinCustodia(RuntimeError):
 
 def _cifrada(f: Any) -> SeccionCifrada:
     return SeccionCifrada(
-        contenido_cifrado=bytes(f.contenido_cifrado), nonce=bytes(f.nonce), tag_auth=bytes(f.tag_auth),
+        contenido_cifrado=bytes(f.contenido_cifrado),
+        nonce=bytes(f.nonce),
+        tag_auth=bytes(f.tag_auth),
         kek_version=f.kek_version,
     )
 

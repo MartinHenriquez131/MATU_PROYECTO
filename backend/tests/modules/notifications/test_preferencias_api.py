@@ -70,7 +70,8 @@ def test_pagador_activa_y_admin_apaga(entorno_iam: EntornoIam, fabrica_iam: Fabr
     assert admin.json() == _vista(False, True)
     guardadas = filas(
         "SELECT usuario_id, canal, activo FROM preferencia_notificacion WHERE tipo_evento = 'quiebre_proximo'"
-        " AND usuario_id = ANY(%s) ORDER BY canal", [pagador.id, familia.admin.id],
+        " AND usuario_id = ANY(%s) ORDER BY canal",
+        [pagador.id, familia.admin.id],
     )
     # Solo se guarda el canal que difiere del valor por omisión del rol (decisión 111)
     assert sorted(guardadas) == sorted([(pagador.id, "correo", True), (familia.admin.id, "correo", False)])
@@ -96,9 +97,12 @@ def test_token_invalido_es_401(entorno_iam: EntornoIam) -> None:
 def test_otro_usuario_no_lee_ni_escribe_la_preferencia_ajena(entorno_iam: EntornoIam, fabrica_iam: Fabrica) -> None:
     carmen = fabrica_iam.familia(miembros=()).admin
     rodrigo = fabrica_iam.familia(miembros=()).admin
-    assert entorno_iam.cliente.put(
-        RUTA, json={"correo": False, "push": False}, headers=_cabeceras(entorno_iam, carmen)
-    ).status_code == 200
+    assert (
+        entorno_iam.cliente.put(
+            RUTA, json={"correo": False, "push": False}, headers=_cabeceras(entorno_iam, carmen)
+        ).status_code
+        == 200
+    )
 
     # Rodrigo ve la suya (por defecto), aunque intente pedir la de Carmen
     assert _get(entorno_iam, rodrigo).json() == _vista(True, True)
@@ -111,8 +115,13 @@ def test_otro_usuario_no_lee_ni_escribe_la_preferencia_ajena(entorno_iam: Entorn
 
 @pytest.mark.parametrize(
     "cuerpo",
-    [{"correo": "true", "push": True}, {"correo": True}, {"correo": None, "push": True}, {"correo": 1, "push": 0},
-     {"correo": True, "push": True, "sms": True}],
+    [
+        {"correo": "true", "push": True},
+        {"correo": True},
+        {"correo": None, "push": True},
+        {"correo": 1, "push": 0},
+        {"correo": True, "push": True, "sms": True},
+    ],
 )
 def test_cuerpo_invalido_es_422_sin_repetir_el_valor(
     entorno_iam: EntornoIam, fabrica_iam: Fabrica, cuerpo: Any

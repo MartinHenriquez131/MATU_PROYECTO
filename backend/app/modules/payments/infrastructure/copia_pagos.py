@@ -81,9 +81,7 @@ def _pago(ctx: ContextoCopia, pagos: RepositorioPagosSQL, pedido_id: uuid.UUID, 
     if cargo is None:
         return None
     ventas = pagos.ventas(cargo.id)
-    pagadora = next(
-        (v for v in ventas if v.estado is EstadoVenta.APROBADA and not v.anulada_por_pago_tardio), None
-    )
+    pagadora = next((v for v in ventas if v.estado is EstadoVenta.APROBADA and not v.anulada_por_pago_tardio), None)
     pagado_por = None
     if pagadora is not None:
         nombre = ctx.sesion.execute(_NOMBRE, {"id": pagadora.usuario_id}).scalar_one_or_none()
@@ -92,7 +90,8 @@ def _pago(ctx: ContextoCopia, pagos: RepositorioPagosSQL, pedido_id: uuid.UUID, 
     devoluciones = [
         {
             "motivo": a.motivo.value,
-            "producto": None if a.pedido_linea_id is None or a.pedido_linea_id not in lineas
+            "producto": None
+            if a.pedido_linea_id is None or a.pedido_linea_id not in lineas
             else lineas[a.pedido_linea_id].nombre,
             "monto": a.monto,
             "estado": "hecha" if a.hecha else "en_curso",

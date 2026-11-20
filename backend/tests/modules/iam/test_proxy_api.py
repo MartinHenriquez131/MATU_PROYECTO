@@ -273,8 +273,18 @@ def test_con_un_salto_la_demora_de_la_entrada_cuenta_al_cliente(
 
 # Cada IP usada, completa y truncada: ninguna aparece en el log
 IP_PROHIBIDAS = (
-    CLIENTE, OTRO_CLIENTE, CLIENTE_12, BORDE_1, BORDE_2, PROXY_RAILWAY, "198.51.100.77",
-    "203.0.113", "198.51.100", "100.64.0", "2001:db8", "basura",
+    CLIENTE,
+    OTRO_CLIENTE,
+    CLIENTE_12,
+    BORDE_1,
+    BORDE_2,
+    PROXY_RAILWAY,
+    "198.51.100.77",
+    "203.0.113",
+    "198.51.100",
+    "100.64.0",
+    "2001:db8",
+    "basura",
 )
 
 
@@ -314,8 +324,18 @@ def test_el_diagnostico_registra_cantidades_y_clases_sin_ninguna_ip(
         (1, 5, ["invalida", "invalida", "invalida", "invalida", "privada"], "socket"),
         (0, 0, [], "socket"),
     ]
-    campos = {"ts", "nivel", "logger", "mensaje", "request_id", "xff_cabeceras", "xff_elementos", "xff_clases",
-              "proxy_saltos", "ip_contada"}
+    campos = {
+        "ts",
+        "nivel",
+        "logger",
+        "mensaje",
+        "request_id",
+        "xff_cabeceras",
+        "xff_elementos",
+        "xff_clases",
+        "proxy_saltos",
+        "ip_contada",
+    }
     for linea, respuesta in zip(lineas, respuestas, strict=True):
         # Sin usuario_id ni grupo_id: solo estos campos
         assert set(linea) == campos

@@ -59,17 +59,13 @@ class AuditoriaFichaRegistro:
         )
 
     def registrar_edicion(self, evento: EventoFicha) -> None:
-        seccion_id = self._sesion.execute(
-            _ID_SECCION, {"plan_id": evento.plan_id, "tipo": evento.campo}
-        ).scalar_one()
+        seccion_id = self._sesion.execute(_ID_SECCION, {"plan_id": evento.plan_id, "tipo": evento.campo}).scalar_one()
         self._registro.registrar(
             self._entrada(evento, AccionAuditoria.PLAN_EDITAR, EntidadAuditoria.PLAN_SECCION, seccion_id)
         )
 
     def registrar_edicion_seccion(self, evento: EventoFicha) -> None:
-        seccion_id = self._sesion.execute(
-            _ID_SECCION, {"plan_id": evento.plan_id, "tipo": evento.campo}
-        ).scalar_one()
+        seccion_id = self._sesion.execute(_ID_SECCION, {"plan_id": evento.plan_id, "tipo": evento.campo}).scalar_one()
         self._registro.registrar(
             self._entrada(
                 evento, AccionAuditoria.PLAN_EDITAR, EntidadAuditoria.PLAN_SECCION, seccion_id, seccion=evento.campo

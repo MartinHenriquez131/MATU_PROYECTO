@@ -187,8 +187,19 @@ def entorno_pedido(
 
 # MATU-113 (decisión 472): ningún monto llega al observador, a ninguna profundidad
 MONTOS_PARA_EL_OBSERVADOR = frozenset(
-    {"precio_unitario", "subtotal", "subtotal_productos", "costo_envio", "total", "precio_antes", "monto",
-     "devolucion", "devuelto", "precio_pagado", "oferta_id"}
+    {
+        "precio_unitario",
+        "subtotal",
+        "subtotal_productos",
+        "costo_envio",
+        "total",
+        "precio_antes",
+        "monto",
+        "devolucion",
+        "devuelto",
+        "precio_pagado",
+        "oferta_id",
+    }
 )
 
 

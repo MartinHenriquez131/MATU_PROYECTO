@@ -119,8 +119,10 @@ def _iso(instante: datetime) -> str:
             ),
             **PROBLEMA,
         },
-        422: {"description": "Cuerpo inválido: el desafío no tiene 43 caracteres o el código no son 6 cifras",
-              **PROBLEMA},
+        422: {
+            "description": "Cuerpo inválido: el desafío no tiene 43 caracteres o el código no son 6 cifras",
+            **PROBLEMA,
+        },
         429: {
             "description": "mfa-bloqueado: 5 códigos fallidos de la cuenta. Trae `minutos_espera` y Retry-After",
             "headers": {"Retry-After": {"description": "Segundos", "schema": {"type": "integer"}}},
@@ -165,18 +167,24 @@ def verificar_mfa(  # noqa: PLR0913 - las dependencias de la entrada
         raise ErrorMATU(503, detalle=_SIN_SERVICIO) from None
     except casos.DesafioVencido:
         raise ErrorMATU(
-            401, tipo="desafio-vencido",
+            401,
+            tipo="desafio-vencido",
             detalle="Pasaron más de 5 minutos. Vuelve a escribir tu contraseña para pedir otro código",
         ) from None
     except casos.MfaAgotado as agotado:
         segundos = max(1, agotado.segundos)
         raise ErrorMATU(
-            429, tipo="mfa-bloqueado", detalle="Hubo 5 códigos que no coinciden. Espera antes de volver a intentarlo",
-            headers={"Retry-After": str(segundos)}, extension={"minutos_espera": max(1, -(-segundos // 60))},
+            429,
+            tipo="mfa-bloqueado",
+            detalle="Hubo 5 códigos que no coinciden. Espera antes de volver a intentarlo",
+            headers={"Retry-After": str(segundos)},
+            extension={"minutos_espera": max(1, -(-segundos // 60))},
         ) from None
     except casos.CodigoIncorrecto as incorrecto:
         raise ErrorMATU(
-            401, tipo="codigo-mfa-incorrecto", detalle="El código no coincide. Revisa la app de tu teléfono",
+            401,
+            tipo="codigo-mfa-incorrecto",
+            detalle="El código no coincide. Revisa la app de tu teléfono",
             extension={"intentos_restantes": incorrecto.restantes},
         ) from None
     except casos.CodigoUsado:

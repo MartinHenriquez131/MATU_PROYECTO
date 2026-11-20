@@ -24,8 +24,16 @@ RUTAS = (
     "/v1/personas-cuidadas/{persona_id}/plan/aperturas",
 )
 ESQUEMAS = (
-    "SeccionComplementaria", "SolicitudSeccion", "EstadoSeccionVista", "SeccionGuardadaVista", "FichaVista",
-    "SolicitudAccesoVista", "AccesoCreadoVista", "AccesoResumenVista", "FichaRelevoVista", "SeccionRelevoVista",
+    "SeccionComplementaria",
+    "SolicitudSeccion",
+    "EstadoSeccionVista",
+    "SeccionGuardadaVista",
+    "FichaVista",
+    "SolicitudAccesoVista",
+    "AccesoCreadoVista",
+    "AccesoResumenVista",
+    "FichaRelevoVista",
+    "SeccionRelevoVista",
     "AperturaVista",
 )
 SEIS = ["quien_es", "preferencias", "alimentacion", "movilidad", "comunicacion", "remedios"]
@@ -63,7 +71,8 @@ def test_put_y_delete_de_una_seccion(esquema: dict[str, Any]) -> None:
     assert put["x-matu-auditoria"] == "plan.editar" and delete["x-matu-auditoria"] == "plan.quitar_seccion"
     problema = put["responses"]["412"]["content"]["application/problem+json"]["schema"]
     assert problema["properties"]["actual"]["anyOf"] == [
-        {"$ref": "#/components/schemas/EstadoSeccionVista"}, {"type": "null"}
+        {"$ref": "#/components/schemas/EstadoSeccionVista"},
+        {"type": "null"},
     ]
     texto = esquema["components"]["schemas"]["SolicitudSeccion"]["properties"]["texto"]
     assert (texto["minLength"], texto["maxLength"]) == (1, 800)

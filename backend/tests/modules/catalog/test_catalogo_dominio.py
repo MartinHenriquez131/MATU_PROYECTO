@@ -79,16 +79,19 @@ def test_el_stock_sale_solo_como_disponible() -> None:
     ofertas = [o for c in catalogo.categorias for p in c.productos for o in p.comercios]
 
     assert [f.name for f in dataclasses.fields(OfertaVista)] == [
-        "oferta_id", "comercio_id", "nombre_fantasia", "precio", "disponible", "ficticio",
+        "oferta_id",
+        "comercio_id",
+        "nombre_fantasia",
+        "precio",
+        "disponible",
+        "ficticio",
     ]
     assert {o.disponible for o in ofertas} == {True, False}
 
 
 def test_la_vista_no_trae_datos_del_comercio_ni_marca() -> None:
     campos = {
-        f.name
-        for clase in (Catalogo, CategoriaVista, ProductoVista, OfertaVista)
-        for f in dataclasses.fields(clase)
+        f.name for clase in (Catalogo, CategoriaVista, ProductoVista, OfertaVista) for f in dataclasses.fields(clase)
     }
     assert campos.isdisjoint({"marca", "razon_social", "rut", "direccion", "telefono", "comuna", "stock"})
 

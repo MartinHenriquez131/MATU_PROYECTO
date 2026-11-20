@@ -35,7 +35,12 @@ def _texto(seccion: str) -> str:
 
 
 def _put(
-    entorno: EntornoFicha, usuario: UsuarioCreado | None, grupo: Any, persona: Any, seccion: str, cuerpo: Any,
+    entorno: EntornoFicha,
+    usuario: UsuarioCreado | None,
+    grupo: Any,
+    persona: Any,
+    seccion: str,
+    cuerpo: Any,
     **cabeceras: str,
 ) -> Any:
     encabezados = entorno._cabeceras(usuario, grupo)
@@ -77,7 +82,8 @@ def _seccion_en_base(persona: uuid.UUID, tipo: str) -> tuple[Any, ...] | None:
     filas = _filas(
         "SELECT s.id, s.version, s.contenido_cifrado, s.creado_en, s.actualizado_en FROM plan_seccion s"
         " JOIN plan_cuidado p ON p.id = s.plan_id WHERE p.persona_cuidada_id = %s AND s.tipo = %s",
-        persona, tipo,
+        persona,
+        tipo,
     )
     return filas[0] if filas else None
 
@@ -96,8 +102,9 @@ def test_agregar_leer_editar_y_quitar_una_seccion(entorno_ficha: EntornoFicha) -
     assert vacia.status_code == 200 and vacia.json()["secciones"] == {}
 
     # Agregar con If-None-Match: * responde 201 con ETag, crea el plan y la clave
-    agregada = _put(entorno_ficha, cuidador, grupo, persona, "comunicacion", {"texto": f"  {texto}\r\n"},
-                    If_None_Match="*")
+    agregada = _put(
+        entorno_ficha, cuidador, grupo, persona, "comunicacion", {"texto": f"  {texto}\r\n"}, If_None_Match="*"
+    )
     assert agregada.status_code == 201, agregada.text
     assert agregada.headers["etag"] == '"v1"'
     assert agregada.headers["cache-control"] == "no-store"
@@ -188,11 +195,15 @@ def test_el_pagador_con_plan_lee_las_secciones(entorno_ficha: EntornoFicha) -> N
     leida = entorno_ficha.leer(pagador, familia.grupo.id, familia.persona.id)
     assert leida.status_code == 200 and leida.json()["secciones"]["preferencias"]["texto"] == texto
     # Pero no escribe ni quita: 404
-    no = _put(entorno_ficha, pagador, familia.grupo.id, familia.persona.id, "quien_es", {"texto": "x"},
-              If_None_Match="*")
+    no = _put(
+        entorno_ficha, pagador, familia.grupo.id, familia.persona.id, "quien_es", {"texto": "x"}, If_None_Match="*"
+    )
     _problema(no, 404, "no-encontrado")
-    _problema(_delete(entorno_ficha, pagador, familia.grupo.id, familia.persona.id, "preferencias", If_Match='"v1"'),
-              404, "no-encontrado")
+    _problema(
+        _delete(entorno_ficha, pagador, familia.grupo.id, familia.persona.id, "preferencias", If_Match='"v1"'),
+        404,
+        "no-encontrado",
+    )
 
 
 # --- 412: otra persona se adelantó ---------------------------------------------------------------------
@@ -203,8 +214,12 @@ def test_412_con_if_match_desactualizado_trae_la_seccion_actual(entorno_ficha: E
     grupo, persona = familia.grupo.id, familia.persona.id
     _agregar(entorno_ficha, familia, "alimentacion", "Primera")
     cuidador = familia.miembros["cuidador"].usuario
-    assert _put(entorno_ficha, cuidador, grupo, persona, "alimentacion", {"texto": "De Pedro"},
-                If_Match='"v1"').status_code == 200
+    assert (
+        _put(
+            entorno_ficha, cuidador, grupo, persona, "alimentacion", {"texto": "De Pedro"}, If_Match='"v1"'
+        ).status_code
+        == 200
+    )
 
     tarde = _put(entorno_ficha, familia.admin, grupo, persona, "alimentacion", {"texto": "Mía"}, If_Match='"v1"')
     cuerpo = _problema(tarde, 412, "version-desactualizada")
@@ -221,8 +236,15 @@ def test_412_con_if_match_desactualizado_trae_la_seccion_actual(entorno_ficha: E
 def test_412_al_agregar_una_seccion_que_ya_esta(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
     _agregar(entorno_ficha, familia, "movilidad", "Usa bastón")
-    otra = _put(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, "movilidad", {"texto": "Otra"},
-                If_None_Match="*")
+    otra = _put(
+        entorno_ficha,
+        familia.admin,
+        familia.grupo.id,
+        familia.persona.id,
+        "movilidad",
+        {"texto": "Otra"},
+        If_None_Match="*",
+    )
     assert _problema(otra, 412, "version-desactualizada")["actual"]["texto"] == "Usa bastón"
 
 
@@ -245,8 +267,18 @@ def test_412_al_quitar_una_seccion_ya_quitada_o_desactualizada(entorno_ficha: En
     familia = entorno_ficha.familia()
     grupo, persona = familia.grupo.id, familia.persona.id
     _agregar(entorno_ficha, familia, "remedios", "Desayuno: 1 pastilla blanca")
-    assert _put(entorno_ficha, familia.admin, grupo, persona, "remedios", {"texto": "Noche: 1 pastilla rosada"},
-                If_Match='"v1"').status_code == 200
+    assert (
+        _put(
+            entorno_ficha,
+            familia.admin,
+            grupo,
+            persona,
+            "remedios",
+            {"texto": "Noche: 1 pastilla rosada"},
+            If_Match='"v1"',
+        ).status_code
+        == 200
+    )
 
     # ETag viejo: 412 con el contenido actual y no se borra
     viejo = _delete(entorno_ficha, familia.admin, grupo, persona, "remedios", If_Match='"v1"')
@@ -282,8 +314,15 @@ def test_quitar_y_volver_a_agregar_crea_otra_fila(entorno_ficha: EntornoFicha) -
 @pytest.mark.parametrize("cabeceras", [{}, {"If_Match": "*"}, {"If_Match": ""}])
 def test_428_al_escribir_sin_precondicion(entorno_ficha: EntornoFicha, cabeceras: dict[str, str]) -> None:
     familia = entorno_ficha.familia()
-    respuesta = _put(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, "quien_es",
-                     {"texto": "Le dicen Tere"}, **cabeceras)
+    respuesta = _put(
+        entorno_ficha,
+        familia.admin,
+        familia.grupo.id,
+        familia.persona.id,
+        "quien_es",
+        {"texto": "Le dicen Tere"},
+        **cabeceras,
+    )
     _problema(respuesta, 428, "falta-version")
     assert _filas("SELECT count(*) FROM plan_cuidado WHERE persona_cuidada_id = %s", familia.persona.id) == [(0,)]
 
@@ -300,10 +339,12 @@ def test_428_al_quitar_sin_if_match(entorno_ficha: EntornoFicha, cabeceras: dict
 def test_422_con_las_dos_cabeceras_o_if_none_match_invalido(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
     grupo, persona = familia.grupo.id, familia.persona.id
-    dos = _put(entorno_ficha, familia.admin, grupo, persona, "quien_es", {"texto": "x"}, If_Match='"v1"',
-               If_None_Match="*")
+    dos = _put(
+        entorno_ficha, familia.admin, grupo, persona, "quien_es", {"texto": "x"}, If_Match='"v1"', If_None_Match="*"
+    )
     assert [(e["campo"], e["tipo"]) for e in _problema(dos, 422, "validacion")["errores"]] == [
-        ("If-None-Match", "precondicion_doble")]
+        ("If-None-Match", "precondicion_doble")
+    ]
     otro = _put(entorno_ficha, familia.admin, grupo, persona, "quien_es", {"texto": "x"}, If_None_Match='"v1"')
     assert _problema(otro, 422, "validacion")["errores"][0]["tipo"] == "precondicion_invalida"
 
@@ -339,8 +380,9 @@ def test_422_del_texto_nombra_el_campo_sin_el_valor(
 ) -> None:
     familia = entorno_ficha.familia()
     for cabeceras in ({"If_None_Match": "*"}, {"If_Match": '"v1"'}):
-        respuesta = _put(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, seccion, cuerpo,
-                         **cabeceras)
+        respuesta = _put(
+            entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, seccion, cuerpo, **cabeceras
+        )
         errores = _problema(respuesta, 422, "validacion")["errores"]
         assert tipo in [e["tipo"] for e in errores], errores
         if isinstance(cuerpo.get("texto"), str) and cuerpo["texto"].strip():
@@ -351,8 +393,15 @@ def test_422_del_texto_nombra_el_campo_sin_el_valor(
 def test_remedios_admite_800_y_las_demas_500(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
     _agregar(entorno_ficha, familia, "remedios", "r" * 800)
-    largo = _put(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, "quien_es", {"texto": "q" * 501},
-                 If_None_Match="*")
+    largo = _put(
+        entorno_ficha,
+        familia.admin,
+        familia.grupo.id,
+        familia.persona.id,
+        "quien_es",
+        {"texto": "q" * 501},
+        If_None_Match="*",
+    )
     error = _problema(largo, 422, "validacion")["errores"][0]
     assert (error["campo"], error["tipo"]) == ("texto", "largo_maximo") and "500" in error["mensaje"]
 
@@ -363,11 +412,15 @@ def test_remedios_admite_800_y_las_demas_500(entorno_ficha: EntornoFicha) -> Non
 @pytest.mark.parametrize("seccion", ["rutina", "manejo_situaciones", "red_apoyo", "horarios", "actividades", "notas"])
 def test_404_si_no_es_una_de_las_seis(entorno_ficha: EntornoFicha, seccion: str) -> None:
     familia = entorno_ficha.familia()
-    put = _put(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, seccion, {"texto": "x"},
-               If_None_Match="*")
+    put = _put(
+        entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, seccion, {"texto": "x"}, If_None_Match="*"
+    )
     _problema(put, 404, "no-encontrado")
-    _problema(_delete(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, seccion, If_Match='"v1"'),
-              404, "no-encontrado")
+    _problema(
+        _delete(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, seccion, If_Match='"v1"'),
+        404,
+        "no-encontrado",
+    )
 
 
 def test_404_desde_otro_grupo_nunca_403(entorno_ficha: EntornoFicha) -> None:
@@ -387,8 +440,9 @@ def test_404_desde_otro_grupo_nunca_403(entorno_ficha: EntornoFicha) -> None:
         _problema(respuesta, 404, "no-encontrado")
         assert texto not in respuesta.text
     # Con el grupo de A, sin ser miembro
-    _problema(_delete(entorno_ficha, b.admin, a.grupo.id, a.persona.id, "remedios", If_Match='"v1"'),
-              404, "no-encontrado")
+    _problema(
+        _delete(entorno_ficha, b.admin, a.grupo.id, a.persona.id, "remedios", If_Match='"v1"'), 404, "no-encontrado"
+    )
     fila = _seccion_en_base(a.persona.id, "remedios")
     assert fila is not None and fila[1] == 1
 
@@ -398,36 +452,65 @@ def test_404_para_roles_que_no_escriben(entorno_ficha: EntornoFicha, rol: str) -
     familia = entorno_ficha.familia()
     _agregar(entorno_ficha, familia, "quien_es", "Le dicen Tere")
     usuario = familia.miembros[rol].usuario
-    _problema(_put(entorno_ficha, usuario, familia.grupo.id, familia.persona.id, "quien_es", {"texto": "x"},
-                   If_Match='"v1"'), 404, "no-encontrado")
-    _problema(_delete(entorno_ficha, usuario, familia.grupo.id, familia.persona.id, "quien_es", If_Match='"v1"'),
-              404, "no-encontrado")
+    _problema(
+        _put(entorno_ficha, usuario, familia.grupo.id, familia.persona.id, "quien_es", {"texto": "x"}, If_Match='"v1"'),
+        404,
+        "no-encontrado",
+    )
+    _problema(
+        _delete(entorno_ficha, usuario, familia.grupo.id, familia.persona.id, "quien_es", If_Match='"v1"'),
+        404,
+        "no-encontrado",
+    )
 
 
 def test_401_sin_token(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
-    _problema(_put(entorno_ficha, None, familia.grupo.id, familia.persona.id, "quien_es", {"texto": "x"},
-                   If_None_Match="*"), 401, "no-autenticado")
+    _problema(
+        _put(entorno_ficha, None, familia.grupo.id, familia.persona.id, "quien_es", {"texto": "x"}, If_None_Match="*"),
+        401,
+        "no-autenticado",
+    )
 
 
 def test_403_sin_consentimiento_no_crea_nada(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia(con_consentimiento=False)
-    respuesta = _put(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, "quien_es",
-                     {"texto": "Le dicen Tere"}, If_None_Match="*")
+    respuesta = _put(
+        entorno_ficha,
+        familia.admin,
+        familia.grupo.id,
+        familia.persona.id,
+        "quien_es",
+        {"texto": "Le dicen Tere"},
+        If_None_Match="*",
+    )
     _problema(respuesta, 403, "sin-consentimiento")
-    _problema(_delete(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, "quien_es",
-                      If_Match='"v1"'), 403, "sin-consentimiento")
+    _problema(
+        _delete(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, "quien_es", If_Match='"v1"'),
+        403,
+        "sin-consentimiento",
+    )
     assert _filas("SELECT count(*) FROM plan_cuidado WHERE persona_cuidada_id = %s", familia.persona.id) == [(0,)]
 
 
 def test_503_sin_custodia(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
     entorno_ficha.app.dependency_overrides[obtener_custodia] = lambda: None
-    respuesta = _put(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, "quien_es",
-                     {"texto": "Le dicen Tere"}, If_None_Match="*")
+    respuesta = _put(
+        entorno_ficha,
+        familia.admin,
+        familia.grupo.id,
+        familia.persona.id,
+        "quien_es",
+        {"texto": "Le dicen Tere"},
+        If_None_Match="*",
+    )
     _problema(respuesta, 503, "servicio-no-disponible")
-    _problema(_delete(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, "quien_es",
-                      If_Match='"v1"'), 503, "servicio-no-disponible")
+    _problema(
+        _delete(entorno_ficha, familia.admin, familia.grupo.id, familia.persona.id, "quien_es", If_Match='"v1"'),
+        503,
+        "servicio-no-disponible",
+    )
 
 
 # --- Auditoría real y logs (RF-08) --------------------------------------------------------------------------
@@ -477,10 +560,14 @@ def test_logs_sin_el_texto_de_las_secciones(entorno_ficha: EntornoFicha, caplog:
 
     _agregar(entorno_ficha, familia, "remedios", texto)
     assert entorno_ficha.leer(familia.admin, grupo, persona).status_code == 200
-    assert _put(entorno_ficha, familia.admin, grupo, persona, "remedios", {"texto": largo},
-                If_Match='"v1"').status_code == 422
-    assert _put(entorno_ficha, familia.admin, grupo, persona, "remedios", {"texto": "otra"},
-                If_Match='"v9"').status_code == 412
+    assert (
+        _put(entorno_ficha, familia.admin, grupo, persona, "remedios", {"texto": largo}, If_Match='"v1"').status_code
+        == 422
+    )
+    assert (
+        _put(entorno_ficha, familia.admin, grupo, persona, "remedios", {"texto": "otra"}, If_Match='"v9"').status_code
+        == 412
+    )
     assert _delete(entorno_ficha, familia.admin, grupo, persona, "remedios", If_Match='"v1"').status_code == 204
 
     salida = entorno_ficha.iam.texto_log()

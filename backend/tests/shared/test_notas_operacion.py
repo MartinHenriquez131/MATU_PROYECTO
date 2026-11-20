@@ -122,7 +122,8 @@ def test_sin_custodia_encendida_no_hay_custodia_de_notas() -> None:
     import base64
 
     encendida = Configuracion.model_construct(
-        custodia_kek="entorno_sintetico", kek_entorno=SecretStr(base64.b64encode(secrets.token_bytes(32)).decode()),
+        custodia_kek="entorno_sintetico",
+        kek_entorno=SecretStr(base64.b64encode(secrets.token_bytes(32)).decode()),
         kek_version=1,
     )
     assert isinstance(custodia_notas_de(encendida), CustodiaNotas)
@@ -148,8 +149,10 @@ def test_deks_con_la_clave_destruida_da_none_y_con_la_vigente_su_dek() -> None:
     custodia = CustodiaNotas(secrets.token_bytes(32), 1)
     dek, envuelta = custodia.nueva_dek()
     vigente, destruida = uuid.uuid4(), uuid.uuid4()
-    filas = [SimpleNamespace(id=vigente, dek_cifrada_con_kek=envuelta, kek_version=1),
-             SimpleNamespace(id=destruida, dek_cifrada_con_kek=None, kek_version=1)]
+    filas = [
+        SimpleNamespace(id=vigente, dek_cifrada_con_kek=envuelta, kek_version=1),
+        SimpleNamespace(id=destruida, dek_cifrada_con_kek=None, kek_version=1),
+    ]
     assert _deks(filas, custodia, [vigente, destruida, None]) == {vigente: dek, destruida: None}
     # Solo destruidas: sin la KEK no hay nada que abrir, y no falla
     assert _deks(filas[1:], None, [destruida]) == {destruida: None}
@@ -168,8 +171,11 @@ def test_deks_falla_cerrada_con_una_clave_vigente_que_no_se_abre(caso: str) -> N
     custodia = CustodiaNotas(secrets.token_bytes(32), 1)
     _, envuelta = custodia.nueva_dek()
     clave = uuid.uuid4()
-    filas = [] if caso == "no_se_ve" else [
-        SimpleNamespace(id=clave, dek_cifrada_con_kek=envuelta, kek_version=2 if caso == "otra_version" else 1)]
+    filas = (
+        []
+        if caso == "no_se_ve"
+        else [SimpleNamespace(id=clave, dek_cifrada_con_kek=envuelta, kek_version=2 if caso == "otra_version" else 1)]
+    )
     usada = {"sin_kek": None, "otra_kek": CustodiaNotas(secrets.token_bytes(32), 1)}.get(caso, custodia)
     with pytest.raises(NotasNoDisponibles) as error:
         _deks(filas, usada, [clave])
@@ -283,8 +289,12 @@ def test_abrir_clave_sigue_las_reglas_de_deks() -> None:
     assert abrir_clave(custodia, envuelta, 1) == dek
     assert abrir_clave(custodia, None, 1) is None
     assert abrir_clave(None, None, 1) is None
-    for usada, envoltura, version in ((custodia, envuelta, None), (custodia, None, None), (None, envuelta, 1),
-                                      (CustodiaNotas(secrets.token_bytes(32), 1), envuelta, 1),
-                                      (custodia, envuelta, 2)):
+    for usada, envoltura, version in (
+        (custodia, envuelta, None),
+        (custodia, None, None),
+        (None, envuelta, 1),
+        (CustodiaNotas(secrets.token_bytes(32), 1), envuelta, 1),
+        (custodia, envuelta, 2),
+    ):
         with pytest.raises(NotasNoDisponibles):
             abrir_clave(usada, envoltura, version)

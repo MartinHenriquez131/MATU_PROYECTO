@@ -113,8 +113,11 @@ def _push_no_permitido() -> ErrorMATU:
         " entrega un access token nuevo de 15 minutos. Un refresh ya usado revoca toda su familia"
         " (`reutilizacion`). Todo fallo es el mismo 401 `sesion-expirada`, que borra la cookie."
     ),
-    responses={200: {"headers": {**_NO_STORE, **_SET_COOKIE}}, 401: {"description": "sesion-expirada",
-               "headers": _SET_COOKIE, **PROBLEMA}, **_FALTA_CLIENTE},
+    responses={
+        200: {"headers": {**_NO_STORE, **_SET_COOKIE}},
+        401: {"description": "sesion-expirada", "headers": _SET_COOKIE, **PROBLEMA},
+        **_FALTA_CLIENTE,
+    },
 )
 def renovar_sesion(
     request: Request,

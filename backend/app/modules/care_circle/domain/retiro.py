@@ -65,6 +65,7 @@ def se_puede_otorgar(finalidad: str, activas: tuple[str, ...]) -> bool:
     pantalla no ofrece «Volver a autorizar» (decisión 251)."""
     return finalidad in activas
 
+
 ROLES_QUE_RETIRAN = frozenset({"admin", "cuidador"})
 
 # Lo guardado se conserva 90 días después del retiro (decisiones 70 y 129)

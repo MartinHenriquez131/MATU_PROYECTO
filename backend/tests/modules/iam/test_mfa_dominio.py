@@ -18,8 +18,9 @@ SECRETO_RFC = b"12345678901234567890"
 
 @pytest.mark.parametrize(
     ("contador", "codigo"),
-    list(enumerate(["755224", "287082", "359152", "969429", "338314", "254676", "287922", "162583", "399871",
-                    "520489"])),
+    list(
+        enumerate(["755224", "287082", "359152", "969429", "338314", "254676", "287922", "162583", "399871", "520489"])
+    ),
 )
 def test_hotp_con_los_vectores_del_rfc_4226(contador: int, codigo: str) -> None:
     assert mfa.hotp(SECRETO_RFC, contador) == codigo
@@ -27,8 +28,14 @@ def test_hotp_con_los_vectores_del_rfc_4226(contador: int, codigo: str) -> None:
 
 @pytest.mark.parametrize(
     ("segundos", "codigo"),
-    [(59, "94287082"), (1111111109, "07081804"), (1111111111, "14050471"), (1234567890, "89005924"),
-     (2000000000, "69279037"), (20000000000, "65353130")],
+    [
+        (59, "94287082"),
+        (1111111109, "07081804"),
+        (1111111111, "14050471"),
+        (1234567890, "89005924"),
+        (2000000000, "69279037"),
+        (20000000000, "65353130"),
+    ],
 )
 def test_totp_con_los_vectores_sha1_del_rfc_6238(segundos: int, codigo: str) -> None:
     assert mfa.totp(SECRETO_RFC, datetime.fromtimestamp(segundos, UTC), cifras=8) == codigo

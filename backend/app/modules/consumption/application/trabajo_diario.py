@@ -89,8 +89,6 @@ def recalcular_quiebres(
                     ),
                     ahora,
                 )
-                _auditar(
-                    auditoria, grupo_id, AccionAuditoria.ALERTA_MATERIALIZAR, alerta_id, insumo.persona_cuidada_id
-                )
+                _auditar(auditoria, grupo_id, AccionAuditoria.ALERTA_MATERIALIZAR, alerta_id, insumo.persona_cuidada_id)
                 materializadas += 1
     return ResultadoTrabajo(materializadas=materializadas, descartadas=descartadas)

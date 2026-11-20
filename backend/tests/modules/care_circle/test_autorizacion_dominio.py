@@ -52,8 +52,9 @@ def test_la_revision_vence_doce_meses_despues_del_otorgamiento() -> None:
     otorgado = datetime(2025, 10, 20, 12, 0, tzinfo=UTC)
     vence = revision_vence_en(CalidadOtorgante.CUIDADOR_DE_HECHO, otorgado)
     assert vence is not None
-    autorizacion = AutorizacionGuardada(calidad_otorgante=CalidadOtorgante.CUIDADOR_DE_HECHO.value,
-                                        revision_vence_en=vence)
+    autorizacion = AutorizacionGuardada(
+        calidad_otorgante=CalidadOtorgante.CUIDADOR_DE_HECHO.value, revision_vence_en=vence
+    )
 
     assert estado_autorizacion(autorizacion, vence - timedelta(microseconds=1)) is EstadoAutorizacion.VIGENTE
     assert estado_autorizacion(autorizacion, vence) is EstadoAutorizacion.REVISION_VENCIDA

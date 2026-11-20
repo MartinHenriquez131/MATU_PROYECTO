@@ -32,8 +32,14 @@ RUTAS = (
     "/v1/condiciones-pedido",
 )
 VISTAS = (
-    "PedidoVista", "PedidoVistaObservador", "LineaPedido", "LineaPedidoObservador", "CambioDeLineaObservador",
-    "EntregaVista", "ComercioVista", "DireccionVista",
+    "PedidoVista",
+    "PedidoVistaObservador",
+    "LineaPedido",
+    "LineaPedidoObservador",
+    "CambioDeLineaObservador",
+    "EntregaVista",
+    "ComercioVista",
+    "DireccionVista",
 )
 NUNCA = {"grupo_id", "creado_por", "nombre_pila", "lat", "lng", "referencia_comercio", "destinatario_nombre_pila"}
 
@@ -95,8 +101,18 @@ def test_la_linea_trae_su_oferta_y_los_post_no_declaran_412(esquema: dict[str, A
 # --- MATU-113 (decisión 472): el observador no ve montos ---------------------------------------------------------
 
 CAMPOS_OBSERVADOR = {
-    "id", "persona_cuidada_id", "estado", "precios_de_ejemplo", "lineas", "salieron", "total_confirmado_en",
-    "vence_en", "pagado_en", "ventana_entrega", "creado_en", "actualizado_en",
+    "id",
+    "persona_cuidada_id",
+    "estado",
+    "precios_de_ejemplo",
+    "lineas",
+    "salieron",
+    "total_confirmado_en",
+    "vence_en",
+    "pagado_en",
+    "ventana_entrega",
+    "creado_en",
+    "actualizado_en",
 }
 CAMPOS_LINEA_OBSERVADOR = {"id", "producto", "cantidad", "comercio", "regla_faltante", "cambio"}
 

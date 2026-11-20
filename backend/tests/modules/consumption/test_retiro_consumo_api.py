@@ -40,13 +40,18 @@ def _alerta(perfil: uuid.UUID, estado: str, fecha: str = "2026-10-26") -> uuid.U
 
 
 def _retirar(e: EntornoConsumo, familia: FamiliaCreada, usuario: UsuarioCreado | None = None) -> Any:
-    return e.iam.cliente.post(RUTA.format(familia.persona.id) + "/consumo/retiro",
-                              headers=e.cabeceras(usuario or familia.admin, familia.grupo.id))
+    return e.iam.cliente.post(
+        RUTA.format(familia.persona.id) + "/consumo/retiro",
+        headers=e.cabeceras(usuario or familia.admin, familia.grupo.id),
+    )
 
 
 def _autorizar(e: EntornoConsumo, familia: FamiliaCreada) -> Any:
-    return e.iam.cliente.post(RUTA.format(familia.persona.id), json={"finalidad": "consumo",
-                              "calidad_otorgante": "titular"}, headers=e.cabeceras(familia.admin, familia.grupo.id))
+    return e.iam.cliente.post(
+        RUTA.format(familia.persona.id),
+        json={"finalidad": "consumo", "calidad_otorgante": "titular"},
+        headers=e.cabeceras(familia.admin, familia.grupo.id),
+    )
 
 
 def test_retirar_descarta_las_alertas_abiertas_en_la_misma_transaccion(entorno_consumo: EntornoConsumo) -> None:
@@ -64,8 +69,11 @@ def test_retirar_descarta_las_alertas_abiertas_en_la_misma_transaccion(entorno_c
     assert respuesta.json()["autorizacion"]["estado"] == "retirada"
     estados = dict(_filas("SELECT id, estado FROM alerta_quiebre WHERE id = ANY(%s)", [pendiente, notificada]))
     assert estados == {pendiente: "descartada", notificada: "descartada"}
-    descartes = _filas("SELECT actor_tipo, actor_ref, entidad_id, detalle FROM auditoria"
-                       " WHERE accion = 'alerta.descartar' AND grupo_id = %s ORDER BY entidad_id", familia.grupo.id)
+    descartes = _filas(
+        "SELECT actor_tipo, actor_ref, entidad_id, detalle FROM auditoria"
+        " WHERE accion = 'alerta.descartar' AND grupo_id = %s ORDER BY entidad_id",
+        familia.grupo.id,
+    )
     esperados = [("usuario", cuidador.id, pendiente, None), ("usuario", cuidador.id, notificada, None)]
     assert sorted(descartes, key=lambda f: str(f[2])) == sorted(esperados, key=lambda f: str(f[2]))
 
@@ -152,11 +160,17 @@ def test_los_quiebres_no_crean_alerta_ni_evento_aunque_el_borrado_no_haya_corrid
     e.fabrica.perfil_consumo(testigo.persona)
     with psycopg.connect(DSN, autocommit=True) as cx:
         if estado == "persona_borrada":
-            cx.execute("UPDATE persona_cuidada SET eliminado_en = now(), nivel_apoyo = NULL,"
-                       " direccion_entrega_id = NULL WHERE id = %s", (familia.persona.id,))
+            cx.execute(
+                "UPDATE persona_cuidada SET eliminado_en = now(), nivel_apoyo = NULL,"
+                " direccion_entrega_id = NULL WHERE id = %s",
+                (familia.persona.id,),
+            )
         else:
-            cx.execute("UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro'"
-                       " WHERE persona_cuidada_id = %s AND finalidad = 'consumo'", (familia.persona.id,))
+            cx.execute(
+                "UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro'"
+                " WHERE persona_cuidada_id = %s AND finalidad = 'consumo'",
+                (familia.persona.id,),
+            )
     assert _filas("SELECT activo FROM perfil_consumo WHERE id = %s", perfil) == [(True,)]
 
     resultado = recalcular_grupo(fabrica_sesiones(), familia.grupo.id, e.iam.reloj)

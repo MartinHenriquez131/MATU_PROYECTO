@@ -37,9 +37,7 @@ def _enviar(registro: RegistroAvisosSimulado) -> tuple[uuid.UUID, uuid.UUID]:
     correo = EnviadorCorreoSimulado(registro).enviar(
         EnvioCorreo(notificacion, usuario, PLANTILLA_QUIEBRE, EMAIL, correo_quiebre(ORIGEN))
     )
-    push = EnviadorPushSimulado(registro).enviar(
-        EnvioPush(notificacion, usuario, PLANTILLA_QUIEBRE, TOKEN)
-    )
+    push = EnviadorPushSimulado(registro).enviar(EnvioPush(notificacion, usuario, PLANTILLA_QUIEBRE, TOKEN))
     assert correo is push is ResultadoEnvio.ENVIADO
     return notificacion, usuario
 
@@ -57,7 +55,8 @@ def test_el_registro_simulado_no_guarda_el_destino_ni_el_texto(
     lineas = [json.loads(linea) for linea in contenido.splitlines()]
     assert [set(linea) for linea in lineas] == [{"en", "notificacion_id", "usuario_id", "canal", "plantilla"}] * 2
     assert [(linea["canal"], linea["plantilla"]) for linea in lineas] == [
-        ("correo", "quiebre_proximo"), ("push", "quiebre_proximo")
+        ("correo", "quiebre_proximo"),
+        ("push", "quiebre_proximo"),
     ]
     assert {linea["notificacion_id"] for linea in lineas} == {str(notificacion)}
     assert {linea["usuario_id"] for linea in lineas} == {str(usuario)}
@@ -79,8 +78,12 @@ def test_ningun_repr_muestra_el_destino() -> None:
     envio_correo = EnvioCorreo(uuid.uuid4(), uuid.uuid4(), PLANTILLA_QUIEBRE, EMAIL, correo_quiebre(ORIGEN))
     envio_push = EnvioPush(uuid.uuid4(), uuid.uuid4(), PLANTILLA_QUIEBRE, TOKEN)
     textos = [
-        repr(registro), repr(EnviadorCorreoSimulado(registro)), repr(EnviadorPushSimulado(registro)),
-        repr(envio_correo), repr(envio_push), str(envio_correo),
+        repr(registro),
+        repr(EnviadorCorreoSimulado(registro)),
+        repr(EnviadorPushSimulado(registro)),
+        repr(envio_correo),
+        repr(envio_push),
+        str(envio_correo),
     ]
     for texto in textos:
         assert EMAIL not in texto and TOKEN not in texto and "insumo" not in texto
@@ -111,7 +114,8 @@ def test_con_simulado_la_tarea_consume_quiebre_proximo(tmp_path: Path) -> None:
     assert [c.nombre for c in mapa[QUIEBRE_PROXIMO]] == ["notifications.quiebre_proximo"]
     # MATU-76 (C1): un consumidor por evento del pedido, cada uno con su nombre. PedidoPagado no avisa
     assert {t: [c.nombre for c in mapa[t]] for t in EVENTOS_DEL_PEDIDO} == {
-        t: [f"notifications.pedido.{t}"] for t in EVENTOS_DEL_PEDIDO}
+        t: [f"notifications.pedido.{t}"] for t in EVENTOS_DEL_PEDIDO
+    }
     assert "PedidoPagado" not in mapa
 
 

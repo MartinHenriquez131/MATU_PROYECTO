@@ -390,8 +390,15 @@ def historial(ctx: ContextoCopia) -> dict[str, Any]:
         for f in filas
         if (
             h := hecho(
-                f.accion, f.ocurrido_en, f.actor_tipo, f.actor_nombre, f.actor_activo, f.seccion, f.tipo_seccion,
-                f.finalidad, f.referencia,
+                f.accion,
+                f.ocurrido_en,
+                f.actor_tipo,
+                f.actor_nombre,
+                f.actor_activo,
+                f.seccion,
+                f.tipo_seccion,
+                f.finalidad,
+                f.referencia,
             )
         )
         is not None

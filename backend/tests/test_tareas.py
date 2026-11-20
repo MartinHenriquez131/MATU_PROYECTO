@@ -184,7 +184,9 @@ def test_el_engine_de_las_tareas_lleva_un_tope_de_conexion(monkeypatch: pytest.M
         return None
 
     monkeypatch.setattr(tareas, "create_engine", crear)
-    config = obtener_configuracion().model_copy(update={"database_url": SecretStr("postgresql+psycopg://u@db.invalid/x")})
+    config = obtener_configuracion().model_copy(
+        update={"database_url": SecretStr("postgresql+psycopg://u@db.invalid/x")}
+    )
     tareas.fabrica_tareas(config)
     assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S}
     assert 0 < tareas.TIEMPO_CONEXION_S <= 10
@@ -408,11 +410,13 @@ def test_main_arma_cada_conexion_con_su_variable(monkeypatch: pytest.MonkeyPatch
 
     roles = ("matu_app", "matu_scheduler", "matu_publisher")
     urls = {rol: f"postgresql+psycopg://{rol}@db.invalid/matu" for rol in roles}
-    config = obtener_configuracion().model_copy(update={
-        "database_url": SecretStr(urls["matu_app"]),
-        "scheduler_database_url": SecretStr(urls["matu_scheduler"]),
-        "publisher_database_url": SecretStr(urls["matu_publisher"]),
-    })
+    config = obtener_configuracion().model_copy(
+        update={
+            "database_url": SecretStr(urls["matu_app"]),
+            "scheduler_database_url": SecretStr(urls["matu_scheduler"]),
+            "publisher_database_url": SecretStr(urls["matu_publisher"]),
+        }
+    )
     monkeypatch.setattr(tareas, "obtener_configuracion", lambda: config)
     monkeypatch.setattr(tareas, "create_engine", lambda url, **_: url)
     monkeypatch.setitem(tareas.TAREAS, "avisos", espia)
@@ -601,4 +605,3 @@ def test_conservacion_pedidos_corre_con_la_capa_3_apagada() -> None:
     )
     assert tareas.correr(["conservacion_pedidos"], ctx) == tareas.SALIDA_OK
     assert espia.sesiones
-

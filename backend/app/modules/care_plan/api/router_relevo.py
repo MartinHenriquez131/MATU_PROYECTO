@@ -392,9 +392,6 @@ def listar_aperturas_relevo(
     pagina = listar_aperturas(_peticion(request, autorizado), fichas, aperturas, despues_de, limite)
     response.headers["Cache-Control"] = NO_STORE
     return ListaAperturasVista(
-        items=[
-            _apertura(a)
-            for a in pagina.aperturas
-        ],
+        items=[_apertura(a) for a in pagina.aperturas],
         siguiente_cursor=None if pagina.siguiente is None else codificar_cursor_apertura(pagina.siguiente),
     )

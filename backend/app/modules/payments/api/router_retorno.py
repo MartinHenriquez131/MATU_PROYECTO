@@ -93,9 +93,7 @@ def usuario_opcional(
         return None
 
 
-def _con_contexto(
-    fabrica: sessionmaker[Session], usuario_id: uuid.UUID | None, grupo_id: uuid.UUID
-) -> bool:
+def _con_contexto(fabrica: sessionmaker[Session], usuario_id: uuid.UUID | None, grupo_id: uuid.UUID) -> bool:
     if usuario_id is None:
         return False
     with sesion_tenant(fabrica, usuario_id=usuario_id, grupo_id=grupo_id) as sesion:
@@ -182,7 +180,6 @@ def fragmento_de(cuerpo: bytes) -> str:
         if valores and len(valores) == 1 and len(valores[0]) <= largo and _VALOR.match(valores[0]):
             validos.append((nombre, valores[0]))
     return "#" + urlencode(validos) if validos else ""
-
 
 
 @router_formulario.post(RUTA_RETORNO, include_in_schema=False, status_code=303)

@@ -38,6 +38,7 @@ def _con_celular(texto: str) -> bool:
     """Si texto trae alguno de los celulares, escrito como sea; nunca por un UUID o un hash que contenga 5555."""
     return any(aparece_celular(celular, texto) for celular in CELULARES)
 
+
 RUTA_ACCESO = "/v1/accesos-relevo/{}"
 RUTA_ACCESOS = "/v1/personas-cuidadas/{}/plan/accesos-relevo"
 

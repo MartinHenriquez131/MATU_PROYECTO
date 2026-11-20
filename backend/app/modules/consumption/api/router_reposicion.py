@@ -59,8 +59,10 @@ def _respuestas(descripcion_422: str) -> dict[int | str, dict[str, Any]]:
         401: _ERRORES_LECTURA[401],
         403: _403,
         404: _404_ESCRIBIR,
-        409: {"description": "/errores/perfil-inactivo: un insumo que no se sigue no anota compras ni recuentos",
-              **_PROBLEMA},
+        409: {
+            "description": "/errores/perfil-inactivo: un insumo que no se sigue no anota compras ni recuentos",
+            **_PROBLEMA,
+        },
         412: {
             "description": (
                 "El If-Match no es la versión vigente del perfil: no se suma, no se anota la compra y no se cierra"

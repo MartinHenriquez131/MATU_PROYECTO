@@ -130,8 +130,11 @@ def test_patch_sin_if_match_es_428(e: Entorno, cabeceras: dict[str, str]) -> Non
 
 @pytest.mark.parametrize(
     ("cuerpo", "tipo"),
-    [({}, "cuerpo_vacio"), ({"tasa_dias": None}, "null_no_admitido"), ({"producto_id": str(uuid.uuid4())},
-                                                                          "extra_forbidden")],
+    [
+        ({}, "cuerpo_vacio"),
+        ({"tasa_dias": None}, "null_no_admitido"),
+        ({"producto_id": str(uuid.uuid4())}, "extra_forbidden"),
+    ],
 )
 def test_patch_cuerpo_invalido_es_422(e: Entorno, cuerpo: dict[str, Any], tipo: str) -> None:
     perfil = e.crear().json()

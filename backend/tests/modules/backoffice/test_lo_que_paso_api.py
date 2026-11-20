@@ -42,8 +42,12 @@ def _anotar(d: Despacho, pedido: dict[str, Any], nota: str = NOTA, tipo: str = "
 
 
 def _resolver(d: Despacho, incidencia: dict[str, Any], resolucion: str = RESOLUCION) -> None:
-    r = d.operacion("PATCH", f"/incidencias/{incidencia['id']}", {"estado": "resuelta", "resolucion": resolucion},
-                    **{"If-Match": f'"i{incidencia["version"]}"'})
+    r = d.operacion(
+        "PATCH",
+        f"/incidencias/{incidencia['id']}",
+        {"estado": "resuelta", "resolucion": resolucion},
+        **{"If-Match": f'"i{incidencia["version"]}"'},
+    )
     assert r.status_code == 200, r.text
 
 
@@ -73,8 +77,9 @@ def test_quien_pago_ve_lo_que_paso_aunque_pase_a_se_informa(despacho: Despacho) 
     auditadas = d.sql("SELECT count(*) FROM auditoria WHERE grupo_id = %s", familia.grupo.id)
 
     for rol in ("pagador", "observador"):
-        d.sql("UPDATE membresia SET rol = %s WHERE usuario_id = %s AND grupo_id = %s", rol, pagador.id,
-              familia.grupo.id)
+        d.sql(
+            "UPDATE membresia SET rol = %s WHERE usuario_id = %s AND grupo_id = %s", rol, pagador.id, familia.grupo.id
+        )
         r = _pedir(d, familia, pagador, pedido)
         assert r.status_code == 200, (rol, r.text)
         assert r.headers["cache-control"] == "no-store"
@@ -82,7 +87,12 @@ def test_quien_pago_ve_lo_que_paso_aunque_pase_a_se_informa(despacho: Despacho) 
         [cosa] = r.json()["lo_que_paso"]
         assert set(cosa) == CAMPOS
         assert (cosa["tipo"], cosa["estado"], cosa["nota"], cosa["resolucion"], cosa["nota_disponible"]) == (
-            "faltante", "resuelta", NOTA, RESOLUCION, True)
+            "faltante",
+            "resuelta",
+            NOTA,
+            RESOLUCION,
+            True,
+        )
         assert cosa["anotado_en"] and cosa["resuelto_en"]
         # Nunca el id de la incidencia, quién del equipo la anotó ni a quién se asignó
         assert incidencia["id"] not in r.text
@@ -129,8 +139,9 @@ def test_404_a_quien_no_pago_ese_pedido_nunca_403(despacho: Despacho) -> None:
     _es_404(d.e.pedir("GET", _ruta(pedido), pagador, otra), "quien pagó con la cabecera de B")
     _es_404(d.e.pedir("GET", "/v1/pedidos/no-es-uuid/lo-que-paso", pagador, familia), "pedido sin UUID")
     # A6: quien pagó y salió del grupo
-    d.sql("UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s", pagador.id,
-          familia.grupo.id)
+    d.sql(
+        "UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s", pagador.id, familia.grupo.id
+    )
     _es_404(_pedir(d, familia, pagador, pedido), "salió del grupo")
 
 
@@ -183,28 +194,38 @@ def test_e5_en_el_orden_en_que_se_anoto_y_con_la_clave_destruida_no_disponible(d
     pagador = _rol(d, familia, "pagador")
     cosas = _pedir(d, familia, pagador, pedido).json()["lo_que_paso"]
     assert [(x["tipo"], x["estado"], x["nota"]) for x in cosas] == [
-        ("faltante", "resuelta", "Primera nota sintética"), ("entrega_fallida", "abierta", "Segunda nota sintética")]
+        ("faltante", "resuelta", "Primera nota sintética"),
+        ("entrega_fallida", "abierta", "Segunda nota sintética"),
+    ]
     assert cosas[0]["anotado_en"] < cosas[1]["anotado_en"]
     assert cosas[1]["resuelto_en"] is None and cosas[1]["resolucion"] is None
 
-    d.sql("UPDATE clave_notas SET dek_cifrada_con_kek = NULL, destruida_en = now() WHERE persona_cuidada_id = %s"
-          " AND destruida_en IS NULL", familia.persona.id)
+    d.sql(
+        "UPDATE clave_notas SET dek_cifrada_con_kek = NULL, destruida_en = now() WHERE persona_cuidada_id = %s"
+        " AND destruida_en IS NULL",
+        familia.persona.id,
+    )
     r = _pedir(d, familia, pagador, pedido)
     assert r.status_code == 200, r.text
     assert [(x["nota"], x["resolucion"], x["nota_disponible"]) for x in r.json()["lo_que_paso"]] == [
-        (None, None, False), (None, None, False)]
+        (None, None, False),
+        (None, None, False),
+    ]
     assert "Primera nota" not in r.text
 
 
-@pytest.mark.parametrize("texto", [
-    "Escribir a contacto.familia@correo.ejemplo para coordinar",
-    "Llamar al +56 9 1234 5678 antes de entregar",
-    "La vecina dejó su número 9 8765 4321",
-    "Fijo de la farmacia: (2) 2345 6789",
-    "Recibió quien tiene el RUT 12.345.678-5",
-    "Recibió quien tiene el RUT 7654321-K",
-])
-def test_r5_la_nota_con_forma_de_correo_o_telefono_responde_422_y_no_se_guarda(despacho: Despacho, texto: str) -> None:
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "Escribir a contacto.familia@correo.ejemplo para coordinar",
+        "Llamar al +56 9 1234 5678 antes de entregar",
+        "La vecina dejó su número 9 8765 4321",
+        "Fijo de la farmacia: (2) 2345 6789",
+        "Recibió quien tiene el RUT 12.345.678-5",
+        "Recibió quien tiene el RUT 7654321-K",
+    ],
+)
+def test_r5_la_nota_con_forma_de_correo_telefono_o_rut_da_422_y_no_se_guarda(despacho: Despacho, texto: str) -> None:
     """R5 (C9): la consola rechaza una nota o una resolución con forma de correo, de teléfono chileno o de RUT (el RUT,
     decisión de Jorge del 19-11), con 422 nota-con-contacto y un mensaje fijo que no repite el texto, sin guardar
     nada. El texto no va al log."""
@@ -221,13 +242,18 @@ def test_r5_la_nota_con_forma_de_correo_o_telefono_responde_422_y_no_se_guarda(d
     assert d.sql("SELECT count(*) FROM incidencia WHERE pedido_id = %s", uuid.UUID(pedido["id"])) == antes
     # La resolución, igual: la incidencia no cambia
     incidencia = _anotar(d, pedido, "Nota sintética sin datos de contacto")
-    r = d.operacion("PATCH", f"/incidencias/{incidencia['id']}", {"estado": "resuelta", "resolucion": texto},
-                    **{"If-Match": f'"i{incidencia["version"]}"'})
+    r = d.operacion(
+        "PATCH",
+        f"/incidencias/{incidencia['id']}",
+        {"estado": "resuelta", "resolucion": texto},
+        **{"If-Match": f'"i{incidencia["version"]}"'},
+    )
     assert r.status_code == 422, r.text
     assert r.json()["type"] == "/errores/nota-con-contacto" and texto not in r.text
     assert [e["campo"] for e in r.json()["errores"]] == ["resolucion"]
     assert d.sql("SELECT estado, version FROM incidencia WHERE id = %s", uuid.UUID(incidencia["id"])) == [
-        ("abierta", 1)]
+        ("abierta", 1)
+    ]
     assert texto not in d.e.iam.texto_log()
 
 
@@ -236,6 +262,7 @@ def test_r5_montos_fechas_y_cantidades_si_se_anotan(despacho: Despacho) -> None:
     serie y cantidades."""
     d = despacho
     _, pedido = d.pagado()
-    nota = ("Faltaron 2 de 10 unidades el 19-11-2026; se devolvieron $69.000 del pedido 4790 a las 14:30; serie"
-            " SN-20931-7")
+    nota = (
+        "Faltaron 2 de 10 unidades el 19-11-2026; se devolvieron $69.000 del pedido 4790 a las 14:30; serie SN-20931-7"
+    )
     assert _anotar(d, pedido, nota)["descripcion"] == nota

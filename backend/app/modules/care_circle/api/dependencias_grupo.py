@@ -47,9 +47,7 @@ def actor_admin(actor: Annotated[Actor, Depends(actor_del_grupo)]) -> Actor:
     return actor
 
 
-def puertos_del_grupo(
-    contexto: ContextoDelGrupo, reloj: Annotated[Reloj, Depends(obtener_reloj)]
-) -> Puertos:
+def puertos_del_grupo(contexto: ContextoDelGrupo, reloj: Annotated[Reloj, Depends(obtener_reloj)]) -> Puertos:
     return _puertos(contexto, reloj)
 
 

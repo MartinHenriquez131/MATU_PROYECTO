@@ -29,7 +29,14 @@ pytestmark = [pytest.mark.rf("RF-20"), pytest.mark.rf("RF-25"), requiere_base]
 TOTAL = 2 * PRECIO_PANAL + COSTO_ENVIO
 # MATU-113 (decisión 472): suma entregado_en, y el estado es el real de familia
 CAMPOS_OBSERVADOR = {
-    "vista", "pedido_id", "pagado_en", "estado", "entregado_en", "productos", "resumen_productos", "productos_borrados",
+    "vista",
+    "pedido_id",
+    "pagado_en",
+    "estado",
+    "entregado_en",
+    "productos",
+    "resumen_productos",
+    "productos_borrados",
 }
 
 
@@ -187,9 +194,25 @@ def test_c6_el_observador_recibe_404_al_pedir_el_retracto(despacho: Despacho) ->
 
 # MATU-116 (C5): la fila de quien pagó y se informa es la de quien paga, con puede_cancelar siempre en false
 CAMPOS_PAGASTE = {
-    "vista", "pedido_id", "referencia", "pagado_en", "estado", "entregado_en", "cancelado_en", "productos",
-    "resumen_productos", "productos_borrados", "total", "devuelto", "devuelto_todo", "puede_cancelar",
-    "cancelar_motivo", "puede_arrepentirse", "arrepentirse_motivo", "plazo_hasta", "plazo_correo_hasta",
+    "vista",
+    "pedido_id",
+    "referencia",
+    "pagado_en",
+    "estado",
+    "entregado_en",
+    "cancelado_en",
+    "productos",
+    "resumen_productos",
+    "productos_borrados",
+    "total",
+    "devuelto",
+    "devuelto_todo",
+    "puede_cancelar",
+    "cancelar_motivo",
+    "puede_arrepentirse",
+    "arrepentirse_motivo",
+    "plazo_hasta",
+    "plazo_correo_hasta",
 }
 
 
@@ -203,8 +226,9 @@ def test_c5_quien_pago_y_paso_a_se_informa_ve_ese_pedido_y_se_arrepiente_y_los_d
     d = despacho
     familia, pedido = _pagado_por_el_pagador(d)
     pagador = _rol(d, familia, "pagador")
-    d.sql("UPDATE membresia SET rol = 'observador' WHERE usuario_id = %s AND grupo_id = %s", pagador.id,
-          familia.grupo.id)
+    d.sql(
+        "UPDATE membresia SET rol = 'observador' WHERE usuario_id = %s AND grupo_id = %s", pagador.id, familia.grupo.id
+    )
     # Pagado y sin preparar: el admin podría cancelar, quien se informa nunca (false, con el motivo rol)
     [fila] = _lista(d, familia, pagador).json()["items"]
     assert (fila["vista"], fila["puede_cancelar"], fila["cancelar_motivo"]) == ("pagaste", False, "rol")
@@ -236,8 +260,13 @@ def test_c5_quien_pago_y_paso_a_se_informa_ve_ese_pedido_y_se_arrepiente_y_los_d
     assert (cuerpo_detalle["puede_cancelar"], cuerpo_detalle["cancelar_motivo"]) == (False, "ya_se_prepara")
     assert (cuerpo_detalle["total"], cuerpo_detalle["puede_arrepentirse"]) == (TOTAL, True)
     # Sin la entrega (dirección y teléfono) ni las notas del equipo
-    assert not claves_a_cualquier_profundidad(cuerpo_detalle) & {"entrega", "calle", "telefono_contacto",
-                                                                  "lo_que_paso", "nota"}
+    assert not claves_a_cualquier_profundidad(cuerpo_detalle) & {
+        "entrega",
+        "calle",
+        "telefono_contacto",
+        "lo_que_paso",
+        "nota",
+    }
     _sin_nada_del_comercio(d, pedido, detalle.text)
     para_devolver = d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/retractos", pagador, familia)
     assert para_devolver.status_code == 200, para_devolver.text
@@ -262,8 +291,7 @@ def test_c5_quien_pago_y_paso_a_se_informa_ve_ese_pedido_y_se_arrepiente_y_los_d
     r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", pagador, familia, cuerpo)
     assert r.status_code == 201, r.text
     assert r.json()["es_tuyo"] is True
-    assert d.sql("SELECT solicitado_por FROM retracto WHERE pedido_id = %s", uuid.UUID(pedido["id"])) == [
-        (pagador.id,)]
+    assert d.sql("SELECT solicitado_por FROM retracto WHERE pedido_id = %s", uuid.UUID(pedido["id"])) == [(pagador.id,)]
 
     # Un observador que no pagó nada: solo filas de «Se informa», y 404 en el detalle
     observador = _rol(d, familia, "observador")
@@ -306,7 +334,11 @@ def test_el_retracto_ampliado_idempotente_y_c13_el_pago_con_retracto_devuelto(de
     otra_vez = d.e.pedir("POST", ruta, familia.admin, familia, cuerpo, **{"Idempotency-Key": clave})
     assert otra_vez.status_code == 201 and otra_vez.json()["id"] == retracto["id"]
     distinto = d.e.pedir(
-        "POST", ruta, familia.admin, familia, {"lineas": [{"linea_id": linea, "cantidad": 2}]},
+        "POST",
+        ruta,
+        familia.admin,
+        familia,
+        {"lineas": [{"linea_id": linea, "cantidad": 2}]},
         **{"Idempotency-Key": clave},
     )
     assert distinto.status_code == 422 and distinto.json()["type"] == "/errores/idempotencia-reutilizada"
@@ -369,11 +401,15 @@ def test_lo_vencido_no_aparece(despacho: Despacho) -> None:
     """D-92-2 y C27: 2 años desde el cierre. El cancelado vence; el que sigue en curso, no."""
     d = despacho
     familia, cancelado = d.pagado()
-    assert d.post_familia(f"/v1/pedidos/{cancelado['id']}/cancelar-con-devolucion", familia.admin,
-                          familia).status_code == 200
+    assert (
+        d.post_familia(f"/v1/pedidos/{cancelado['id']}/cancelar-con-devolucion", familia.admin, familia).status_code
+        == 200
+    )
     en_curso = _otro_pagado(d, familia)
     assert {x["pedido_id"] for x in _lista(d, familia, familia.admin).json()["items"]} == {
-        cancelado["id"], en_curso["id"]}
+        cancelado["id"],
+        en_curso["id"],
+    }
 
     d.e.avanzar(timedelta(days=2 * 366))
     for usuario in (familia.admin, _rol(d, familia, "observador")):
@@ -426,8 +462,9 @@ def test_c4_quien_salio_del_grupo_no_ve_sus_pedidos(despacho: Despacho) -> None:
     for ruta in rutas:
         assert d.e.pedir("GET", ruta, pagador, familia).status_code == 200, ruta
 
-    d.sql("UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s", pagador.id,
-          familia.grupo.id)
+    d.sql(
+        "UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s", pagador.id, familia.grupo.id
+    )
     for ruta in rutas:
         r = d.e.pedir("GET", ruta, pagador, familia)
         assert r.status_code == 404, (ruta, r.text)
@@ -455,8 +492,9 @@ def test_c8_dos_retractos_a_la_vez_no_piden_mas_de_lo_entregado(despacho: Despac
 
     respuestas: list[Any] = []
     with psycopg.connect(DSN) as cx:
-        cx.execute("SELECT pg_advisory_xact_lock(hashtextextended('retracto:' || CAST(%s AS text), 0))",
-                   (str(pedido_id),))
+        cx.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended('retracto:' || CAST(%s AS text), 0))", (str(pedido_id),)
+        )
         retracto = uuid.uuid4()
         cx.execute(
             "INSERT INTO retracto (id, grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta, incluye_envio)"
@@ -469,21 +507,32 @@ def test_c8_dos_retractos_a_la_vez_no_piden_mas_de_lo_entregado(despacho: Despac
         )
         pid = cx.info.backend_pid
         d.e.token(pagador)  # el login antes del hilo
-        hilo = threading.Thread(target=lambda: respuestas.append(d.post_familia(
-            f"/v1/pedidos/{pedido['id']}/retractos", pagador, familia,
-            {"lineas": [{"linea_id": linea, "cantidad": 1}]})))
+        hilo = threading.Thread(
+            target=lambda: respuestas.append(
+                d.post_familia(
+                    f"/v1/pedidos/{pedido['id']}/retractos",
+                    pagador,
+                    familia,
+                    {"lineas": [{"linea_id": linea, "cantidad": 1}]},
+                )
+            )
+        )
         hilo.start()
         esperar_bloqueada_por(pid, hilo)
         cx.commit()
     hilo.join(timeout=30)
     [r] = respuestas
     assert r.status_code == 422 and r.json()["type"] == "/errores/producto-no-retractable", r.text
-    assert d.sql("SELECT sum(rl.cantidad) FROM retracto_linea rl JOIN retracto r ON r.id = rl.retracto_id"
-                 " WHERE r.pedido_id = %s", pedido_id) == [(2,)]
+    assert d.sql(
+        "SELECT sum(rl.cantidad) FROM retracto_linea rl JOIN retracto r ON r.id = rl.retracto_id"
+        " WHERE r.pedido_id = %s",
+        pedido_id,
+    ) == [(2,)]
     # Sin la carrera, quien pagó sí puede: el bloqueo no es solo de admin y cuidador
     d.sql("DELETE FROM retracto WHERE id = %s", retracto)
-    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", pagador, familia,
-                       {"lineas": [{"linea_id": linea, "cantidad": 1}]})
+    r = d.post_familia(
+        f"/v1/pedidos/{pedido['id']}/retractos", pagador, familia, {"lineas": [{"linea_id": linea, "cantidad": 1}]}
+    )
     assert r.status_code == 201, r.text
     assert r.json()["es_tuyo"] is True
 
@@ -540,4 +589,7 @@ def test_matu113_el_observador_ve_en_su_fila_el_pedido_en_camino_y_entregado_sin
     # Quien ve el pago ve lo mismo, con sus montos
     [completa] = _lista(d, familia, familia.admin).json()["items"]
     assert (completa["estado"], completa["entregado_en"], completa["total"]) == (
-        "entregado", fila["entregado_en"], TOTAL)
+        "entregado",
+        fila["entregado_en"],
+        TOTAL,
+    )

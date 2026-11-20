@@ -30,15 +30,20 @@ def test_quien_entra_con_una_invitacion_completa_la_ficha_con_su_cuenta(entorno_
     cliente = entorno_ficha.iam.cliente
     familia = entorno_ficha.familia()
     grupo = familia.grupo.id
-    creada = cliente.post(f"/v1/grupos/{grupo}/invitaciones", json={"rol": "cuidador"},
-                          headers=entorno_ficha._cabeceras(familia.admin, grupo))
+    creada = cliente.post(
+        f"/v1/grupos/{grupo}/invitaciones",
+        json={"rol": "cuidador"},
+        headers=entorno_ficha._cabeceras(familia.admin, grupo),
+    )
     assert creada.status_code == 201, creada.text
     coincide = URL.match(creada.json()["url"])
     assert coincide
     rosa = entorno_ficha.fabrica.usuario(nombre="Rosa Pérez")
-    union = cliente.post("/v1/invitaciones/aceptacion",
-                         json={"token": coincide.group(1), "codigo": creada.json()["codigo"]},
-                         headers=entorno_ficha._cabeceras(rosa, None))
+    union = cliente.post(
+        "/v1/invitaciones/aceptacion",
+        json={"token": coincide.group(1), "codigo": creada.json()["codigo"]},
+        headers=entorno_ficha._cabeceras(rosa, None),
+    )
     assert union.status_code == 201, union.text
 
     # Rosa escribe «Su día» con la ruta que ya existe
@@ -52,7 +57,10 @@ def test_quien_entra_con_una_invitacion_completa_la_ficha_con_su_cuenta(entorno_
     ficha = entorno_ficha.leer(familia.admin, grupo, familia.persona.id)
     assert ficha.status_code == 200
     assert ficha.json()["campos"]["rutina"]["actualizado_por"] == {
-        "id": str(rosa.id), "nombre": rosa.nombre, "autor_activo": True}
+        "id": str(rosa.id),
+        "nombre": rosa.nombre,
+        "autor_activo": True,
+    }
 
     # Rosa sale: queda como alguien que ya no está, con su id y sin nombre (decisión 309)
     salida = cliente.post(f"/v1/grupos/{grupo}/salida", headers=entorno_ficha._cabeceras(rosa, grupo))

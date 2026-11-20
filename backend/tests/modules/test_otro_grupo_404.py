@@ -63,69 +63,71 @@ PROBLEMA = "application/problem+json"
 
 # Las rutas con un recurso de un grupo familiar: se piden desde otro grupo y responden 404. La clave es
 # (método, plantilla de la ruta)
-RECURSO_DE_GRUPO: frozenset[tuple[str, str]] = frozenset({
-    # care_circle: el grupo, sus personas, invitaciones y miembros
-    ("POST", "/v1/grupos/{grupo_id}/personas-cuidadas"),
-    ("GET", "/v1/grupos/{grupo_id}/personas-cuidadas"),
-    ("POST", "/v1/grupos/{grupo_id}/invitaciones"),
-    ("GET", "/v1/grupos/{grupo_id}/invitaciones"),
-    ("DELETE", "/v1/grupos/{grupo_id}/invitaciones/{invitacion_id}"),
-    ("GET", "/v1/grupos/{grupo_id}/miembros"),
-    ("PATCH", "/v1/grupos/{grupo_id}/miembros/{membresia_id}"),
-    ("DELETE", "/v1/grupos/{grupo_id}/miembros/{membresia_id}"),
-    ("POST", "/v1/grupos/{grupo_id}/salida"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/consentimientos"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/consentimientos"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/consentimientos/{finalidad}/retiro"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/borrado"),
-    ("PUT", "/v1/personas-cuidadas/{persona_id}/direccion"),
-    ("DELETE", "/v1/personas-cuidadas/{persona_id}/direccion"),
-    # care_plan: la ficha, sus secciones, el relevo, las aperturas y la copia de los datos
-    ("GET", "/v1/personas-cuidadas/{persona_id}/plan/ficha"),
-    ("PUT", "/v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}"),
-    ("PUT", "/v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}"),
-    ("DELETE", "/v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo"),
-    ("DELETE", "/v1/accesos-relevo/{acceso_id}"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/plan/aperturas"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/datos"),
-    # consumption: los insumos, las alertas, la lista y la reposición
-    ("GET", "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/consumo/alertas"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/consumo/lista"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/consumo"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/consumo"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}"),
-    ("PATCH", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}"),
-    ("DELETE", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/reponer"),
-    ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/recontar"),
-    # ordering, payments y backoffice (familia): el pedido de la persona, antes y después de pagar
-    ("POST", "/v1/personas-cuidadas/{persona_id}/pedidos"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/pedido-en-curso"),
-    ("GET", "/v1/pedidos/{pedido_id}"),
-    ("PUT", "/v1/pedidos/{pedido_id}/lineas"),
-    ("PUT", "/v1/pedidos/{pedido_id}/reglas-faltante"),
-    ("POST", "/v1/pedidos/{pedido_id}/confirmar"),
-    ("PUT", "/v1/pedidos/{pedido_id}/contacto"),
-    ("POST", "/v1/pedidos/{pedido_id}/cambiar"),
-    ("POST", "/v1/pedidos/{pedido_id}/cancelar"),
-    ("POST", "/v1/pedidos/{pedido_id}/pagar"),
-    ("GET", "/v1/pedidos/{pedido_id}/pago"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/pedido-pagado"),
-    ("GET", "/v1/personas-cuidadas/{persona_id}/pedidos"),
-    ("GET", "/v1/pedidos/{pedido_id}/seguimiento"),
-    ("POST", "/v1/pedidos/{pedido_id}/cancelar-con-devolucion"),
-    ("GET", "/v1/pedidos/{pedido_id}/retractos"),
-    ("POST", "/v1/pedidos/{pedido_id}/retractos"),
-    # MATU-128: «Lo que pasó con tu pedido», para quien lo pagó (el admin de A pagó el pedido sembrado)
-    ("GET", "/v1/pedidos/{pedido_id}/lo-que-paso"),
-})
+RECURSO_DE_GRUPO: frozenset[tuple[str, str]] = frozenset(
+    {
+        # care_circle: el grupo, sus personas, invitaciones y miembros
+        ("POST", "/v1/grupos/{grupo_id}/personas-cuidadas"),
+        ("GET", "/v1/grupos/{grupo_id}/personas-cuidadas"),
+        ("POST", "/v1/grupos/{grupo_id}/invitaciones"),
+        ("GET", "/v1/grupos/{grupo_id}/invitaciones"),
+        ("DELETE", "/v1/grupos/{grupo_id}/invitaciones/{invitacion_id}"),
+        ("GET", "/v1/grupos/{grupo_id}/miembros"),
+        ("PATCH", "/v1/grupos/{grupo_id}/miembros/{membresia_id}"),
+        ("DELETE", "/v1/grupos/{grupo_id}/miembros/{membresia_id}"),
+        ("POST", "/v1/grupos/{grupo_id}/salida"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/consentimientos"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/consentimientos"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/consentimientos/{finalidad}/retiro"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/borrado"),
+        ("PUT", "/v1/personas-cuidadas/{persona_id}/direccion"),
+        ("DELETE", "/v1/personas-cuidadas/{persona_id}/direccion"),
+        # care_plan: la ficha, sus secciones, el relevo, las aperturas y la copia de los datos
+        ("GET", "/v1/personas-cuidadas/{persona_id}/plan/ficha"),
+        ("PUT", "/v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}"),
+        ("PUT", "/v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}"),
+        ("DELETE", "/v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo"),
+        ("DELETE", "/v1/accesos-relevo/{acceso_id}"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/plan/aperturas"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/datos"),
+        # consumption: los insumos, las alertas, la lista y la reposición
+        ("GET", "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/consumo/alertas"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/consumo/lista"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/consumo"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/consumo"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}"),
+        ("PATCH", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}"),
+        ("DELETE", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/reponer"),
+        ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/recontar"),
+        # ordering, payments y backoffice (familia): el pedido de la persona, antes y después de pagar
+        ("POST", "/v1/personas-cuidadas/{persona_id}/pedidos"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/pedido-en-curso"),
+        ("GET", "/v1/pedidos/{pedido_id}"),
+        ("PUT", "/v1/pedidos/{pedido_id}/lineas"),
+        ("PUT", "/v1/pedidos/{pedido_id}/reglas-faltante"),
+        ("POST", "/v1/pedidos/{pedido_id}/confirmar"),
+        ("PUT", "/v1/pedidos/{pedido_id}/contacto"),
+        ("POST", "/v1/pedidos/{pedido_id}/cambiar"),
+        ("POST", "/v1/pedidos/{pedido_id}/cancelar"),
+        ("POST", "/v1/pedidos/{pedido_id}/pagar"),
+        ("GET", "/v1/pedidos/{pedido_id}/pago"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/pedido-pagado"),
+        ("GET", "/v1/personas-cuidadas/{persona_id}/pedidos"),
+        ("GET", "/v1/pedidos/{pedido_id}/seguimiento"),
+        ("POST", "/v1/pedidos/{pedido_id}/cancelar-con-devolucion"),
+        ("GET", "/v1/pedidos/{pedido_id}/retractos"),
+        ("POST", "/v1/pedidos/{pedido_id}/retractos"),
+        # MATU-128: «Lo que pasó con tu pedido», para quien lo pagó (el admin de A pagó el pedido sembrado)
+        ("GET", "/v1/pedidos/{pedido_id}/lo-que-paso"),
+    }
+)
 
 # Por qué la vista del comercio y la consola de operación no son de un grupo, y dónde se prueba su aislamiento
 COMERCIO = (
@@ -175,13 +177,15 @@ EXCEPCIONES: dict[tuple[str, str], str] = {
 }
 
 # Las rutas que solo existen para un pedido pagado: se piden con el pedido pagado de A, no con el carrito
-DEL_PEDIDO_PAGADO: frozenset[str] = frozenset({
-    "/v1/pedidos/{pedido_id}/pago",
-    "/v1/pedidos/{pedido_id}/seguimiento",
-    "/v1/pedidos/{pedido_id}/cancelar-con-devolucion",
-    "/v1/pedidos/{pedido_id}/retractos",
-    "/v1/pedidos/{pedido_id}/lo-que-paso",
-})
+DEL_PEDIDO_PAGADO: frozenset[str] = frozenset(
+    {
+        "/v1/pedidos/{pedido_id}/pago",
+        "/v1/pedidos/{pedido_id}/seguimiento",
+        "/v1/pedidos/{pedido_id}/cancelar-con-devolucion",
+        "/v1/pedidos/{pedido_id}/retractos",
+        "/v1/pedidos/{pedido_id}/lo-que-paso",
+    }
+)
 
 PARAMETRO = re.compile(r"\{([a-z_]+)\}")
 METODOS_DE_LECTURA = frozenset({"GET"})
@@ -287,21 +291,20 @@ EXISTE: dict[str, str] = {
     "grupo_id": "SELECT 1 FROM grupo_familiar WHERE id = %(valor)s AND id = %(grupo)s",
     "persona_id": "SELECT 1 FROM persona_cuidada WHERE id = %(valor)s AND grupo_id = %(grupo)s",
     "pedido_id": "SELECT 1 FROM pedido WHERE id = %(valor)s AND grupo_id = %(grupo)s AND pagado_en IS NULL",
-    "pedido_pagado_id": "SELECT 1 FROM pedido WHERE id = %(valor)s AND grupo_id = %(grupo)s"
-                        " AND pagado_en IS NOT NULL",
+    "pedido_pagado_id": "SELECT 1 FROM pedido WHERE id = %(valor)s AND grupo_id = %(grupo)s AND pagado_en IS NOT NULL",
     "perfil_id": "SELECT 1 FROM perfil_consumo WHERE id = %(valor)s AND grupo_id = %(grupo)s",
     "alerta_id": "SELECT 1 FROM alerta_quiebre a JOIN perfil_consumo p ON p.id = a.perfil_id"
-                 " WHERE a.id = %(valor)s AND p.grupo_id = %(grupo)s AND a.estado = 'pendiente'",
+    " WHERE a.id = %(valor)s AND p.grupo_id = %(grupo)s AND a.estado = 'pendiente'",
     "membresia_id": "SELECT 1 FROM membresia WHERE id = %(valor)s AND grupo_id = %(grupo)s AND estado = 'activa'",
     "invitacion_id": "SELECT 1 FROM invitacion WHERE id = %(valor)s AND grupo_id = %(grupo)s"
-                     " AND aceptada_en IS NULL AND revocada_en IS NULL",
+    " AND aceptada_en IS NULL AND revocada_en IS NULL",
     "acceso_id": "SELECT 1 FROM acceso_relevo WHERE id = %(valor)s AND grupo_id = %(grupo)s AND revocado_en IS NULL",
     # Los que no son ids: la ficha de A existe para el campo y la sección, y su autorización de esa finalidad sigue
     # vigente
     "campo": "SELECT 1 FROM plan_cuidado WHERE grupo_id = %(grupo)s AND %(valor)s = 'rutina'",
     "seccion": "SELECT 1 FROM plan_cuidado WHERE grupo_id = %(grupo)s AND %(valor)s = 'alimentacion'",
     "finalidad": "SELECT 1 FROM consentimiento WHERE grupo_id = %(grupo)s AND finalidad = %(valor)s"
-                 " AND revocado_en IS NULL",
+    " AND revocado_en IS NULL",
 }
 
 
@@ -334,10 +337,17 @@ SELECT c.table_name FROM information_schema.columns c
 _MIEMBROS_DE_A = "SELECT usuario_id FROM membresia WHERE grupo_id = %(g)s"
 _DE_LAS_CUENTAS: dict[str, str] = {
     "usuario": f"id IN ({_MIEMBROS_DE_A})",
-    **{tabla: f"usuario_id IN ({_MIEMBROS_DE_A})" for tabla in (
-        "medio_pago_inscrito", "dispositivo", "sesion_refresh", "aceptacion_politica", "preferencia_notificacion",
-        "indice_credencial",
-    )},
+    **{
+        tabla: f"usuario_id IN ({_MIEMBROS_DE_A})"
+        for tabla in (
+            "medio_pago_inscrito",
+            "dispositivo",
+            "sesion_refresh",
+            "aceptacion_politica",
+            "preferencia_notificacion",
+            "indice_credencial",
+        )
+    },
     # Sin llave foránea (es infraestructura del outbox), pero cada fila es de un evento: las de los eventos de A
     "evento_consumido": "evento_id IN (SELECT id FROM evento_outbox WHERE grupo_id = %(g)s)",
 }
@@ -362,8 +372,11 @@ def _alcance_del_grupo(cx: psycopg.Connection[Any]) -> dict[str, str]:
     def filtro(tabla: str, camino: frozenset[str]) -> str:
         if tabla in base:
             return base[tabla]
-        partes = [f"{columna} IN (SELECT id FROM {madre} WHERE {filtro(madre, camino | {tabla})})"
-                  for columna, madre in llaves[tabla] if madre in alcanzadas and madre not in camino]
+        partes = [
+            f"{columna} IN (SELECT id FROM {madre} WHERE {filtro(madre, camino | {tabla})})"
+            for columna, madre in llaves[tabla]
+            if madre in alcanzadas and madre not in camino
+        ]
         return "(" + " OR ".join(partes) + ")" if partes else "false"
 
     return {tabla: filtro(tabla, frozenset()) for tabla in sorted(alcanzadas)}
@@ -390,8 +403,14 @@ def _sembrar_a(e: EntornoPedido, pasarela: PasarelaFalsa) -> FamiliaSembrada:
     assert primero.status_code == 201, primero.text
     confirmado = e.confirmar(familia, primero.json()["id"])
     assert confirmado.status_code == 200, confirmado.text
-    pago = e.pedir("POST", f"/v1/pedidos/{primero.json()['id']}/pagar", familia.admin, familia, cuerpo_pagar(),
-                   **{"Idempotency-Key": e.clave(), "If-Match": confirmado.json()["etag"]})
+    pago = e.pedir(
+        "POST",
+        f"/v1/pedidos/{primero.json()['id']}/pagar",
+        familia.admin,
+        familia,
+        cuerpo_pagar(),
+        **{"Idempotency-Key": e.clave(), "If-Match": confirmado.json()["etag"]},
+    )
     assert pago.status_code == 201, pago.text
     pasarela.pagar(pago.json()["token"])
     vuelta = e.iam.cliente.post("/v1/pagos/retorno", json={"token_ws": pago.json()["token"]})
@@ -400,8 +419,10 @@ def _sembrar_a(e: EntornoPedido, pasarela: PasarelaFalsa) -> FamiliaSembrada:
     # tests/modules/backoffice/: aquí se marca como superusuario sin triggers, como la semilla de test_aislamiento
     with psycopg.connect(DSN) as cx:
         cx.execute("SET LOCAL session_replication_role = replica")
-        cx.execute("UPDATE pedido SET estado = 'entregado', entregado_en = %s WHERE id = %s",
-                   (e.iam.reloj.ahora(), primero.json()["id"]))
+        cx.execute(
+            "UPDATE pedido SET estado = 'entregado', entregado_en = %s WHERE id = %s",
+            (e.iam.reloj.ahora(), primero.json()["id"]),
+        )
     # Una incidencia de operación sobre el pedido pagado (MATU-81), creada por la consola con el segundo factor: así la
     # huella de A también mira incidencia y clave_notas con filas, y la copia de los datos de A la descifra
     operador = e.fabrica.usuario()
@@ -427,55 +448,76 @@ def _sembrar_a(e: EntornoPedido, pasarela: PasarelaFalsa) -> FamiliaSembrada:
         "INSERT INTO alerta_quiebre (perfil_id, fecha_prevista) VALUES (%s, current_date + 3) RETURNING id", perfil_id
     )
 
-    invitacion = e.pedir("POST", f"/v1/grupos/{familia.grupo.id}/invitaciones", familia.admin, familia,
-                         {"rol": "cuidador"})
+    invitacion = e.pedir(
+        "POST", f"/v1/grupos/{familia.grupo.id}/invitaciones", familia.admin, familia, {"rol": "cuidador"}
+    )
     assert invitacion.status_code == 201, invitacion.text
 
     acceso = e.pedir(
-        "POST", f"/v1/personas-cuidadas/{familia.persona.id}/plan/accesos-relevo", familia.admin, familia,
-        {"nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "turno_de_noche",
-         "relevo_informado": True},
+        "POST",
+        f"/v1/personas-cuidadas/{familia.persona.id}/plan/accesos-relevo",
+        familia.admin,
+        familia,
+        {
+            "nombre_relevo": "Rosa",
+            "telefono_relevo": "+56 9 5555 0137",
+            "motivo": "turno_de_noche",
+            "relevo_informado": True,
+        },
     )
     assert acceso.status_code == 201, acceso.text
 
-    return FamiliaSembrada(familia=familia, valores={
-        "grupo_id": str(familia.grupo.id),
-        "persona_id": str(familia.persona.id),
-        "pedido_id": str(pedido_id),
-        "pedido_pagado_id": str(primero.json()["id"]),
-        "perfil_id": str(perfil_id),
-        "alerta_id": str(alerta_id),
-        "membresia_id": str(familia.miembros["observador"].membresia.id),
-        "invitacion_id": str(invitacion.json()["id"]),
-        "acceso_id": str(acceso.json()["id"]),
-        "campo": "rutina",
-        "seccion": "alimentacion",
-        "finalidad": "plan_cuidado",
-    })
+    return FamiliaSembrada(
+        familia=familia,
+        valores={
+            "grupo_id": str(familia.grupo.id),
+            "persona_id": str(familia.persona.id),
+            "pedido_id": str(pedido_id),
+            "pedido_pagado_id": str(primero.json()["id"]),
+            "perfil_id": str(perfil_id),
+            "alerta_id": str(alerta_id),
+            "membresia_id": str(familia.miembros["observador"].membresia.id),
+            "invitacion_id": str(invitacion.json()["id"]),
+            "acceso_id": str(acceso.json()["id"]),
+            "campo": "rutina",
+            "seccion": "alimentacion",
+            "finalidad": "plan_cuidado",
+        },
+    )
 
 
 # Cuerpos válidos para cada escritura: el 404 no puede ser la sombra de un 422. Los que dependen de A son funciones
 CUERPOS: dict[tuple[str, str], Any] = {
     ("POST", "/v1/grupos/{grupo_id}/personas-cuidadas"): {
-        "nombre": "Persona Sintética", "nombre_pila": "Persona", "nivel_apoyo": "apoyo_parcial",
+        "nombre": "Persona Sintética",
+        "nombre_pila": "Persona",
+        "nivel_apoyo": "apoyo_parcial",
         "calidad_otorgante": "titular",
     },
     ("POST", "/v1/grupos/{grupo_id}/invitaciones"): {"rol": "cuidador"},
     ("PATCH", "/v1/grupos/{grupo_id}/miembros/{membresia_id}"): {"rol": "cuidador"},
     ("POST", "/v1/personas-cuidadas/{persona_id}/consentimientos"): {
-        "finalidad": "consumo", "calidad_otorgante": "titular",
+        "finalidad": "consumo",
+        "calidad_otorgante": "titular",
     },
     ("PUT", "/v1/personas-cuidadas/{persona_id}/direccion"): {
-        "calle": "Calle de Prueba", "numero": "123", "comuna": "Comuna Sintética",
+        "calle": "Calle de Prueba",
+        "numero": "123",
+        "comuna": "Comuna Sintética",
     },
     ("PUT", "/v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}"): {"texto": "Texto sintético"},
     ("PUT", "/v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}"): {"texto": "Texto sintético"},
     ("POST", "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo"): {
-        "nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "turno_de_noche",
+        "nombre_relevo": "Rosa",
+        "telefono_relevo": "+56 9 5555 0137",
+        "motivo": "turno_de_noche",
         "relevo_informado": True,
     },
     ("POST", "/v1/personas-cuidadas/{persona_id}/consumo"): {
-        "nombre_libre": "Insumo sintético", "unidad": "unidad", "tasa_unidades": 1, "tasa_dias": 1,
+        "nombre_libre": "Insumo sintético",
+        "unidad": "unidad",
+        "tasa_unidades": 1,
+        "tasa_dias": 1,
         "stock_unidades": 10,
     },
     ("PATCH", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}"): {"stock_unidades": 5},
@@ -483,16 +525,21 @@ CUERPOS: dict[tuple[str, str], Any] = {
     ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/recontar"): {"stock_unidades": 5},
     ("POST", "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver"): {"cantidad": 5},
     ("POST", "/v1/personas-cuidadas/{persona_id}/pedidos"): lambda e: {
-        "lineas": [{"oferta_id": e.pedido.oferta("panal", "uno"), "cantidad": 1}]},
+        "lineas": [{"oferta_id": e.pedido.oferta("panal", "uno"), "cantidad": 1}]
+    },
     ("PUT", "/v1/pedidos/{pedido_id}/lineas"): lambda e: {
-        "lineas": [{"oferta_id": e.pedido.oferta("panal", "uno"), "cantidad": 2}]},
+        "lineas": [{"oferta_id": e.pedido.oferta("panal", "uno"), "cantidad": 2}]
+    },
     ("PUT", "/v1/pedidos/{pedido_id}/reglas-faltante"): {"reglas": []},
     ("POST", "/v1/pedidos/{pedido_id}/confirmar"): {"telefono_contacto": "+56 9 5555 0177"},
     ("PUT", "/v1/pedidos/{pedido_id}/contacto"): {"telefono_contacto": "+56 9 5555 0177"},
     ("POST", "/v1/pedidos/{pedido_id}/pagar"): {
-        "acepta_condiciones": True, "condiciones": {"version": "0.3", "huella": "a" * 64}},
+        "acepta_condiciones": True,
+        "condiciones": {"version": "0.3", "huella": "a" * 64},
+    },
     ("POST", "/v1/pedidos/{pedido_id}/retractos"): lambda e: {
-        "lineas": [{"linea_id": str(uuid.uuid4()), "cantidad": 1}]},
+        "lineas": [{"linea_id": str(uuid.uuid4()), "cantidad": 1}]
+    },
 }
 
 

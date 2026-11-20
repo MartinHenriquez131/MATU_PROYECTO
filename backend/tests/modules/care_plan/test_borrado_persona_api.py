@@ -58,8 +58,13 @@ def _cuidador(familia: FamiliaCreada) -> UsuarioCreado:
     return familia.miembros["cuidador"].usuario
 
 
-def _borrar(entorno: EntornoAbrir, familia: FamiliaCreada, usuario: UsuarioCreado | None = None,
-            persona: Any = None, cabeceras: dict[str, str] | None = None) -> Any:
+def _borrar(
+    entorno: EntornoAbrir,
+    familia: FamiliaCreada,
+    usuario: UsuarioCreado | None = None,
+    persona: Any = None,
+    cabeceras: dict[str, str] | None = None,
+) -> Any:
     if cabeceras is None:
         cabeceras = _cab(entorno, usuario or familia.admin, familia)
     return entorno.ficha.iam.cliente.post(BORRADO.format(persona or familia.persona.id), headers=cabeceras)
@@ -70,14 +75,19 @@ def _completa(entorno: EntornoAbrir) -> FamiliaCreada:
     consumo, un insumo con una alerta y una compra."""
     familia = entorno.familia_con_ficha()
     seccion = entorno.ficha.iam.cliente.put(
-        PERSONA.format(familia.persona.id) + "/plan/secciones/preferencias", json={"texto": PREFERENCIAS},
-        headers={**_cab(entorno, familia.admin, familia), "If-None-Match": "*"})
+        PERSONA.format(familia.persona.id) + "/plan/secciones/preferencias",
+        json={"texto": PREFERENCIAS},
+        headers={**_cab(entorno, familia.admin, familia), "If-None-Match": "*"},
+    )
     assert seccion.status_code == 201, seccion.text
     entorno.ficha.fabrica.autorizacion_consumo(familia.persona, otorgante=familia.admin)
     perfil = entorno.ficha.fabrica.perfil_consumo(familia.persona)
     _ejecutar("INSERT INTO alerta_quiebre (perfil_id, fecha_prevista) VALUES (%s, current_date + 6)", perfil)
-    _ejecutar("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en) VALUES (%s, 5, 'declarada',"
-              " current_date)", perfil)
+    _ejecutar(
+        "INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en) VALUES (%s, 5, 'declarada',"
+        " current_date)",
+        perfil,
+    )
     return familia
 
 
@@ -85,13 +95,19 @@ def _acciones(grupo: uuid.UUID, accion: str | None = None) -> list[tuple[Any, ..
     filtro = "" if accion is None else " AND accion = %s"
     parametros: tuple[Any, ...] = (grupo,) if accion is None else (grupo, accion)
     # MATU-55 (decisión 266): la columna ip ya no existe; to_jsonb(a) ? 'ip' lo verifica
-    return _todas("SELECT accion, actor_tipo, actor_ref, entidad, entidad_id, request_id, detalle, ocurrido_en,"
-                  f" to_jsonb(a) ? 'ip' FROM auditoria a WHERE grupo_id = %s{filtro} ORDER BY id", *parametros)
+    return _todas(
+        "SELECT accion, actor_tipo, actor_ref, entidad, entidad_id, request_id, detalle, ocurrido_en,"
+        f" to_jsonb(a) ? 'ip' FROM auditoria a WHERE grupo_id = %s{filtro} ORDER BY id",
+        *parametros,
+    )
 
 
 def _persona(familia: FamiliaCreada) -> tuple[Any, ...]:
-    fila = _una("SELECT nombre, nombre_pila, nivel_apoyo, direccion_entrega_id, eliminado_en, datos_borrados_en, activa"
-                " FROM persona_cuidada WHERE id = %s", familia.persona.id)
+    fila = _una(
+        "SELECT nombre, nombre_pila, nivel_apoyo, direccion_entrega_id, eliminado_en, datos_borrados_en, activa"
+        " FROM persona_cuidada WHERE id = %s",
+        familia.persona.id,
+    )
     assert fila is not None
     return fila
 
@@ -103,8 +119,10 @@ def _contar(sql: str, *parametros: Any) -> int:
 
 
 def _secciones(familia: FamiliaCreada) -> int:
-    return _contar("SELECT count(*) FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id"
-                   " WHERE p.persona_cuidada_id = %s", familia.persona.id)
+    return _contar(
+        "SELECT count(*) FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id WHERE p.persona_cuidada_id = %s",
+        familia.persona.id,
+    )
 
 
 def _perfiles(familia: FamiliaCreada) -> int:
@@ -112,18 +130,26 @@ def _perfiles(familia: FamiliaCreada) -> int:
 
 
 def _clave(familia: FamiliaCreada) -> list[tuple[Any, ...]]:
-    return _todas("SELECT id, dek_cifrada_con_kek IS NULL, destruida_en FROM clave_datos"
-                  " WHERE persona_cuidada_id = %s", familia.persona.id)
+    return _todas(
+        "SELECT id, dek_cifrada_con_kek IS NULL, destruida_en FROM clave_datos WHERE persona_cuidada_id = %s",
+        familia.persona.id,
+    )
 
 
 def _consentimientos(familia: FamiliaCreada) -> list[tuple[Any, ...]]:
-    return _todas("SELECT id, finalidad, revocado_en, revocacion_motivo FROM consentimiento"
-                  " WHERE persona_cuidada_id = %s ORDER BY finalidad", familia.persona.id)
+    return _todas(
+        "SELECT id, finalidad, revocado_en, revocacion_motivo FROM consentimiento"
+        " WHERE persona_cuidada_id = %s ORDER BY finalidad",
+        familia.persona.id,
+    )
 
 
 def _acceso(acceso_id: uuid.UUID) -> tuple[Any, ...]:
-    fila = _una("SELECT a.revocado_en, i.revocado_en, a.nombre_pila_persona FROM acceso_relevo a"
-                " JOIN indice_token i ON i.referencia_id = a.id WHERE a.id = %s", acceso_id)
+    fila = _una(
+        "SELECT a.revocado_en, i.revocado_en, a.nombre_pila_persona FROM acceso_relevo a"
+        " JOIN indice_token i ON i.referencia_id = a.id WHERE a.id = %s",
+        acceso_id,
+    )
     assert fila is not None
     return fila
 
@@ -148,15 +174,20 @@ def test_borrar_borra_todo_al_tiro_en_una_transaccion_y_un_instante(entorno: Ent
     bloqueado, _, _ = entorno.compartir(familia)
     vencido, _, _ = entorno.compartir(familia)
     _ejecutar("UPDATE acceso_relevo SET pin_intentos_fallidos = 5 WHERE id = %s", bloqueado)
-    _ejecutar("UPDATE acceso_relevo SET creado_en = now() - interval '3 days', expira_en = now() - interval '1 day'"
-              " WHERE id = %s", vencido)
+    _ejecutar(
+        "UPDATE acceso_relevo SET creado_en = now() - interval '3 days', expira_en = now() - interval '1 day'"
+        " WHERE id = %s",
+        vencido,
+    )
     direccion = familia.persona.direccion_id
     [(clave_id, _, _)] = _clave(familia)
     # La alerta y la compra anotada (`reposicion`) del insumo, por su perfil: la cascada de perfil_consumo las
     # borra (MATU-66, condición 2)
     perfiles = [f[0] for f in _todas("SELECT id FROM perfil_consumo WHERE persona_cuidada_id = %s", familia.persona.id)]
-    hijas = ("SELECT (SELECT count(*) FROM alerta_quiebre WHERE perfil_id = ANY(%s::uuid[])),"
-             " (SELECT count(*) FROM reposicion WHERE perfil_id = ANY(%s::uuid[]))")
+    hijas = (
+        "SELECT (SELECT count(*) FROM alerta_quiebre WHERE perfil_id = ANY(%s::uuid[])),"
+        " (SELECT count(*) FROM reposicion WHERE perfil_id = ANY(%s::uuid[]))"
+    )
     assert len(perfiles) == 1 and _una(hijas, perfiles, perfiles) == (1, 1)
     entorno.reloj.avanzar(timedelta(minutes=1))
     ahora = entorno.reloj.ahora()
@@ -172,7 +203,9 @@ def test_borrar_borra_todo_al_tiro_en_una_transaccion_y_un_instante(entorno: Ent
     assert (cuerpo["enlaces_cortados"], cuerpo["autorizaciones_retiradas"]) == (2, 2)
     # D2: las dos autorizaciones, con motivo borrado y el mismo instante
     assert [(c[1], c[2], c[3]) for c in _consentimientos(familia)] == [
-        ("consumo", ahora, "borrado"), ("plan_cuidado", ahora, "borrado")]
+        ("consumo", ahora, "borrado"),
+        ("plan_cuidado", ahora, "borrado"),
+    ]
     # C9: vigentes y bloqueados cortados; el vencido no. Todos sin el nombre de pila de la persona (D5)
     for acceso in (vigente, bloqueado):
         assert _acceso(acceso) == (ahora, ahora, "borrada")
@@ -194,7 +227,8 @@ def test_borrar_borra_todo_al_tiro_en_una_transaccion_y_un_instante(entorno: Ent
     filas = _acciones(familia.grupo.id)
     del_borrado = [f for f in filas if f[7] == ahora]
     assert sorted(f[0] for f in del_borrado) == sorted(
-        ["consentimiento.revocar"] * 2 + ["relevo.revocar"] * 2 + ["clave.destruir", "persona.borrar"])
+        ["consentimiento.revocar"] * 2 + ["relevo.revocar"] * 2 + ["clave.destruir", "persona.borrar"]
+    )
     assert {f[1] for f in del_borrado} == {"usuario"} and {f[2] for f in del_borrado} == {_cuidador(familia).id}
     assert len({f[5] for f in del_borrado}) == 1 and del_borrado[0][5] is not None
     assert {f[6] for f in del_borrado} == {None} and {f[8] for f in del_borrado} == {False}
@@ -215,22 +249,39 @@ def test_despues_del_borrado_la_persona_sale_de_matu(entorno: EntornoAbrir) -> N
     assert lista.status_code == 200 and str(persona) not in lista.text
     respuestas = [
         cliente.get(PERSONA.format(persona) + "/plan/ficha", headers=cab),
-        cliente.put(PERSONA.format(persona) + "/plan/ficha/rutina", json={"texto": "x"},
-                    headers={**cab, "If-Match": '"v1"'}),
-        cliente.put(PERSONA.format(persona) + "/plan/secciones/movilidad", json={"texto": "x"},
-                    headers={**cab, "If-None-Match": "*"}),
+        cliente.put(
+            PERSONA.format(persona) + "/plan/ficha/rutina", json={"texto": "x"}, headers={**cab, "If-Match": '"v1"'}
+        ),
+        cliente.put(
+            PERSONA.format(persona) + "/plan/secciones/movilidad",
+            json={"texto": "x"},
+            headers={**cab, "If-None-Match": "*"},
+        ),
         cliente.get(PERSONA.format(persona) + "/plan/accesos-relevo", headers=cab),
-        cliente.post(PERSONA.format(persona) + "/plan/accesos-relevo", json={
-            "nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "otro",
-            "relevo_informado": True}, headers=cab),
+        cliente.post(
+            PERSONA.format(persona) + "/plan/accesos-relevo",
+            json={
+                "nombre_relevo": "Rosa",
+                "telefono_relevo": "+56 9 5555 0137",
+                "motivo": "otro",
+                "relevo_informado": True,
+            },
+            headers=cab,
+        ),
         cliente.get(PERSONA.format(persona) + "/plan/aperturas", headers=cab),
         cliente.get(PERSONA.format(persona) + "/consentimientos", headers=cab),
-        cliente.post(PERSONA.format(persona) + "/consentimientos",
-                     json={"finalidad": "plan_cuidado", "calidad_otorgante": "titular"}, headers=cab),
+        cliente.post(
+            PERSONA.format(persona) + "/consentimientos",
+            json={"finalidad": "plan_cuidado", "calidad_otorgante": "titular"},
+            headers=cab,
+        ),
         cliente.post(PERSONA.format(persona) + "/consentimientos/consumo/retiro", headers=cab),
         cliente.get(PERSONA.format(persona) + "/consumo", headers=cab),
-        cliente.post(PERSONA.format(persona) + "/consumo", json={
-            "nombre_libre": "Pañal adulto M", "tasa_unidades": 4, "stock_unidades": 24}, headers=cab),
+        cliente.post(
+            PERSONA.format(persona) + "/consumo",
+            json={"nombre_libre": "Pañal adulto M", "tasa_unidades": 4, "stock_unidades": 24},
+            headers=cab,
+        ),
         cliente.get(PERSONA.format(persona) + "/consumo/lista", headers=cab),
         cliente.get(PERSONA.format(persona) + "/consumo/alertas", headers=cab),
     ]
@@ -238,8 +289,10 @@ def test_despues_del_borrado_la_persona_sale_de_matu(entorno: EntornoAbrir) -> N
         assert respuesta.status_code == 404, (respuesta.request.method, respuesta.request.url, respuesta.text)
         assert respuesta.headers["cache-control"] == "no-store"
     # Nada nuevo se escribió para ella
-    assert _contar("SELECT count(*) FROM consentimiento WHERE persona_cuidada_id = %s AND revocado_en IS NULL",
-                   persona) == 0
+    assert (
+        _contar("SELECT count(*) FROM consentimiento WHERE persona_cuidada_id = %s AND revocado_en IS NULL", persona)
+        == 0
+    )
 
 
 def test_borrar_dos_veces_409_sin_otra_auditoria(entorno: EntornoAbrir) -> None:
@@ -279,8 +332,10 @@ def test_una_autorizacion_ya_retirada_conserva_su_motivo(entorno: EntornoAbrir) 
     """D2: solo se retiran las vigentes; la retirada antes sigue con retiro y su fecha."""
     familia = entorno.familia_con_ficha()
     entorno.ficha.fabrica.autorizacion_consumo(familia.persona, otorgante=familia.admin)
-    retiro = entorno.ficha.iam.cliente.post(PERSONA.format(familia.persona.id) + "/consentimientos/plan_cuidado/retiro",
-                                            headers=_cab(entorno, familia.admin, familia))
+    retiro = entorno.ficha.iam.cliente.post(
+        PERSONA.format(familia.persona.id) + "/consentimientos/plan_cuidado/retiro",
+        headers=_cab(entorno, familia.admin, familia),
+    )
     assert retiro.status_code == 200
     [(_, _, retirada_en, _)] = [c for c in _consentimientos(familia) if c[1] == "plan_cuidado"]
     entorno.reloj.avanzar(timedelta(minutes=1))
@@ -298,8 +353,9 @@ def test_una_autorizacion_ya_retirada_conserva_su_motivo(entorno: EntornoAbrir) 
 def test_persona_sin_ficha_ni_consumo_ni_direccion(entorno: EntornoAbrir) -> None:
     familia = entorno.ficha.familia()
     persona = entorno.ficha.fabrica.persona_cuidada(familia.grupo, con_direccion=False)
-    respuesta = entorno.ficha.iam.cliente.post(BORRADO.format(persona.id),
-                                               headers=_cab(entorno, familia.admin, familia))
+    respuesta = entorno.ficha.iam.cliente.post(
+        BORRADO.format(persona.id), headers=_cab(entorno, familia.admin, familia)
+    )
     assert respuesta.status_code == 200, respuesta.text
     assert (respuesta.json()["enlaces_cortados"], respuesta.json()["autorizaciones_retiradas"]) == (0, 1)
     assert [a[0] for a in _acciones(familia.grupo.id)] == ["consentimiento.revocar", "persona.borrar"]
@@ -308,12 +364,14 @@ def test_persona_sin_ficha_ni_consumo_ni_direccion(entorno: EntornoAbrir) -> Non
 def test_una_direccion_que_usa_otra_persona_no_se_borra(entorno: EntornoAbrir) -> None:
     familia = entorno.familia_con_ficha()
     otra = entorno.ficha.fabrica.persona_cuidada(familia.grupo, con_direccion=False)
-    _ejecutar("UPDATE persona_cuidada SET direccion_entrega_id = %s WHERE id = %s", familia.persona.direccion_id,
-              otra.id)
+    _ejecutar(
+        "UPDATE persona_cuidada SET direccion_entrega_id = %s WHERE id = %s", familia.persona.direccion_id, otra.id
+    )
     assert _borrar(entorno, familia).status_code == 200
     assert _una("SELECT 1 FROM direccion WHERE id = %s", familia.persona.direccion_id) == (1,)
     assert _una("SELECT direccion_entrega_id FROM persona_cuidada WHERE id = %s", otra.id) == (
-        familia.persona.direccion_id,)
+        familia.persona.direccion_id,
+    )
 
 
 # --- Quién (D1, C2) -------------------------------------------------------------------------------------------
@@ -365,8 +423,10 @@ def test_otras_personas_y_otros_grupos_no_se_tocan(entorno: EntornoAbrir) -> Non
     a, b = _completa(entorno), _completa(entorno)
     hermana = entorno.ficha.fabrica.persona_cuidada(a.grupo)
     _, token_b, pin_b = entorno.compartir(b)
-    antes_b, antes_hermana = _persona(b), _una("SELECT nombre, eliminado_en FROM persona_cuidada WHERE id = %s",
-                                               hermana.id)
+    antes_b, antes_hermana = (
+        _persona(b),
+        _una("SELECT nombre, eliminado_en FROM persona_cuidada WHERE id = %s", hermana.id),
+    )
     assert _borrar(entorno, a).status_code == 200
     _sin_cambios(b, antes_b)
     assert _una("SELECT nombre, eliminado_en FROM persona_cuidada WHERE id = %s", hermana.id) == antes_hermana
@@ -381,23 +441,36 @@ def test_borrar_persona_anonimiza_accesos(entorno: EntornoAbrir) -> None:
     otra persona del mismo grupo no se tocan. Un segundo borrado (409) no cambia nada."""
     familia = entorno.familia_con_ficha()
     hermana = entorno.ficha.fabrica.persona_cuidada(familia.grupo)
-    entorno.ficha.fabrica.ficha(hermana, actualizado_por=familia.admin.id, custodia=entorno.ficha.custodia,
-                                textos={"rutina": RUTINA})
+    entorno.ficha.fabrica.ficha(
+        hermana, actualizado_por=familia.admin.id, custodia=entorno.ficha.custodia, textos={"rutina": RUTINA}
+    )
     vigente, _, _ = entorno.compartir(familia)
     cortado_hace_meses, _, _ = entorno.compartir(familia)
     ya_sin_telefono, _, _ = entorno.compartir(familia)
     for acceso in (cortado_hace_meses, ya_sin_telefono):
-        _ejecutar("UPDATE acceso_relevo SET creado_en = now() - interval '121 days',"
-                  " expira_en = now() - interval '120 days', revocado_en = now() - interval '121 days' + interval"
-                  " '1 hour' WHERE id = %s", acceso)
+        _ejecutar(
+            "UPDATE acceso_relevo SET creado_en = now() - interval '121 days',"
+            " expira_en = now() - interval '120 days', revocado_en = now() - interval '121 days' + interval"
+            " '1 hour' WHERE id = %s",
+            acceso,
+        )
     # Como si la tarea de los 30 días ya hubiera corrido sobre este
-    _ejecutar("UPDATE acceso_relevo SET otorgado_a_telefono = NULL, telefono_borrado_en = now() - interval '90 days'"
-              " WHERE id = %s", ya_sin_telefono)
+    _ejecutar(
+        "UPDATE acceso_relevo SET otorgado_a_telefono = NULL, telefono_borrado_en = now() - interval '90 days'"
+        " WHERE id = %s",
+        ya_sin_telefono,
+    )
     [(borrado_por_la_tarea,)] = _todas("SELECT telefono_borrado_en FROM acceso_relevo WHERE id = %s", ya_sin_telefono)
     de_la_hermana = entorno.ficha.iam.cliente.post(
-        PERSONA.format(hermana.id) + "/plan/accesos-relevo", headers=_cab(entorno, familia.admin, familia),
-        json={"nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "otro",
-              "relevo_informado": True})
+        PERSONA.format(hermana.id) + "/plan/accesos-relevo",
+        headers=_cab(entorno, familia.admin, familia),
+        json={
+            "nombre_relevo": "Rosa",
+            "telefono_relevo": "+56 9 5555 0137",
+            "motivo": "otro",
+            "relevo_informado": True,
+        },
+    )
     assert de_la_hermana.status_code == 201, de_la_hermana.text
     acceso_hermana = uuid.UUID(de_la_hermana.json()["id"])
     hermana_antes = _una("SELECT * FROM acceso_relevo WHERE id = %s", acceso_hermana)
@@ -418,8 +491,10 @@ def test_borrar_persona_anonimiza_accesos(entorno: EntornoAbrir) -> None:
     assert _acceso(acceso_hermana)[2] == hermana.nombre_pila
     assert _telefono(acceso_hermana) == ("+56955550137", None)
 
-    despues = {a: _una("SELECT * FROM acceso_relevo WHERE id = %s", a)
-               for a in (vigente, cortado_hace_meses, ya_sin_telefono, acceso_hermana)}
+    despues = {
+        a: _una("SELECT * FROM acceso_relevo WHERE id = %s", a)
+        for a in (vigente, cortado_hace_meses, ya_sin_telefono, acceso_hermana)
+    }
     segunda = _borrar(entorno, familia)
     assert segunda.status_code == 409, segunda.text
     for acceso, fila in despues.items():
@@ -472,14 +547,23 @@ def test_los_logs_no_llevan_nada_de_la_persona(entorno: EntornoAbrir) -> None:
     assert _borrar(entorno, familia).status_code == 200
     _borrar(entorno, familia)
     log = entorno.ficha.iam.texto_log()
-    for dato in (familia.persona.nombre, familia.persona.nombre_pila, str(familia.persona.id), "Rosa", token,
-                 RUTINA, PREFERENCIAS, "Pañal"):
+    for dato in (
+        familia.persona.nombre,
+        familia.persona.nombre_pila,
+        str(familia.persona.id),
+        "Rosa",
+        token,
+        RUTINA,
+        PREFERENCIAS,
+        "Pañal",
+    ):
         assert dato not in log
     # El PIN tiene 4 cifras: como subcadena caía por azar dentro de un UUID del log
     assert not aparece_como_dato(pin, log)
     assert not aparece_celular("+56 9 5555 0137", log)
-    peticiones = [linea for linea in entorno.ficha.iam.lineas_log() if linea.get("ruta") == BORRADO.format(
-        "{persona_id}")]
+    peticiones = [
+        linea for linea in entorno.ficha.iam.lineas_log() if linea.get("ruta") == BORRADO.format("{persona_id}")
+    ]
     assert [linea["estado"] for linea in peticiones] == [200, 409]
     assert not any("enlaces" in str(linea) or "autorizaciones" in str(linea) for linea in peticiones)
 
@@ -514,8 +598,9 @@ def test_el_borrado_usa_un_solo_instante_en_todo(entorno: EntornoAbrir) -> None:
     [(_, _, _, _, _, borrado_en, _)] = [_persona(familia)]
     instantes = {c[2] for c in _consentimientos(familia)} | {k[2] for k in _clave(familia)}
     instantes |= {f[7] for f in _acciones(familia.grupo.id) if f[0] != "relevo.compartir"}
-    instantes |= {f[0] for f in _todas("SELECT a.revocado_en FROM acceso_relevo a WHERE a.grupo_id = %s",
-                                       familia.grupo.id)}
+    instantes |= {
+        f[0] for f in _todas("SELECT a.revocado_en FROM acceso_relevo a WHERE a.grupo_id = %s", familia.grupo.id)
+    }
     assert instantes == {borrado_en}
 
 
@@ -551,8 +636,10 @@ def _borrar_en_transaccion(entorno: EntornoAbrir, familia: FamiliaCreada, sesion
     registro = RegistroAuditoriaSql(sesion, entorno.reloj)
     return borrar_persona(
         SolicitudBorrado(usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id),
-        entorno.reloj, RepositorioBorradoSQL(sesion, familia.grupo.id, registro),
-        RepositorioRetirosSQL(sesion, familia.grupo.id, registro), efectos_de(sesion, familia.grupo.id, registro),
+        entorno.reloj,
+        RepositorioBorradoSQL(sesion, familia.grupo.id, registro),
+        RepositorioRetirosSQL(sesion, familia.grupo.id, registro),
+        efectos_de(sesion, familia.grupo.id, registro),
     )
 
 
@@ -583,9 +670,15 @@ def test_autorizar_durante_un_borrado_espera_y_404_sin_escribir(entorno: Entorno
     """C8: otorgar toma la fila de la persona con FOR SHARE y falla si ya tiene eliminado_en."""
     familia = entorno.familia_con_ficha()
     cab = _cab(entorno, _cuidador(familia), familia)
-    respuesta = _mientras_borra(entorno, familia, lambda: entorno.ficha.iam.cliente.post(
-        PERSONA.format(familia.persona.id) + "/consentimientos",
-        json={"finalidad": "consumo", "calidad_otorgante": "titular"}, headers=cab))
+    respuesta = _mientras_borra(
+        entorno,
+        familia,
+        lambda: entorno.ficha.iam.cliente.post(
+            PERSONA.format(familia.persona.id) + "/consentimientos",
+            json={"finalidad": "consumo", "calidad_otorgante": "titular"},
+            headers=cab,
+        ),
+    )
     assert respuesta.status_code == 404, respuesta.text
     assert [c[1] for c in _consentimientos(familia)] == ["plan_cuidado"]
     assert _acciones(familia.grupo.id, "consentimiento.otorgar") == []
@@ -595,8 +688,13 @@ def test_retirar_durante_un_borrado_espera_y_409(entorno: EntornoAbrir) -> None:
     """C8: el retiro espera el bloqueo de la autorización y la encuentra revocada por el borrado."""
     familia = entorno.familia_con_ficha()
     cab = _cab(entorno, _cuidador(familia), familia)
-    respuesta = _mientras_borra(entorno, familia, lambda: entorno.ficha.iam.cliente.post(
-        PERSONA.format(familia.persona.id) + "/consentimientos/plan_cuidado/retiro", headers=cab))
+    respuesta = _mientras_borra(
+        entorno,
+        familia,
+        lambda: entorno.ficha.iam.cliente.post(
+            PERSONA.format(familia.persona.id) + "/consentimientos/plan_cuidado/retiro", headers=cab
+        ),
+    )
     assert respuesta.status_code == 409, respuesta.text
     # MATU-79: el 409 es el del contrato (docs/api/README.md, decisión 125), en RFC 7807
     assert respuesta.headers["content-type"] == PROBLEMA
@@ -614,9 +712,11 @@ def test_borrar_durante_un_retiro_espera_y_la_retirada_conserva_su_motivo(entorn
     with sesion_tenant(_fabrica(entorno), usuario_id=familia.admin.id, grupo_id=familia.grupo.id) as sesion:
         registro = RegistroAuditoriaSql(sesion, entorno.reloj)
         retirar_autorizacion(
-            SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id,
-                            finalidad="plan_cuidado"),
-            entorno.reloj, RepositorioRetirosSQL(sesion, familia.grupo.id, registro),
+            SolicitudRetiro(
+                usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id, finalidad="plan_cuidado"
+            ),
+            entorno.reloj,
+            RepositorioRetirosSQL(sesion, familia.grupo.id, registro),
             efectos_de(sesion, familia.grupo.id, registro),
         )
         pid = pid_de(sesion)
@@ -642,13 +742,18 @@ def test_una_seccion_confirmada_mientras_el_borrado_espera_la_clave_tambien_se_b
     cab = _cab(entorno, familia.admin, familia)
     borrado = threading.Thread(target=lambda: respuestas.append(_borrar(entorno, familia, cabeceras=cab)))
     with sesion_tenant(_fabrica(entorno), usuario_id=_cuidador(familia).id, grupo_id=familia.grupo.id) as sesion:
-        clave = sesion.execute(text("SELECT id FROM clave_datos WHERE persona_cuidada_id = :p AND destruida_en IS NULL"
-                                    " FOR SHARE"), {"p": familia.persona.id}).first()
+        clave = sesion.execute(
+            text("SELECT id FROM clave_datos WHERE persona_cuidada_id = :p AND destruida_en IS NULL FOR SHARE"),
+            {"p": familia.persona.id},
+        ).first()
         assert clave is not None
-        sesion.execute(text(
-            "INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version, version,"
-            " actualizado_por) VALUES (:plan, 'movilidad', :c, :n, :t, 1, 1, :u)"),
-            {"plan": plan[0], "c": b"\x01" * 24, "n": b"\x02" * 12, "t": b"\x03" * 16, "u": _cuidador(familia).id})
+        sesion.execute(
+            text(
+                "INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version, version,"
+                " actualizado_por) VALUES (:plan, 'movilidad', :c, :n, :t, 1, 1, :u)"
+            ),
+            {"plan": plan[0], "c": b"\x01" * 24, "n": b"\x02" * 12, "t": b"\x03" * 16, "u": _cuidador(familia).id},
+        )
         pid = pid_de(sesion)
         borrado.start()
         esperar_bloqueada_por(pid, borrado)  # el UPDATE de la clave espera el FOR SHARE de la escritura
@@ -664,8 +769,9 @@ def test_la_auditoria_del_borrado_no_lleva_nombres_ni_contadores(entorno: Entorn
     entorno.compartir(familia)
     assert _borrar(entorno, familia).status_code == 200
     with psycopg.connect(DSN) as cx:
-        filas = cx.execute("SELECT row_to_json(a)::text FROM auditoria a WHERE grupo_id = %s",
-                           (familia.grupo.id,)).fetchall()
+        filas = cx.execute(
+            "SELECT row_to_json(a)::text FROM auditoria a WHERE grupo_id = %s", (familia.grupo.id,)
+        ).fetchall()
     texto = " ".join(f[0] for f in filas)
     for dato in (familia.persona.nombre, familia.persona.nombre_pila, "Rosa", "Pañal", "enlaces"):
         assert dato not in texto

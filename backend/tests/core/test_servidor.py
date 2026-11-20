@@ -126,9 +126,7 @@ def test_el_arranque_envuelve_la_app_con_proxy_saltos_y_el_diagnostico(
     )
     envuelta = llamada["app"]
     assert isinstance(envuelta, MiddlewareProxy)
-    assert ([str(red) for red in envuelta.redes], envuelta.saltos, envuelta.diagnostico) == (
-        ["100.64.0.0/10"], 1, True
-    )
+    assert ([str(red) for red in envuelta.redes], envuelta.saltos, envuelta.diagnostico) == (["100.64.0.0/10"], 1, True)
     assert llamada["parametros"]["proxy_headers"] is False
 
 
@@ -141,9 +139,7 @@ def test_el_arranque_sin_variables_del_proxy_queda_como_antes(
     assert ([str(red) for red in envuelta.redes], envuelta.saltos, envuelta.diagnostico) == (["127.0.0.1/32"], 0, False)
 
 
-@pytest.mark.parametrize(
-    "variables", [{"PROXY_SALTOS": "6"}, {"PROXY_SALTOS": "uno"}, {"FORWARDED_ALLOW_IPS": "*"}]
-)
+@pytest.mark.parametrize("variables", [{"PROXY_SALTOS": "6"}, {"PROXY_SALTOS": "uno"}, {"FORWARDED_ALLOW_IPS": "*"}])
 def test_el_arranque_con_una_variable_del_proxy_invalida_no_llega_a_uvicorn(
     monkeypatch: pytest.MonkeyPatch, configuracion_sin_env: None, variables: dict[str, str]
 ) -> None:

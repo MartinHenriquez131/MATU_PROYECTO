@@ -120,14 +120,19 @@ def test_sin_la_capa_3_despacho_vigente_se_ve_y_se_retira(entorno_iam: EntornoIa
 
     antes = entorno_iam.cliente.get(ruta, headers=cab).json()["autorizaciones"]
     assert [(a["finalidad"], a["estado"], a["se_puede_otorgar"]) for a in antes] == [
-        ("plan_cuidado", "vigente", True), ("consumo", "sin_autorizar", True), ("despacho", "vigente", False)]
+        ("plan_cuidado", "vigente", True),
+        ("consumo", "sin_autorizar", True),
+        ("despacho", "vigente", False),
+    ]
 
     retiro = entorno_iam.cliente.post(ruta + "/despacho/retiro", headers=cab)
 
     assert retiro.status_code == 200, retiro.text
     assert retiro.json()["pedidos_cancelados"] == 0
     assert (retiro.json()["autorizacion"]["estado"], retiro.json()["autorizacion"]["se_puede_otorgar"]) == (
-        "retirada", False)
+        "retirada",
+        False,
+    )
     despues = entorno_iam.cliente.get(ruta, headers=cab).json()["autorizaciones"]
     assert [(a["finalidad"], a["estado"]) for a in despues][2] == ("despacho", "retirada")
     # Otorgar despacho sigue respondiendo 422 con la capa apagada

@@ -166,7 +166,11 @@ class RepositorioFicha(Protocol):
         ...
 
     def crear_plan(
-        self, plan_id: uuid.UUID, grupo_id: uuid.UUID, persona_cuidada_id: uuid.UUID, usuario_id: uuid.UUID,
+        self,
+        plan_id: uuid.UUID,
+        grupo_id: uuid.UUID,
+        persona_cuidada_id: uuid.UUID,
+        usuario_id: uuid.UUID,
         ahora: datetime,
     ) -> bool:
         """Crea el plan con modo 'ficha_relevo', si la persona todavía no tiene uno.
@@ -211,7 +215,12 @@ class RepositorioFicha(Protocol):
         ...
 
     def actualizar_seccion_si_version(
-        self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, version_esperada: int, usuario_id: uuid.UUID,
+        self,
+        plan_id: uuid.UUID,
+        tipo: str,
+        cifrada: SeccionCifrada,
+        version_esperada: int,
+        usuario_id: uuid.UUID,
         ahora: datetime,
     ) -> int | None:
         """Reemplaza la sección solo si sigue en ``version_esperada``, y la deja en la siguiente.

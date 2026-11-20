@@ -154,9 +154,15 @@ def test_invitar_presentar_verificar_y_unirse(entorno: Entorno) -> None:
 
     presentacion = entorno.presentar(token)
     assert presentacion.status_code == 200, presentacion.text
-    assert presentacion.json() == {
-        "nombre_pila_invita": familia.admin.nombre.split()[0], "rol": "cuidador", "expira_en": creada["expira_en"],
-    } or presentacion.json()["rol"] == "cuidador"
+    assert (
+        presentacion.json()
+        == {
+            "nombre_pila_invita": familia.admin.nombre.split()[0],
+            "rol": "cuidador",
+            "expira_en": creada["expira_en"],
+        }
+        or presentacion.json()["rol"] == "cuidador"
+    )
     assert set(presentacion.json()) == {"nombre_pila_invita", "rol", "expira_en"}
     assert presentacion.headers["Cache-Control"] == "no-store"
     assert presentacion.headers["Referrer-Policy"] == "no-referrer"
@@ -189,7 +195,9 @@ def test_invitar_presentar_verificar_y_unirse(entorno: Entorno) -> None:
     # La auditoría lleva solo el rol
     filas = _todas(
         "SELECT accion, actor_tipo, actor_ref, detalle FROM auditoria WHERE entidad = 'invitacion' AND entidad_id = %s"
-        " ORDER BY id", uuid.UUID(creada["id"]))
+        " ORDER BY id",
+        uuid.UUID(creada["id"]),
+    )
     assert [(f[0], f[1], f[3]) for f in filas] == [
         ("invitacion.crear", "usuario", {"rol": "cuidador"}),
         ("invitacion.aceptar", "usuario", {"rol": "cuidador"}),
@@ -198,10 +206,13 @@ def test_invitar_presentar_verificar_y_unirse(entorno: Entorno) -> None:
     # La invitación, aceptada; su token, cortado; la membresía, sin permiso y con quién invitó
     [(aceptada_por, revocado)] = _todas(
         "SELECT i.aceptada_por, t.revocado_en IS NOT NULL FROM invitacion i JOIN indice_token t"
-        " ON t.referencia_id = i.id WHERE i.id = %s", uuid.UUID(creada["id"]))
+        " ON t.referencia_id = i.id WHERE i.id = %s",
+        uuid.UUID(creada["id"]),
+    )
     assert aceptada_por == rosa.id and revocado
     assert _todas("SELECT rol, puede_ver_plan, invitado_por FROM membresia WHERE usuario_id = %s", rosa.id) == [
-        ("cuidador", False, familia.admin.id)]
+        ("cuidador", False, familia.admin.id)
+    ]
 
 
 def test_unirse_no_crea_autorizaciones(entorno: Entorno) -> None:
@@ -222,11 +233,16 @@ def test_solo_admin_invita_ve_y_anula(entorno: Entorno, etiqueta: str) -> None:
     miembro = familia.miembros[etiqueta].usuario
     grupo = familia.grupo.id
     assert entorno.crear(miembro, grupo).status_code == 404
-    assert entorno.iam.cliente.get(f"/v1/grupos/{grupo}/invitaciones",
-                                   headers=entorno.cabeceras(miembro, grupo)).status_code == 404
+    assert (
+        entorno.iam.cliente.get(
+            f"/v1/grupos/{grupo}/invitaciones", headers=entorno.cabeceras(miembro, grupo)
+        ).status_code
+        == 404
+    )
     _, _, creada = entorno.invitar(familia)
-    anular = entorno.iam.cliente.delete(f"/v1/grupos/{grupo}/invitaciones/{creada['id']}",
-                                        headers=entorno.cabeceras(miembro, grupo))
+    anular = entorno.iam.cliente.delete(
+        f"/v1/grupos/{grupo}/invitaciones/{creada['id']}", headers=entorno.cabeceras(miembro, grupo)
+    )
     assert anular.status_code == 404 and anular.headers["content-type"].startswith(PROBLEMA)
 
 
@@ -234,21 +250,27 @@ def test_otro_grupo_y_path_distinto_de_la_cabecera_son_404(entorno: Entorno) -> 
     a, b = entorno.familia(), entorno.familia()
     # El grupo del path no es el de la cabecera
     respuesta = entorno.iam.cliente.post(
-        f"/v1/grupos/{b.grupo.id}/invitaciones", json={"rol": "cuidador"},
-        headers=entorno.cabeceras(a.admin, a.grupo.id))
+        f"/v1/grupos/{b.grupo.id}/invitaciones",
+        json={"rol": "cuidador"},
+        headers=entorno.cabeceras(a.admin, a.grupo.id),
+    )
     assert respuesta.status_code == 404
     # La invitación de A no se anula desde B, ni un id que no es UUID
     _, _, creada = entorno.invitar(a)
     for invitacion in (creada["id"], "no-es-uuid"):
-        anular = entorno.iam.cliente.delete(f"/v1/grupos/{b.grupo.id}/invitaciones/{invitacion}",
-                                            headers=entorno.cabeceras(b.admin, b.grupo.id))
+        anular = entorno.iam.cliente.delete(
+            f"/v1/grupos/{b.grupo.id}/invitaciones/{invitacion}", headers=entorno.cabeceras(b.admin, b.grupo.id)
+        )
         assert anular.status_code == 404
 
 
 def test_crear_sin_sesion_es_401_y_el_cuerpo_solo_trae_el_rol(entorno: Entorno) -> None:
     familia = entorno.familia()
-    sin_sesion = entorno.iam.cliente.post(f"/v1/grupos/{familia.grupo.id}/invitaciones", json={"rol": "cuidador"},
-                                          headers={"X-Grupo-Id": str(familia.grupo.id)})
+    sin_sesion = entorno.iam.cliente.post(
+        f"/v1/grupos/{familia.grupo.id}/invitaciones",
+        json={"rol": "cuidador"},
+        headers={"X-Grupo-Id": str(familia.grupo.id)},
+    )
     assert sin_sesion.status_code == 401
     con_correo = entorno.crear(familia.admin, familia.grupo.id, email="rosa@example.com")
     assert con_correo.status_code == 422 and "rosa@example.com" not in con_correo.text
@@ -275,12 +297,16 @@ def test_cinco_codigos_incorrectos_bloquean(entorno: Entorno) -> None:
     assert entorno.aceptar(entorno.nueva_cuenta(), token, codigo).status_code == 423
     assert entorno.presentar(token).status_code == 423
     # La lista la muestra bloqueada
-    lista = entorno.iam.cliente.get(f"/v1/grupos/{familia.grupo.id}/invitaciones",
-                                    headers=entorno.cabeceras(familia.admin, familia.grupo.id))
+    lista = entorno.iam.cliente.get(
+        f"/v1/grupos/{familia.grupo.id}/invitaciones", headers=entorno.cabeceras(familia.admin, familia.grupo.id)
+    )
     assert [i["estado"] for i in lista.json()["invitaciones"]] == ["bloqueada"]
     # La auditoría: cuatro incorrectos y un bloqueo, con actor sistema y sin actor_ref
-    filas = _todas("SELECT accion, actor_tipo, actor_ref, detalle FROM auditoria WHERE entidad_id = %s"
-                   " AND accion <> 'invitacion.crear' ORDER BY id", uuid.UUID(creada["id"]))
+    filas = _todas(
+        "SELECT accion, actor_tipo, actor_ref, detalle FROM auditoria WHERE entidad_id = %s"
+        " AND accion <> 'invitacion.crear' ORDER BY id",
+        uuid.UUID(creada["id"]),
+    )
     assert [f[0] for f in filas] == ["invitacion.codigo_incorrecto"] * 4 + ["invitacion.bloqueo"]
     assert {(f[1], f[2]) for f in filas} == {("sistema", None)} and {f[3]["rol"] for f in filas} == {"cuidador"}
 
@@ -313,8 +339,10 @@ def test_los_tres_410(entorno: Entorno) -> None:
         assert respuesta.status_code == 410 and respuesta.json()["type"] == "/errores/invitacion-no-disponible"
     # Anulada: lo mismo que inexistente (C28)
     token, codigo, creada = entorno.invitar(familia)
-    anular = entorno.iam.cliente.delete(f"/v1/grupos/{familia.grupo.id}/invitaciones/{creada['id']}",
-                                        headers=entorno.cabeceras(familia.admin, familia.grupo.id))
+    anular = entorno.iam.cliente.delete(
+        f"/v1/grupos/{familia.grupo.id}/invitaciones/{creada['id']}",
+        headers=entorno.cabeceras(familia.admin, familia.grupo.id),
+    )
     assert anular.status_code == 204
     assert entorno.presentar(token).json()["type"] == "/errores/invitacion-no-disponible"
     assert entorno.aceptar(entorno.nueva_cuenta(), token, codigo).json()["type"] == "/errores/invitacion-no-disponible"
@@ -323,8 +351,11 @@ def test_los_tres_410(entorno: Entorno) -> None:
     token, codigo, creada = entorno.invitar(familia)
     with psycopg.connect(DSN) as cx, cx.transaction():
         cx.execute("SET LOCAL session_replication_role = replica")
-        cx.execute("UPDATE invitacion SET creada_en = creada_en - interval '8 days',"
-                   " expira_en = expira_en - interval '8 days' WHERE id = %s", (uuid.UUID(creada["id"]),))
+        cx.execute(
+            "UPDATE invitacion SET creada_en = creada_en - interval '8 days',"
+            " expira_en = expira_en - interval '8 days' WHERE id = %s",
+            (uuid.UUID(creada["id"]),),
+        )
     for respuesta in (entorno.presentar(token), entorno.verificar(token, codigo)):
         assert respuesta.status_code == 410 and respuesta.json()["type"] == "/errores/invitacion-vencida"
 
@@ -356,8 +387,9 @@ def test_anular_es_idempotente_y_una_usada_es_409(entorno: Entorno) -> None:
     cabeceras = entorno.cabeceras(familia.admin, grupo)
     assert entorno.iam.cliente.delete(ruta, headers=cabeceras).status_code == 204
     assert entorno.iam.cliente.delete(ruta, headers=cabeceras).status_code == 204
-    assert [f[0] for f in _todas("SELECT accion FROM auditoria WHERE entidad_id = %s ORDER BY id",
-                                 uuid.UUID(creada["id"]))] == ["invitacion.crear", "invitacion.anular"]
+    assert [
+        f[0] for f in _todas("SELECT accion FROM auditoria WHERE entidad_id = %s ORDER BY id", uuid.UUID(creada["id"]))
+    ] == ["invitacion.crear", "invitacion.anular"]
     token, codigo, usada = entorno.invitar(familia)
     assert entorno.aceptar(entorno.nueva_cuenta(), token, codigo).status_code == 201
     cerrada = entorno.iam.cliente.delete(f"/v1/grupos/{grupo}/invitaciones/{usada['id']}", headers=cabeceras)
@@ -414,6 +446,8 @@ def test_los_logs_no_llevan_token_codigo_ni_correo(entorno: Entorno) -> None:
     for secreto in (token, f'"{codigo}"', rosa.email, familia.admin.email, creada["url"]):
         assert secreto not in texto
     # La auditoría tampoco
-    detalles = _todas("SELECT detalle::text, coalesce(request_id, '') FROM auditoria WHERE entidad = 'invitacion'"
-                      " AND grupo_id = %s", familia.grupo.id)
+    detalles = _todas(
+        "SELECT detalle::text, coalesce(request_id, '') FROM auditoria WHERE entidad = 'invitacion' AND grupo_id = %s",
+        familia.grupo.id,
+    )
     assert detalles and all(token not in d and codigo not in d for d, _ in detalles)

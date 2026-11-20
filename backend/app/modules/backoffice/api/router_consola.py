@@ -102,9 +102,17 @@ def _no_store(respuesta: Response) -> None:
     respuesta.headers["Cache-Control"] = "no-store"
 
 
-def _auditar(sesion: Session, reloj: RelojDep, request: Request, operador: uuid.UUID, accion: AccionAuditoria,
-             entidad: EntidadAuditoria, entidad_id: uuid.UUID, grupo_id: uuid.UUID | None,
-             persona_id: uuid.UUID | None) -> None:
+def _auditar(
+    sesion: Session,
+    reloj: RelojDep,
+    request: Request,
+    operador: uuid.UUID,
+    accion: AccionAuditoria,
+    entidad: EntidadAuditoria,
+    entidad_id: uuid.UUID,
+    grupo_id: uuid.UUID | None,
+    persona_id: uuid.UUID | None,
+) -> None:
     RegistroAuditoriaSql(sesion, reloj).registrar(
         EntradaAuditoria(
             grupo_id=grupo_id,
@@ -140,8 +148,9 @@ def _grupo_del_pedido(fabrica: sessionmaker[Session], pedido_id: uuid.UUID) -> A
         " una lista vacía. No se audita (abrir el pedido sí)."
     ),
 )
-def buscar_pedido(solicitud: SolicitudBuscarPedido, _operador: Operador, fabrica: Fabrica, reloj: RelojDep,
-                  respuesta: Response) -> ListaPedidosOperacion:
+def buscar_pedido(
+    solicitud: SolicitudBuscarPedido, _operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response
+) -> ListaPedidosOperacion:
     with sesion_tenant(fabrica, rol="operacion") as sesion:
         vista = pedidos_de_filas(sesion, sql.buscar(sesion, solicitud.referencia), reloj.ahora(), hay_mas=False)
     _no_store(respuesta)
@@ -153,9 +162,14 @@ def buscar_pedido(solicitud: SolicitudBuscarPedido, _operador: Operador, fabrica
 
 def _lineas_despacho(filas: list[Any]) -> list[LineaDespacho]:
     return [
-        LineaDespacho(id=f.id, parte_id=f.parte_id, cantidad=int(f.cantidad),
-                      unidades_faltantes=int(f.unidades_faltantes),
-                      precio_unitario=int(f.precio_unitario), monto_devuelto=int(f.monto_devuelto))
+        LineaDespacho(
+            id=f.id,
+            parte_id=f.parte_id,
+            cantidad=int(f.cantidad),
+            unidades_faltantes=int(f.unidades_faltantes),
+            precio_unitario=int(f.precio_unitario),
+            monto_devuelto=int(f.monto_devuelto),
+        )
         for f in filas
     ]
 
@@ -164,50 +178,124 @@ def _actor(actor_tipo: str) -> str:
     return "familia" if actor_tipo == "usuario" else actor_tipo
 
 
-def _linea_de_tiempo(sesion: Session, pedido: Any, partes: list[Any], transacciones: list[Any]) -> list[
-        EventoLineaTiempo]:
+def _linea_de_tiempo(
+    sesion: Session, pedido: Any, partes: list[Any], transacciones: list[Any]
+) -> list[EventoLineaTiempo]:
     eventos: list[EventoLineaTiempo] = []
     for t in sql.transiciones(sesion, pedido.id):
-        eventos.append(EventoLineaTiempo(
-            en=t.ocurrido_en, tipo="estado", actor_tipo=_actor(t.actor_tipo),  # type: ignore[arg-type]
-            comercio=t.nombre_fantasia if t.actor_tipo == "comercio" else None,
-            desde=t.desde, hacia=t.hacia, motivo=t.motivo, monto=None,
-        ))
+        eventos.append(
+            EventoLineaTiempo(
+                en=t.ocurrido_en,
+                tipo="estado",
+                actor_tipo=_actor(t.actor_tipo),  # type: ignore[arg-type]
+                comercio=t.nombre_fantasia if t.actor_tipo == "comercio" else None,
+                desde=t.desde,
+                hacia=t.hacia,
+                motivo=t.motivo,
+                monto=None,
+            )
+        )
     for p in partes:
-        for campo, hacia, actor in (("enviado_en", "enviada", "sistema"), ("preparando_en", "preparando", "comercio"),
-                                    ("lista_en", "lista", "comercio"), ("retirada_en", "retirada", "comercio"),
-                                    ("cancelada_en", "cancelada", "sistema")):
+        for campo, hacia, actor in (
+            ("enviado_en", "enviada", "sistema"),
+            ("preparando_en", "preparando", "comercio"),
+            ("lista_en", "lista", "comercio"),
+            ("retirada_en", "retirada", "comercio"),
+            ("cancelada_en", "cancelada", "sistema"),
+        ):
             instante = getattr(p, campo)
             if instante is not None:
-                eventos.append(EventoLineaTiempo(
-                    en=instante, tipo="parte", actor_tipo=actor,  # type: ignore[arg-type]
-                    comercio=p.nombre_fantasia, desde=None, hacia=hacia,
-                    motivo=p.motivo_cancelacion if hacia == "cancelada" else None, monto=None,
-                ))
+                eventos.append(
+                    EventoLineaTiempo(
+                        en=instante,
+                        tipo="parte",
+                        actor_tipo=actor,  # type: ignore[arg-type]
+                        comercio=p.nombre_fantasia,
+                        desde=None,
+                        hacia=hacia,
+                        motivo=p.motivo_cancelacion if hacia == "cancelada" else None,
+                        monto=None,
+                    )
+                )
     for t in transacciones:
         if t.tipo == "venta" and t.estado == "aprobada":
-            eventos.append(EventoLineaTiempo(
-                en=t.cerrada_en or t.retorno_recibido_en or t.actualizado_en, tipo="cobro", actor_tipo="sistema",
-                comercio=None, desde=None, hacia="aprobada", motivo=None, monto=int(t.monto),
-            ))
+            eventos.append(
+                EventoLineaTiempo(
+                    en=t.cerrada_en or t.retorno_recibido_en or t.actualizado_en,
+                    tipo="cobro",
+                    actor_tipo="sistema",
+                    comercio=None,
+                    desde=None,
+                    hacia="aprobada",
+                    motivo=None,
+                    monto=int(t.monto),
+                )
+            )
         elif t.tipo == "anulacion":
-            eventos.append(EventoLineaTiempo(
-                en=t.creado_en, tipo="anulacion", actor_tipo="sistema", comercio=None, desde=None,
-                hacia=_ESTADO_ANULACION.get(t.estado, "en_curso"), motivo=t.motivo_anulacion, monto=int(t.monto),
-            ))
+            eventos.append(
+                EventoLineaTiempo(
+                    en=t.creado_en,
+                    tipo="anulacion",
+                    actor_tipo="sistema",
+                    comercio=None,
+                    desde=None,
+                    hacia=_ESTADO_ANULACION.get(t.estado, "en_curso"),
+                    motivo=t.motivo_anulacion,
+                    monto=int(t.monto),
+                )
+            )
     for r in sql.retractos_del_pedido(sesion, pedido.id):
-        eventos.append(EventoLineaTiempo(en=r.solicitado_en, tipo="retracto", actor_tipo="familia", comercio=None,
-                                         desde=None, hacia="solicitado", motivo=None, monto=None))
+        eventos.append(
+            EventoLineaTiempo(
+                en=r.solicitado_en,
+                tipo="retracto",
+                actor_tipo="familia",
+                comercio=None,
+                desde=None,
+                hacia="solicitado",
+                motivo=None,
+                monto=None,
+            )
+        )
         if r.resuelto_en is not None:
-            eventos.append(EventoLineaTiempo(en=r.resuelto_en, tipo="retracto", actor_tipo="operacion",
-                                             comercio=None, desde="solicitado", hacia=r.estado,
-                                             motivo=r.motivo_rechazo, monto=None))
+            eventos.append(
+                EventoLineaTiempo(
+                    en=r.resuelto_en,
+                    tipo="retracto",
+                    actor_tipo="operacion",
+                    comercio=None,
+                    desde="solicitado",
+                    hacia=r.estado,
+                    motivo=r.motivo_rechazo,
+                    monto=None,
+                )
+            )
     for i in sql.incidencias_del_pedido(sesion, pedido.id):
-        eventos.append(EventoLineaTiempo(en=i.creada_en, tipo="incidencia", actor_tipo="operacion", comercio=None,
-                                         desde=None, hacia="abierta", motivo=i.tipo, monto=None))
+        eventos.append(
+            EventoLineaTiempo(
+                en=i.creada_en,
+                tipo="incidencia",
+                actor_tipo="operacion",
+                comercio=None,
+                desde=None,
+                hacia="abierta",
+                motivo=i.tipo,
+                monto=None,
+            )
+        )
         if i.resuelta_en is not None:
-            eventos.append(EventoLineaTiempo(en=i.resuelta_en, tipo="incidencia", actor_tipo="operacion",
-                                             comercio=None, desde=None, hacia="resuelta", motivo=i.tipo, monto=None))
+            eventos.append(
+                EventoLineaTiempo(
+                    en=i.resuelta_en,
+                    tipo="incidencia",
+                    actor_tipo="operacion",
+                    comercio=None,
+                    desde=None,
+                    hacia="resuelta",
+                    motivo=i.tipo,
+                    monto=None,
+                )
+            )
     eventos.sort(key=lambda e: e.en)
     return eventos
 
@@ -223,8 +311,9 @@ def _linea_de_tiempo(sesion: Session, pedido: Any, partes: list[Any], transaccio
         " grupo ni de la cuenta de la familia (C5). Se audita como operacion.pedido_ver (D-81-5)."
     ),
 )
-def ver_pedido(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica, reloj: RelojDep,
-               respuesta: Response) -> PedidoDetalle:
+def ver_pedido(
+    pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response
+) -> PedidoDetalle:
     identificador = _uuid(pedido_id)
     base = _grupo_del_pedido(fabrica, identificador)
     ahora = reloj.ahora()
@@ -238,44 +327,76 @@ def ver_pedido(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fa
         transacciones = [] if cargo is None else sql.transacciones(sesion, cargo.id)
         cobrado = 0 if cargo is None else int(cargo.monto_cobrado)
         devuelto = 0 if cargo is None else int(cargo.monto_devuelto)
-        posibles = consola.acciones(pedido.estado, [EstadoParte(p.estado) for p in partes], _lineas_despacho(lineas),
-                                    cobrado, devuelto)
+        posibles = consola.acciones(
+            pedido.estado, [EstadoParte(p.estado) for p in partes], _lineas_despacho(lineas), cobrado, devuelto
+        )
         vista = PedidoDetalle(
-            id=pedido.id, referencia=pedido.referencia, estado=pedido.estado, pagado_en=pedido.pagado_en,
-            entregado_en=pedido.entregado_en, subtotal_productos=int(pedido.subtotal_productos),
-            costo_envio=int(pedido.costo_envio), total_confirmado=int(pedido.total),
+            id=pedido.id,
+            referencia=pedido.referencia,
+            estado=pedido.estado,
+            pagado_en=pedido.pagado_en,
+            entregado_en=pedido.entregado_en,
+            subtotal_productos=int(pedido.subtotal_productos),
+            costo_envio=int(pedido.costo_envio),
+            total_confirmado=int(pedido.total),
             partes=[
                 ParteDetalle(
-                    id=p.id, referencia=p.referencia,
+                    id=p.id,
+                    referencia=p.referencia,
                     comercio=ComercioOperacion(nombre_fantasia=p.nombre_fantasia, ficticio=bool(p.ficticio)),
                     estado=p.estado,
                     estado_codigo=estado_codigo(
-                        generado_en=p.codigo_generado_en, con_hash=p.con_hash, expira_en=p.codigo_expira_en,
-                        usado_en=p.codigo_usado_en, bloqueado_en=p.codigo_bloqueado_en, ahora=ahora,
+                        generado_en=p.codigo_generado_en,
+                        con_hash=p.con_hash,
+                        expira_en=p.codigo_expira_en,
+                        usado_en=p.codigo_usado_en,
+                        bloqueado_en=p.codigo_bloqueado_en,
+                        ahora=ahora,
                     ).value,  # type: ignore[arg-type]
-                    codigo_expira_en=p.codigo_expira_en, enviado_en=p.enviado_en, preparando_en=p.preparando_en,
-                    lista_en=p.lista_en, retirada_en=p.retirada_en, cancelada_en=p.cancelada_en,
+                    codigo_expira_en=p.codigo_expira_en,
+                    enviado_en=p.enviado_en,
+                    preparando_en=p.preparando_en,
+                    lista_en=p.lista_en,
+                    retirada_en=p.retirada_en,
+                    cancelada_en=p.cancelada_en,
                     motivo_cancelacion=p.motivo_cancelacion,
                 )
                 for p in partes
             ],
             lineas=[
                 LineaDetalle(
-                    id=f.id, parte_id=f.parte_id, producto=f.nombre, presentacion=f.presentacion,
-                    cantidad=int(f.cantidad), precio_unitario=int(f.precio_unitario),
-                    subtotal=int(f.precio_unitario) * int(f.cantidad), estado_linea=f.estado_linea,
-                    unidades_faltantes=int(f.unidades_faltantes), monto_devuelto=int(f.monto_devuelto),
+                    id=f.id,
+                    parte_id=f.parte_id,
+                    producto=f.nombre,
+                    presentacion=f.presentacion,
+                    cantidad=int(f.cantidad),
+                    precio_unitario=int(f.precio_unitario),
+                    subtotal=int(f.precio_unitario) * int(f.cantidad),
+                    estado_linea=f.estado_linea,
+                    unidades_faltantes=int(f.unidades_faltantes),
+                    monto_devuelto=int(f.monto_devuelto),
                     devolucion="en_curso" if f.en_curso else ("hecha" if f.monto_devuelto > 0 else "sin_devolucion"),
                 )
                 for f in lineas
             ],
             linea_de_tiempo=_linea_de_tiempo(sesion, pedido, partes, transacciones),
-            acciones=[AccionDisponible(accion=a.accion, monto_a_devolver=a.monto_a_devolver)  # type: ignore[arg-type]
-                      for a in posibles],
+            acciones=[
+                AccionDisponible(accion=a.accion, monto_a_devolver=a.monto_a_devolver)  # type: ignore[arg-type]
+                for a in posibles
+            ],
             retracto_plazo_hasta=None if pedido.entregado_en is None else plazo_por_correo(pedido.entregado_en),
         )
-        _auditar(sesion, reloj, request, operador, AccionAuditoria.OPERACION_PEDIDO_VER, EntidadAuditoria.PEDIDO,
-                 identificador, pedido.grupo_id, pedido.persona_cuidada_id)
+        _auditar(
+            sesion,
+            reloj,
+            request,
+            operador,
+            AccionAuditoria.OPERACION_PEDIDO_VER,
+            EntidadAuditoria.PEDIDO,
+            identificador,
+            pedido.grupo_id,
+            pedido.persona_cuidada_id,
+        )
     _no_store(respuesta)
     return vista
 
@@ -293,8 +414,9 @@ def ver_pedido(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fa
         " tarjeta, las cuotas ni el código de autorización. Se audita como operacion.pedido_ver (D-81-5)."
     ),
 )
-def ver_cobro(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica, reloj: RelojDep,
-              respuesta: Response) -> CobroPedido:
+def ver_cobro(
+    pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response
+) -> CobroPedido:
     identificador = _uuid(pedido_id)
     base = _grupo_del_pedido(fabrica, identificador)
     with sesion_tenant(fabrica, grupo_id=base.grupo_id, rol="operacion") as sesion:
@@ -303,25 +425,50 @@ def ver_cobro(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fab
         cobrado = 0 if cargo is None else int(cargo.monto_cobrado)
         devuelto = 0 if cargo is None else int(cargo.monto_devuelto)
         anulaciones = [
-            AnulacionVista(id=t.id, motivo=t.motivo_anulacion, monto=int(t.monto),
-                           estado=_ESTADO_ANULACION.get(t.estado, "en_curso"),  # type: ignore[arg-type]
-                           producto=t.producto, en=t.creado_en)
-            for t in transacciones if t.tipo == "anulacion"
+            AnulacionVista(
+                id=t.id,
+                motivo=t.motivo_anulacion,
+                monto=int(t.monto),
+                estado=_ESTADO_ANULACION.get(t.estado, "en_curso"),  # type: ignore[arg-type]
+                producto=t.producto,
+                en=t.creado_en,
+            )
+            for t in transacciones
+            if t.tipo == "anulacion"
         ]
         vista = CobroPedido(
-            pedido_id=identificador, referencia=base.referencia, total_confirmado=int(base.total), cobrado=cobrado,
-            devuelto=devuelto, queda_cobrado=max(0, cobrado - devuelto),
+            pedido_id=identificador,
+            referencia=base.referencia,
+            total_confirmado=int(base.total),
+            cobrado=cobrado,
+            devuelto=devuelto,
+            queda_cobrado=max(0, cobrado - devuelto),
             estado_cargo="sin_cargo" if cargo is None else cargo.estado,
             ventas=[
-                VentaVista(buy_order=t.buy_order, monto=int(t.monto), estado=t.estado, creada_en=t.creado_en,
-                           respondida_en=t.retorno_recibido_en or t.cerrada_en)
-                for t in transacciones if t.tipo == "venta"
+                VentaVista(
+                    buy_order=t.buy_order,
+                    monto=int(t.monto),
+                    estado=t.estado,
+                    creada_en=t.creado_en,
+                    respondida_en=t.retorno_recibido_en or t.cerrada_en,
+                )
+                for t in transacciones
+                if t.tipo == "venta"
             ],
             anulaciones=anulaciones,
             calza=cobrado <= int(base.total) and all(a.estado != "en_curso" for a in anulaciones),
         )
-        _auditar(sesion, reloj, request, operador, AccionAuditoria.OPERACION_PEDIDO_VER, EntidadAuditoria.PEDIDO,
-                 identificador, base.grupo_id, base.persona_cuidada_id)
+        _auditar(
+            sesion,
+            reloj,
+            request,
+            operador,
+            AccionAuditoria.OPERACION_PEDIDO_VER,
+            EntidadAuditoria.PEDIDO,
+            identificador,
+            base.grupo_id,
+            base.persona_cuidada_id,
+        )
     _no_store(respuesta)
     return vista
 
@@ -344,14 +491,25 @@ def cobros_pendientes(_operador: Operador, fabrica: Fabrica, reloj: RelojDep, re
     _no_store(respuesta)
     return CobrosPendientes(
         ventas_sin_respuesta=[
-            VentaPendiente(pedido_id=f.pedido_id, referencia=f.referencia, buy_order=f.buy_order, monto=int(f.monto),
-                           creada_en=f.creado_en)
+            VentaPendiente(
+                pedido_id=f.pedido_id,
+                referencia=f.referencia,
+                buy_order=f.buy_order,
+                monto=int(f.monto),
+                creada_en=f.creado_en,
+            )
             for f in ventas
         ],
         anulaciones_sin_terminar=[
-            AnulacionPendiente(pedido_id=f.pedido_id, estado="sin_terminar" if f.estado == "error" else "en_curso",
-                               referencia=f.referencia, motivo=f.motivo_anulacion, monto=int(f.monto),
-                               creada_en=f.creado_en, intentos=int(f.intentos or 0))
+            AnulacionPendiente(
+                pedido_id=f.pedido_id,
+                estado="sin_terminar" if f.estado == "error" else "en_curso",
+                referencia=f.referencia,
+                motivo=f.motivo_anulacion,
+                monto=int(f.monto),
+                creada_en=f.creado_en,
+                intentos=int(f.intentos or 0),
+            )
             for f in anulaciones
         ],
     )
@@ -365,8 +523,10 @@ def _etag(version: int) -> str:
 
 
 _SIN_NOTAS: dict[int | str, dict[str, Any]] = {
-    503: {"description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
-          **_PROBLEMA},
+    503: {
+        "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
+        **_PROBLEMA,
+    },
 }
 
 
@@ -392,7 +552,9 @@ def _sin_contacto(campo: str, texto: str | None) -> None:
         validar_nota(texto)
     except NotaConContacto:
         raise ErrorMATU(
-            422, tipo="nota-con-contacto", detalle="La nota no puede llevar correos, teléfonos ni RUT",
+            422,
+            tipo="nota-con-contacto",
+            detalle="La nota no puede llevar correos, teléfonos ni RUT",
             errores=[{"campo": campo, "mensaje": "sin correos, teléfonos ni RUT", "tipo": "nota_con_contacto"}],
         ) from None
 
@@ -402,33 +564,51 @@ def _vistas(sesion: Session, custodia: CustodiaNotas, filas: list[Any], operador
     claves = deks(sesion, custodia, [x for f in filas for x in (f.clave_notas_id, f.resolucion_clave_id)])
     vistas = []
     for f in filas:
-        descripcion = descifrar_nota(claves.get(f.clave_notas_id), f.id, "descripcion",
-                                     None if f.descripcion is None else bytes(f.descripcion))
+        descripcion = descifrar_nota(
+            claves.get(f.clave_notas_id), f.id, "descripcion", None if f.descripcion is None else bytes(f.descripcion)
+        )
         resolucion = None
         if f.resolucion is not None:
             resolucion = descifrar_nota(claves.get(f.resolucion_clave_id), f.id, "resolucion", bytes(f.resolucion))
         disponible = descripcion is not None and (f.resolucion is None or resolucion is not None)
-        vistas.append(IncidenciaVista(
-            id=f.id, pedido_id=f.pedido_id, referencia=f.referencia, tipo=f.tipo, estado=f.estado,
-            descripcion=descripcion if disponible else None, resolucion=resolucion if disponible else None,
-            nota_disponible=disponible, creada_en=f.creada_en, resuelta_en=f.resuelta_en,
-            asignada=f.asignada_a is not None, asignada_a_mi=f.asignada_a == operador, version=int(f.version),
-        ))
+        vistas.append(
+            IncidenciaVista(
+                id=f.id,
+                pedido_id=f.pedido_id,
+                referencia=f.referencia,
+                tipo=f.tipo,
+                estado=f.estado,
+                descripcion=descripcion if disponible else None,
+                resolucion=resolucion if disponible else None,
+                nota_disponible=disponible,
+                creada_en=f.creada_en,
+                resuelta_en=f.resuelta_en,
+                asignada=f.asignada_a is not None,
+                asignada_a_mi=f.asignada_a == operador,
+                version=int(f.version),
+            )
+        )
     return vistas
 
 
 @router.get(
     "/incidencias",
     response_model=ListaIncidencias,
-    responses={**_BASE, **_SIN_NOTAS,
-               422: {"description": "estado no es abierta, en_gestion ni resuelta", **_PROBLEMA}},
+    responses={
+        **_BASE,
+        **_SIN_NOTAS,
+        422: {"description": "estado no es abierta, en_gestion ni resuelta", **_PROBLEMA},
+    },
     description=(
         "Las incidencias, de la más nueva a la más antigua, hasta 200. Con `estado`, solo las de ese estado. La nota y"
         " la resolución se descifran al leer; si la clave de las notas se destruyó, `nota_disponible` es false."
     ),
 )
 def listar_incidencias(
-    operador: Operador, fabrica: Fabrica, respuesta: Response, custodia: CustodiaNotasDep,
+    operador: Operador,
+    fabrica: Fabrica,
+    respuesta: Response,
+    custodia: CustodiaNotasDep,
     estado: Annotated[str | None, Query(pattern="^(abierta|en_gestion|resuelta)$")] = None,
 ) -> ListaIncidencias:
     con_kek = _custodia(custodia)
@@ -441,10 +621,15 @@ def listar_incidencias(
     return ListaIncidencias(incidencias=vistas)
 
 
-@router.get("/incidencias/{incidencia_id}", response_model=IncidenciaVista, responses={**_BASE, **_SIN_NOTAS},
-            description="Una incidencia, con su versión en el ETag (P7).")
-def ver_incidencia(incidencia_id: _ID, operador: Operador, fabrica: Fabrica, respuesta: Response,
-                   custodia: CustodiaNotasDep) -> IncidenciaVista:
+@router.get(
+    "/incidencias/{incidencia_id}",
+    response_model=IncidenciaVista,
+    responses={**_BASE, **_SIN_NOTAS},
+    description="Una incidencia, con su versión en el ETag (P7).",
+)
+def ver_incidencia(
+    incidencia_id: _ID, operador: Operador, fabrica: Fabrica, respuesta: Response, custodia: CustodiaNotasDep
+) -> IncidenciaVista:
     con_kek = _custodia(custodia)
     try:
         with sesion_tenant(fabrica, rol="operacion") as sesion:
@@ -463,9 +648,14 @@ def ver_incidencia(incidencia_id: _ID, operador: Operador, fabrica: Fabrica, res
     "/pedidos/{pedido_id}/incidencias",
     response_model=IncidenciaVista,
     status_code=status.HTTP_201_CREATED,
-    responses={**_BASE, **_SIN_NOTAS,
-               422: {"description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres; o "
-                     + _NOTA_CON_CONTACTO, **_PROBLEMA}},
+    responses={
+        **_BASE,
+        **_SIN_NOTAS,
+        422: {
+            "description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres; o " + _NOTA_CON_CONTACTO,
+            **_PROBLEMA,
+        },
+    },
     description=(
         "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la leen quien pagó el pedido, en"
         " «Tus pedidos» (MATU-128), y quien administra o cuida, en la copia de sus datos: no lleva nombres, RUT,"
@@ -475,9 +665,16 @@ def ver_incidencia(incidencia_id: _ID, operador: Operador, fabrica: Fabrica, res
         " incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría."
     ),
 )
-def crear_incidencia(pedido_id: _ID, solicitud: SolicitudIncidencia, request: Request, operador: Operador,
-                     fabrica: Fabrica, reloj: RelojDep, respuesta: Response,
-                     custodia: CustodiaNotasDep) -> IncidenciaVista:
+def crear_incidencia(
+    pedido_id: _ID,
+    solicitud: SolicitudIncidencia,
+    request: Request,
+    operador: Operador,
+    fabrica: Fabrica,
+    reloj: RelojDep,
+    respuesta: Response,
+    custodia: CustodiaNotasDep,
+) -> IncidenciaVista:
     _sin_contacto("descripcion", solicitud.descripcion)
     con_kek = _custodia(custodia)
     identificador = _uuid(pedido_id)
@@ -487,11 +684,27 @@ def crear_incidencia(pedido_id: _ID, solicitud: SolicitudIncidencia, request: Re
     try:
         with sesion_tenant(fabrica, usuario_id=operador, grupo_id=base.grupo_id, rol="operacion") as sesion:
             clave = clave_para_cifrar(sesion, con_kek, base.grupo_id, base.persona_cuidada_id)
-            nueva = sql.crear_incidencia(sesion, nueva_id, identificador, solicitud.tipo,
-                                         cifrar_nota(clave.dek, nueva_id, "descripcion", solicitud.descripcion),
-                                         clave.id, operador if solicitud.asignarme else None, reloj.ahora())
-            _auditar(sesion, reloj, request, operador, AccionAuditoria.INCIDENCIA_CREAR, EntidadAuditoria.INCIDENCIA,
-                     nueva, base.grupo_id, base.persona_cuidada_id)
+            nueva = sql.crear_incidencia(
+                sesion,
+                nueva_id,
+                identificador,
+                solicitud.tipo,
+                cifrar_nota(clave.dek, nueva_id, "descripcion", solicitud.descripcion),
+                clave.id,
+                operador if solicitud.asignarme else None,
+                reloj.ahora(),
+            )
+            _auditar(
+                sesion,
+                reloj,
+                request,
+                operador,
+                AccionAuditoria.INCIDENCIA_CREAR,
+                EntidadAuditoria.INCIDENCIA,
+                nueva,
+                base.grupo_id,
+                base.persona_cuidada_id,
+            )
             fila = sql.incidencia(sesion, nueva)
             [vista] = _vistas(sesion, con_kek, [fila], operador)
     except NotasNoDisponibles:
@@ -505,19 +718,24 @@ def _version_de(if_match: str | None, prefijo: str) -> str:
     if if_match is None:
         raise ErrorMATU(428, tipo="falta-version", detalle="Vuelve a abrir el contenido antes de cambiarlo")
     valor = if_match.strip().removeprefix("W/").strip('"')
-    if not valor.startswith(prefijo) or not valor[len(prefijo):].isdigit():
+    if not valor.startswith(prefijo) or not valor[len(prefijo) :].isdigit():
         raise ErrorMATU(412, tipo="version-desactualizada", detalle="Otra persona del equipo cambió esto")
-    return valor[len(prefijo):]
+    return valor[len(prefijo) :]
 
 
 @router.patch(
     "/incidencias/{incidencia_id}",
     response_model=IncidenciaVista,
     responses={
-        **_BASE, **_CON_VERSION, **_SIN_NOTAS,
+        **_BASE,
+        **_CON_VERSION,
+        **_SIN_NOTAS,
         409: {"description": "incidencia-resuelta: una incidencia resuelta ya no cambia", **_PROBLEMA},
-        422: {"description": "falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido; o "
-              + _NOTA_CON_CONTACTO, **_PROBLEMA},
+        422: {
+            "description": "falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido; o "
+            + _NOTA_CON_CONTACTO,
+            **_PROBLEMA,
+        },
     },
     description=(
         "Cambia el estado, la asignación (`a_mi` o `sin_asignar`) o la resolución (C13). Exige If-Match con el ETag"
@@ -525,9 +743,17 @@ def _version_de(if_match: str | None, prefijo: str) -> str:
         " las notas de la persona (decisión 471). Resolverla se audita incidencia.resolver, sin el texto."
     ),
 )
-def editar_incidencia(incidencia_id: _ID, solicitud: SolicitudEditarIncidencia, request: Request,
-                      operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response,
-                      custodia: CustodiaNotasDep, if_match: IfMatch = None) -> IncidenciaVista:
+def editar_incidencia(
+    incidencia_id: _ID,
+    solicitud: SolicitudEditarIncidencia,
+    request: Request,
+    operador: Operador,
+    fabrica: Fabrica,
+    reloj: RelojDep,
+    respuesta: Response,
+    custodia: CustodiaNotasDep,
+    if_match: IfMatch = None,
+) -> IncidenciaVista:
     _sin_contacto("resolucion", solicitud.resolucion)
     con_kek = _custodia(custodia)
     identificador = _uuid(incidencia_id)
@@ -539,14 +765,18 @@ def editar_incidencia(incidencia_id: _ID, solicitud: SolicitudEditarIncidencia, 
     if version != int(actual.version):
         raise ErrorMATU(412, tipo="version-desactualizada", detalle="Otra persona del equipo cambió esto")
     try:
-        cambio = consola.nuevo_estado_incidencia(actual.estado, actual.resolucion is not None, solicitud.estado,
-                                                 solicitud.resolucion, reloj.ahora())
+        cambio = consola.nuevo_estado_incidencia(
+            actual.estado, actual.resolucion is not None, solicitud.estado, solicitud.resolucion, reloj.ahora()
+        )
     except consola.IncidenciaResuelta:
         raise ErrorMATU(409, tipo="incidencia-resuelta", detalle="Esta incidencia ya se resolvió") from None
     except consola.FaltaResolucion:
-        raise ErrorMATU(422, tipo="falta-resolucion", detalle="Escribe cómo se resolvió",
-                        errores=[{"campo": "resolucion", "mensaje": "obligatoria para resolver",
-                                  "tipo": "falta_resolucion"}]) from None
+        raise ErrorMATU(
+            422,
+            tipo="falta-resolucion",
+            detalle="Escribe cómo se resolvió",
+            errores=[{"campo": "resolucion", "mensaje": "obligatoria para resolver", "tipo": "falta_resolucion"}],
+        ) from None
     asignada = actual.asignada_a
     if solicitud.asignacion == "a_mi":
         asignada = operador
@@ -560,12 +790,22 @@ def editar_incidencia(incidencia_id: _ID, solicitud: SolicitudEditarIncidencia, 
                 clave = clave_para_cifrar(sesion, con_kek, actual.grupo_id, actual.persona_cuidada_id)
                 cifrada = cifrar_nota(clave.dek, identificador, "resolucion", cambio.resolucion)
                 clave_id = clave.id
-            if not sql.editar_incidencia(sesion, identificador, version, cambio.estado, asignada, cifrada, clave_id,
-                                         cambio.resuelta_en):
+            if not sql.editar_incidencia(
+                sesion, identificador, version, cambio.estado, asignada, cifrada, clave_id, cambio.resuelta_en
+            ):
                 raise ErrorMATU(412, tipo="version-desactualizada", detalle="Otra persona del equipo cambió esto")
             if cambio.resuelve:
-                _auditar(sesion, reloj, request, operador, AccionAuditoria.INCIDENCIA_RESOLVER,
-                         EntidadAuditoria.INCIDENCIA, identificador, actual.grupo_id, actual.persona_cuidada_id)
+                _auditar(
+                    sesion,
+                    reloj,
+                    request,
+                    operador,
+                    AccionAuditoria.INCIDENCIA_RESOLVER,
+                    EntidadAuditoria.INCIDENCIA,
+                    identificador,
+                    actual.grupo_id,
+                    actual.persona_cuidada_id,
+                )
             fila = sql.incidencia(sesion, identificador)
             [vista] = _vistas(sesion, con_kek, [fila], operador)
     except NotasNoDisponibles:
@@ -584,14 +824,24 @@ def _etag_oferta(actualizado_en: Any) -> str:
 
 def _oferta(f: Any) -> OfertaConsola:
     return OfertaConsola(
-        id=f.id, comercio=ComercioOperacion(nombre_fantasia=f.nombre_fantasia, ficticio=bool(f.ficticio)),
-        producto=f.nombre, presentacion=f.presentacion, precio=int(f.precio), stock=int(f.stock),
-        disponible=bool(f.disponible), editable=bool(f.ficticio), version=_etag_oferta(f.actualizado_en),
+        id=f.id,
+        comercio=ComercioOperacion(nombre_fantasia=f.nombre_fantasia, ficticio=bool(f.ficticio)),
+        producto=f.nombre,
+        presentacion=f.presentacion,
+        precio=int(f.precio),
+        stock=int(f.stock),
+        disponible=bool(f.disponible),
+        editable=bool(f.ficticio),
+        version=_etag_oferta(f.actualizado_en),
     )
 
 
-@router.get("/catalogo", response_model=CatalogoConsola, responses=_BASE,
-            description="Las ofertas de los comercios activos. `editable` solo en los comercios ficticios (D-81-7).")
+@router.get(
+    "/catalogo",
+    response_model=CatalogoConsola,
+    responses=_BASE,
+    description="Las ofertas de los comercios activos. `editable` solo en los comercios ficticios (D-81-7).",
+)
 def ver_catalogo(_operador: Operador, fabrica: Fabrica, respuesta: Response) -> CatalogoConsola:
     with sesion_tenant(fabrica, rol="operacion") as sesion:
         filas = sql.catalogo(sesion)
@@ -603,7 +853,8 @@ def ver_catalogo(_operador: Operador, fabrica: Fabrica, respuesta: Response) -> 
     "/ofertas/{oferta_id}",
     response_model=OfertaConsola,
     responses={
-        **_BASE, **_CON_VERSION,
+        **_BASE,
+        **_CON_VERSION,
         409: {"description": "comercio-real: solo se editan las ofertas de los comercios ficticios (C1)", **_PROBLEMA},
         422: {"description": "Cuerpo inválido: el precio es un entero en pesos mayor que 0, con IVA", **_PROBLEMA},
     },
@@ -614,8 +865,16 @@ def ver_catalogo(_operador: Operador, fabrica: Fabrica, respuesta: Response) -> 
         " catalogo.oferta_cambiar sin grupo y sin los valores."
     ),
 )
-def cambiar_oferta(oferta_id: _ID, solicitud: SolicitudOferta, request: Request, operador: Operador, fabrica: Fabrica,
-                   reloj: RelojDep, respuesta: Response, if_match: IfMatch = None) -> OfertaConsola:
+def cambiar_oferta(
+    oferta_id: _ID,
+    solicitud: SolicitudOferta,
+    request: Request,
+    operador: Operador,
+    fabrica: Fabrica,
+    reloj: RelojDep,
+    respuesta: Response,
+    if_match: IfMatch = None,
+) -> OfertaConsola:
     identificador = _uuid(oferta_id)
     with sesion_tenant(fabrica, rol="operacion") as sesion:
         actual = sql.oferta(sesion, identificador)
@@ -625,22 +884,34 @@ def cambiar_oferta(oferta_id: _ID, solicitud: SolicitudOferta, request: Request,
         if f'"o{version}"' != _etag_oferta(actual.actualizado_en):
             raise ErrorMATU(412, tipo="version-desactualizada", detalle="Otra persona del equipo cambió esto")
         if not actual.ficticio:
-            raise ErrorMATU(409, tipo="comercio-real", detalle="Solo se cambian los productos de los comercios de"
-                            " prueba")
+            raise ErrorMATU(
+                409, tipo="comercio-real", detalle="Solo se cambian los productos de los comercios de prueba"
+            )
         ahora = reloj.ahora()
         try:
             sql.cambiar_oferta(
-                sesion, identificador,
+                sesion,
+                identificador,
                 actual.precio if solicitud.precio is None else solicitud.precio,
                 actual.stock if solicitud.stock is None else solicitud.stock,
                 actual.disponible if solicitud.disponible is None else solicitud.disponible,
                 ahora,
             )
         except DBAPIError:
-            raise ErrorMATU(409, tipo="comercio-real", detalle="Solo se cambian los productos de los comercios de"
-                            " prueba") from None
-        _auditar(sesion, reloj, request, operador, AccionAuditoria.CATALOGO_OFERTA_CAMBIAR, EntidadAuditoria.OFERTA,
-                 identificador, None, None)
+            raise ErrorMATU(
+                409, tipo="comercio-real", detalle="Solo se cambian los productos de los comercios de prueba"
+            ) from None
+        _auditar(
+            sesion,
+            reloj,
+            request,
+            operador,
+            AccionAuditoria.CATALOGO_OFERTA_CAMBIAR,
+            EntidadAuditoria.OFERTA,
+            identificador,
+            None,
+            None,
+        )
         nueva = sql.oferta(sesion, identificador)
     _no_store(respuesta)
     respuesta.headers["ETag"] = _etag_oferta(nueva.actualizado_en)

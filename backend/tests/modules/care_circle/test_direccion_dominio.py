@@ -43,8 +43,9 @@ TERMINOS_PROHIBIDOS = ("diagnóstico", "diagnostico", "conducta", "incidente", "
 pytestmark = pytest.mark.rf("RF-21")
 
 
-@pytest.mark.parametrize(("rol", "puede"), [("admin", True), ("cuidador", True), ("pagador", False),
-                                            ("observador", False), ("", False)])
+@pytest.mark.parametrize(
+    ("rol", "puede"), [("admin", True), ("cuidador", True), ("pagador", False), ("observador", False), ("", False)]
+)
 def test_cambian_la_direccion_admin_y_cuidador(rol: str, puede: bool) -> None:
     assert puede_cambiar_direccion(rol) is puede
 
@@ -64,8 +65,9 @@ def test_despues_if_match_con_el_etag() -> None:
         exigir_precondicion_guardar(Precondicion('"v1"', None), None)
 
 
-@pytest.mark.parametrize("pre", [Precondicion(None, None), Precondicion("", None), Precondicion("*", None),
-                                 Precondicion(" ", " ")])
+@pytest.mark.parametrize(
+    "pre", [Precondicion(None, None), Precondicion("", None), Precondicion("*", None), Precondicion(" ", " ")]
+)
 def test_sin_precondicion_428(pre: Precondicion) -> None:
     with pytest.raises(FaltaPrecondicion):
         exigir_precondicion_guardar(pre, 1)

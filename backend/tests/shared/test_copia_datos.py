@@ -103,10 +103,15 @@ def test_el_historial_es_una_lista_cerrada_sin_lo_del_relevo_ni_el_borrado() -> 
     assert set(TIPO_HECHO) <= ACCIONES_DE_PERSONA
     fuera = ACCIONES_DE_PERSONA - set(TIPO_HECHO)
     assert fuera == {
-        AccionAuditoria.RELEVO_PRESENTAR, AccionAuditoria.RELEVO_CANJE, AccionAuditoria.RELEVO_PIN_INCORRECTO,
-        AccionAuditoria.RELEVO_BLOQUEO, AccionAuditoria.RELEVO_ABRIR, AccionAuditoria.PERSONA_BORRAR,
+        AccionAuditoria.RELEVO_PRESENTAR,
+        AccionAuditoria.RELEVO_CANJE,
+        AccionAuditoria.RELEVO_PIN_INCORRECTO,
+        AccionAuditoria.RELEVO_BLOQUEO,
+        AccionAuditoria.RELEVO_ABRIR,
+        AccionAuditoria.PERSONA_BORRAR,
         # MATU-81 (D-81-4): lo que el equipo anotó va en «Lo que pasó con tu pedido» (lo_que_paso), no en el historial
-        AccionAuditoria.INCIDENCIA_CREAR, AccionAuditoria.INCIDENCIA_RESOLVER,
+        AccionAuditoria.INCIDENCIA_CREAR,
+        AccionAuditoria.INCIDENCIA_RESOLVER,
     }
     # MATU-81 (D-81-5) suma matu_reviso_el_pedido, y MATU-114 (J2) matu_intento_un_retracto_por_correo
     assert len(set(TIPO_HECHO.values())) == len(TIPO_HECHO) == 35
@@ -116,9 +121,13 @@ def test_el_historial_es_una_lista_cerrada_sin_lo_del_relevo_ni_el_borrado() -> 
 def test_un_hecho_dice_a_que_se_refiere_sin_el_contenido() -> None:
     editado = hecho("plan.editar", MADRUGADA_UTC, "usuario", "Carmen", True, None, "rutina", None, None)
     assert editado == {
-        "tipo": "edito_la_ficha", "ocurrido_en": "2026-11-11T23:30:00-03:00",
+        "tipo": "edito_la_ficha",
+        "ocurrido_en": "2026-11-11T23:30:00-03:00",
         "quien": {"tipo": "persona", "nombre": "Carmen", "activo": True},
-        "campo": "rutina", "seccion": None, "finalidad": None, "referencia": None,
+        "campo": "rutina",
+        "seccion": None,
+        "finalidad": None,
+        "referencia": None,
     }
     complementaria = hecho("plan.editar", MADRUGADA_UTC, "usuario", "Carmen", True, "remedios", "remedios", None, None)
     assert (complementaria or {})["campo"] is None and (complementaria or {})["seccion"] == "remedios"
@@ -126,8 +135,11 @@ def test_un_hecho_dice_a_que_se_refiere_sin_el_contenido() -> None:
     retiro = hecho("consentimiento.revocar", MADRUGADA_UTC, "usuario", None, False, None, None, "consumo", None)
     assert retiro is not None and retiro["finalidad"] == "consumo" and retiro["quien"]["nombre"] is None
     pago = hecho("pago.aprobar", MADRUGADA_UTC, "sistema", None, False, None, None, None, "4821")
-    assert pago is not None and pago["referencia"] == "4821" and pago["quien"] == {
-        "tipo": "matu", "nombre": None, "activo": None}
+    assert (
+        pago is not None
+        and pago["referencia"] == "4821"
+        and pago["quien"] == {"tipo": "matu", "nombre": None, "activo": None}
+    )
     assert hecho("relevo.abrir", MADRUGADA_UTC, "relevo", None, False, None, None, None, None) is None
     assert hecho("sesion.iniciar", MADRUGADA_UTC, "usuario", "Carmen", True, None, None, None, None) is None
 

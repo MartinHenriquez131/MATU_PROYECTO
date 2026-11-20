@@ -68,11 +68,13 @@ def test_la_contrasena_de_operacion_pide_el_codigo_y_el_codigo_abre_12_horas(
     sesion = r.json()
     assert sesion["tipo_cuenta"] == "operacion" and sesion["sesion_vence_en"]
     assert NOMBRE_COOKIE in r.headers["set-cookie"]
-    claims = jwt.decode(sesion["access_token"], entorno_iam.clave_jwt, algorithms=["HS256"],
-                        options={"verify_exp": False})
+    claims = jwt.decode(
+        sesion["access_token"], entorno_iam.clave_jwt, algorithms=["HS256"], options={"verify_exp": False}
+    )
     assert claims["mfa"] == int(entorno_iam.reloj.ahora().timestamp())
     [(mfa_en, emitido, expira)] = _filas(
-        "SELECT mfa_en, emitido_en, expira_en FROM sesion_refresh WHERE usuario_id = %s", usuario_id)
+        "SELECT mfa_en, emitido_en, expira_en FROM sesion_refresh WHERE usuario_id = %s", usuario_id
+    )
     assert mfa_en is not None and expira - emitido <= timedelta(hours=12)
     # El desafío sirve una vez
     assert _mfa(entorno_iam, cuerpo["desafio"], "000000").json()["type"] == "/errores/desafio-vencido"
@@ -95,8 +97,9 @@ def test_la_renovacion_conserva_la_marca_y_no_pasa_de_12_horas(
     assert renovada.status_code == 200, renovada.text
     # El access token no vive más allá de las 12 horas (C31): quedan 10 minutos
     assert renovada.json()["expira_en"] == 600 and renovada.json()["tipo_cuenta"] == "operacion"
-    claims = jwt.decode(renovada.json()["access_token"], entorno_iam.clave_jwt, algorithms=["HS256"],
-                        options={"verify_exp": False})
+    claims = jwt.decode(
+        renovada.json()["access_token"], entorno_iam.clave_jwt, algorithms=["HS256"], options={"verify_exp": False}
+    )
     assert "mfa" in claims
     refresh = renovada.headers["set-cookie"].split(";")[0].split("=", 1)[1]
     entorno_iam.reloj.avanzar(timedelta(minutes=11))
@@ -120,8 +123,9 @@ def test_cinco_codigos_que_no_coinciden_bloquean_y_un_paso_no_se_usa_dos_veces(
     # Bloqueada, ni el código correcto abre, con un desafío nuevo
     desafio = _desafio(entorno_iam, email_sintetico, contrasena_sintetica).json()["desafio"]
     assert _mfa(entorno_iam, desafio, hotp(secreto, paso_de(entorno_iam.reloj.ahora()))).status_code == 429
-    assert _filas("SELECT count(*) FROM auditoria WHERE actor_ref = %s AND accion = 'sesion.mfa_fallido'",
-                  usuario_id) == [(5,)]
+    assert _filas(
+        "SELECT count(*) FROM auditoria WHERE actor_ref = %s AND accion = 'sesion.mfa_fallido'", usuario_id
+    ) == [(5,)]
     # Pasada la ventana, entra; el mismo paso otra vez no
     entorno_iam.reloj.avanzar(timedelta(minutes=16))
     paso = paso_de(entorno_iam.reloj.ahora())
@@ -166,8 +170,9 @@ def test_una_cuenta_de_familia_entra_como_siempre_y_no_usa_el_segundo_paso(
     assert r.status_code == 201
     entrada = entorno_iam.iniciar_sesion(email=email_sintetico, contrasena=contrasena_sintetica)
     assert entrada.status_code == 200 and entrada.json()["sesion_vence_en"] is None
-    claims = jwt.decode(entrada.json()["access_token"], entorno_iam.clave_jwt, algorithms=["HS256"],
-                        options={"verify_exp": False})
+    claims = jwt.decode(
+        entrada.json()["access_token"], entorno_iam.clave_jwt, algorithms=["HS256"], options={"verify_exp": False}
+    )
     assert "mfa" not in claims
 
 
@@ -177,8 +182,9 @@ def test_la_base_no_deja_una_sesion_de_operacion_sin_la_marca(
     """C29 en la base: el trigger sesion_refresh_mfa, también para un superusuario."""
     usuario_id, _ = _operacion(entorno_iam, email_sintetico, contrasena_sintetica)
     with psycopg.connect(DSN) as cx:
-        dispositivo = cx.execute("INSERT INTO dispositivo (usuario_id, plataforma) VALUES (%s, 'web') RETURNING id",
-                                 (usuario_id,)).fetchone()
+        dispositivo = cx.execute(
+            "INSERT INTO dispositivo (usuario_id, plataforma) VALUES (%s, 'web') RETURNING id", (usuario_id,)
+        ).fetchone()
         assert dispositivo is not None
         with pytest.raises(psycopg.errors.CheckViolation):
             cx.execute(

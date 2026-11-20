@@ -35,10 +35,15 @@ TELEFONO = uuid.UUID("00000000-0000-0000-0000-0000000055d1")
 OTRO = uuid.UUID("00000000-0000-0000-0000-0000000055d2")
 
 
-def _fila(accion: str, *, minutos: int = 0, dispositivo: uuid.UUID | None = None,
-          nombre: str | None = None) -> FilaIngreso:
-    return FilaIngreso(accion=accion, ocurrido_en=AHORA - timedelta(minutes=minutos), dispositivo_id=dispositivo,
-                       dispositivo_nombre=nombre)
+def _fila(
+    accion: str, *, minutos: int = 0, dispositivo: uuid.UUID | None = None, nombre: str | None = None
+) -> FilaIngreso:
+    return FilaIngreso(
+        accion=accion,
+        ocurrido_en=AHORA - timedelta(minutes=minutos),
+        dispositivo_id=dispositivo,
+        dispositivo_nombre=nombre,
+    )
 
 
 # --- La lista cerrada (decisión 254) -------------------------------------------------------------------------------
@@ -53,9 +58,17 @@ def test_la_lista_cerrada_son_las_acciones_de_la_cuenta_menos_las_excluidas() ->
 
 
 def test_los_fallidos_y_el_pedido_del_codigo_del_celular_no_entran() -> None:
-    filas = [_fila(a) for a in ("sesion.inicio_fallido", "cuenta.recuperar_verificar_fallido",
-                                "cuenta.celular_verificar_fallido", "cuenta.celular_solicitar", "plan.leer",
-                                "no.existe")]
+    filas = [
+        _fila(a)
+        for a in (
+            "sesion.inicio_fallido",
+            "cuenta.recuperar_verificar_fallido",
+            "cuenta.celular_verificar_fallido",
+            "cuenta.celular_solicitar",
+            "plan.leer",
+            "no.existe",
+        )
+    ]
     assert armar_ingresos(filas, dispositivo_actual=None).eventos == ()
 
 
@@ -70,8 +83,12 @@ def test_el_dispositivo_actual_y_los_eventos_de_la_cuenta_sin_dispositivo() -> N
         _fila("sesion.cerrar", minutos=3),  # el dispositivo ya no existe
     ]
     eventos = armar_ingresos(filas, dispositivo_actual=TELEFONO).eventos
-    assert [e.tipo for e in eventos] == [TipoEventoCuenta.ENTRASTE, TipoEventoCuenta.CERRASTE_EN_DISPOSITIVO,
-                                         TipoEventoCuenta.CONTRASENA_CAMBIADA, TipoEventoCuenta.SALISTE]
+    assert [e.tipo for e in eventos] == [
+        TipoEventoCuenta.ENTRASTE,
+        TipoEventoCuenta.CERRASTE_EN_DISPOSITIVO,
+        TipoEventoCuenta.CONTRASENA_CAMBIADA,
+        TipoEventoCuenta.SALISTE,
+    ]
     assert eventos[0].dispositivo is not None and eventos[0].dispositivo.actual is True
     assert eventos[0].dispositivo.clase is ClaseDispositivo.TELEFONO
     assert eventos[1].dispositivo is not None and eventos[1].dispositivo.actual is False
@@ -82,22 +99,28 @@ def test_el_dispositivo_actual_y_los_eventos_de_la_cuenta_sin_dispositivo() -> N
 
 
 def test_sin_did_nada_es_el_actual() -> None:
-    [evento] = armar_ingresos([_fila("sesion.iniciar", dispositivo=TELEFONO, nombre="Chrome en Android")],
-                              dispositivo_actual=None).eventos
+    [evento] = armar_ingresos(
+        [_fila("sesion.iniciar", dispositivo=TELEFONO, nombre="Chrome en Android")], dispositivo_actual=None
+    ).eventos
     assert evento.dispositivo is not None and evento.dispositivo.actual is False
 
 
 def test_el_instante_sale_en_utc() -> None:
     santiago = timezone(timedelta(hours=-3))
-    fila = FilaIngreso(accion="sesion.iniciar", ocurrido_en=datetime(2026, 11, 12, 10, 5, tzinfo=santiago),
-                       dispositivo_id=None, dispositivo_nombre=None)
+    fila = FilaIngreso(
+        accion="sesion.iniciar",
+        ocurrido_en=datetime(2026, 11, 12, 10, 5, tzinfo=santiago),
+        dispositivo_id=None,
+        dispositivo_nombre=None,
+    )
     [evento] = armar_ingresos([fila], dispositivo_actual=None).eventos
     assert evento.ocurrido_en == AHORA and evento.ocurrido_en.tzinfo == UTC
 
 
 def test_el_repr_no_lleva_los_nombres_de_los_dispositivos() -> None:
-    resultado = armar_ingresos([_fila("sesion.iniciar", dispositivo=TELEFONO, nombre="Chrome en Android")],
-                               dispositivo_actual=TELEFONO)
+    resultado = armar_ingresos(
+        [_fila("sesion.iniciar", dispositivo=TELEFONO, nombre="Chrome en Android")], dispositivo_actual=TELEFONO
+    )
     assert "Chrome" not in repr(resultado) and "Chrome" not in repr(resultado.eventos)
     assert "Chrome" not in repr(_fila("sesion.iniciar", nombre="Chrome en Android"))
 
@@ -123,17 +146,20 @@ def test_el_tope_es_20_y_hay_mas_no_dice_cuantos(cantidad: int, hay_mas: bool) -
 # --- La clase del dispositivo (C7) ---------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("nombre", "clase"), [
-    ("Chrome en Android", ClaseDispositivo.TELEFONO),
-    ("Safari en iPhone", ClaseDispositivo.TELEFONO),
-    ("Firefox en Windows", ClaseDispositivo.COMPUTADOR),
-    ("Safari en Mac", ClaseDispositivo.COMPUTADOR),
-    ("Firefox en Linux", ClaseDispositivo.COMPUTADOR),
-    ("Chrome en ChromeOS", ClaseDispositivo.COMPUTADOR),
-    ("Safari en iPad", ClaseDispositivo.OTRO),
-    ("Navegador web", ClaseDispositivo.OTRO),
-    ("", ClaseDispositivo.OTRO),
-])
+@pytest.mark.parametrize(
+    ("nombre", "clase"),
+    [
+        ("Chrome en Android", ClaseDispositivo.TELEFONO),
+        ("Safari en iPhone", ClaseDispositivo.TELEFONO),
+        ("Firefox en Windows", ClaseDispositivo.COMPUTADOR),
+        ("Safari en Mac", ClaseDispositivo.COMPUTADOR),
+        ("Firefox en Linux", ClaseDispositivo.COMPUTADOR),
+        ("Chrome en ChromeOS", ClaseDispositivo.COMPUTADOR),
+        ("Safari en iPad", ClaseDispositivo.OTRO),
+        ("Navegador web", ClaseDispositivo.OTRO),
+        ("", ClaseDispositivo.OTRO),
+    ],
+)
 def test_clase_desde_el_nombre(nombre: str, clase: ClaseDispositivo) -> None:
     assert clase_dispositivo(nombre) is clase
 

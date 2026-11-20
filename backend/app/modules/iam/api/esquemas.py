@@ -278,9 +278,7 @@ class PushActualVista(BaseModel):
             )
         ),
     ]
-    registrado: Annotated[
-        bool, Field(description="Si el dispositivo del claim did tiene un endpoint de push guardado")
-    ]
+    registrado: Annotated[bool, Field(description="Si el dispositivo del claim did tiene un endpoint de push guardado")]
     envio_simulado: Annotated[
         bool,
         Field(description="true mientras no exista un adaptador real de push (decisión 112): no se envía nada a nadie"),
@@ -386,7 +384,7 @@ class SolicitudCodigoRecuperacion(BaseModel):
         Literal["correo"] | None,
         Field(
             description=(
-                "Con \"correo\", el código va al correo aunque el celular esté verificado (reenviar al correo)."
+                'Con "correo", el código va al correo aunque el celular esté verificado (reenviar al correo).'
                 " Sin él, va al celular verificado o, si no hay, al correo. La respuesta nunca dice a cuál"
             )
         ),
@@ -400,9 +398,7 @@ class SolicitudCambioContrasena(BaseModel):
 
     email: Annotated[str, Field(max_length=LARGO_MAXIMO_EMAIL)]
     codigo: _CODIGO
-    contrasena_nueva: Annotated[
-        str, Field(min_length=LARGO_MINIMO_CONTRASENA, max_length=LARGO_MAXIMO_CONTRASENA)
-    ]
+    contrasena_nueva: Annotated[str, Field(min_length=LARGO_MINIMO_CONTRASENA, max_length=LARGO_MAXIMO_CONTRASENA)]
 
 
 class SolicitudVerificarCelular(BaseModel):

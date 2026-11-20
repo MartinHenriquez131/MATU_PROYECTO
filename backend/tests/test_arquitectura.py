@@ -265,8 +265,12 @@ def verificar_pureza_dominio(raiz: Path) -> list[Violacion]:
             if destino.split(".")[0] in sys.stdlib_module_names or any(_bajo(destino, p) for p in permitidos):
                 continue
             violaciones.append(
-                Violacion(relativo, importacion.linea, "dominio", f"domain/ no importa {destino}: solo stdlib, "
-                          f"{paquete}.shared o el domain/ de su módulo")
+                Violacion(
+                    relativo,
+                    importacion.linea,
+                    "dominio",
+                    f"domain/ no importa {destino}: solo stdlib, {paquete}.shared o el domain/ de su módulo",
+                )
             )
 
         # Nombre local → nombre calificado, para reconocer los alias del reloj del sistema
@@ -349,53 +353,125 @@ def test_modulos_existentes_declarados_en_el_grafo() -> None:
 # ---------------------------------------------------------------------------
 
 IMPORTACIONES_PROHIBIDAS = [
-    pytest.param("modules/catalog/application/servicio.py", "from app.modules.ordering.domain import pedido\n",
-                 "regla 1", id="catalog-importa-ordering"),
-    pytest.param("modules/catalog/application/servicio.py", "from ...ordering import api\n",
-                 "regla 1", id="catalog-importa-ordering-relativo"),
-    pytest.param("modules/catalog/servicio.py",
-                 "def f():\n    from app.modules.ordering import pedido\n    return pedido\n",
-                 "regla 1", id="catalog-importa-ordering-dentro-de-funcion"),
-    pytest.param("modules/iam/servicio.py", "import app.modules.care_circle.domain\n",
-                 "regla 1", id="iam-importa-care_circle"),
-    pytest.param("modules/payments/servicio.py", "from app.modules.settlement import conciliacion\n",
-                 "regla 1", id="payments-importa-settlement"),
-    pytest.param("modules/backoffice/api/router.py", "from app.modules.consumption.application import lista\n",
-                 "regla 1", id="backoffice-importa-consumption"),
-    pytest.param("modules/care_circle/servicio.py", "from app.modules.care_plan.application.ports import X\n",
-                 "regla 2", id="care_circle-importa-care_plan"),
-    pytest.param("modules/backoffice/api/router.py", "from app.modules.care_plan import interfaz_consumo\n",
-                 "regla 2", id="backoffice-importa-care_plan"),
-    pytest.param("modules/consumption/application/prediccion.py", "from app.modules.care_plan.domain import seccion\n",
-                 "regla 2", id="consumption-importa-submodulo-de-care_plan"),
-    pytest.param("modules/consumption/application/prediccion.py", "from app.modules.care_plan import CustodiaClaves\n",
-                 "regla 2", id="consumption-importa-paquete-care_plan"),
-    pytest.param("modules/consumption/application/prediccion.py", "import app.modules.care_plan\n",
-                 "regla 2", id="consumption-importa-care_plan-con-import"),
-    pytest.param("modules/consumption/application/lista.py", "from app.modules.payments.application import cobro\n",
-                 "regla 3", id="consumption-importa-payments"),
-    pytest.param("modules/care_plan/application/x.py", "import app.modules.fulfillment.domain\n",
-                 "regla 3", id="care_plan-importa-fulfillment"),
-    pytest.param("modules/consumption/x.py", "from ..settlement import liquidacion\n",
-                 "regla 3", id="consumption-importa-settlement-relativo"),
+    pytest.param(
+        "modules/catalog/application/servicio.py",
+        "from app.modules.ordering.domain import pedido\n",
+        "regla 1",
+        id="catalog-importa-ordering",
+    ),
+    pytest.param(
+        "modules/catalog/application/servicio.py",
+        "from ...ordering import api\n",
+        "regla 1",
+        id="catalog-importa-ordering-relativo",
+    ),
+    pytest.param(
+        "modules/catalog/servicio.py",
+        "def f():\n    from app.modules.ordering import pedido\n    return pedido\n",
+        "regla 1",
+        id="catalog-importa-ordering-dentro-de-funcion",
+    ),
+    pytest.param(
+        "modules/iam/servicio.py", "import app.modules.care_circle.domain\n", "regla 1", id="iam-importa-care_circle"
+    ),
+    pytest.param(
+        "modules/payments/servicio.py",
+        "from app.modules.settlement import conciliacion\n",
+        "regla 1",
+        id="payments-importa-settlement",
+    ),
+    pytest.param(
+        "modules/backoffice/api/router.py",
+        "from app.modules.consumption.application import lista\n",
+        "regla 1",
+        id="backoffice-importa-consumption",
+    ),
+    pytest.param(
+        "modules/care_circle/servicio.py",
+        "from app.modules.care_plan.application.ports import X\n",
+        "regla 2",
+        id="care_circle-importa-care_plan",
+    ),
+    pytest.param(
+        "modules/backoffice/api/router.py",
+        "from app.modules.care_plan import interfaz_consumo\n",
+        "regla 2",
+        id="backoffice-importa-care_plan",
+    ),
+    pytest.param(
+        "modules/consumption/application/prediccion.py",
+        "from app.modules.care_plan.domain import seccion\n",
+        "regla 2",
+        id="consumption-importa-submodulo-de-care_plan",
+    ),
+    pytest.param(
+        "modules/consumption/application/prediccion.py",
+        "from app.modules.care_plan import CustodiaClaves\n",
+        "regla 2",
+        id="consumption-importa-paquete-care_plan",
+    ),
+    pytest.param(
+        "modules/consumption/application/prediccion.py",
+        "import app.modules.care_plan\n",
+        "regla 2",
+        id="consumption-importa-care_plan-con-import",
+    ),
+    pytest.param(
+        "modules/consumption/application/lista.py",
+        "from app.modules.payments.application import cobro\n",
+        "regla 3",
+        id="consumption-importa-payments",
+    ),
+    pytest.param(
+        "modules/care_plan/application/x.py",
+        "import app.modules.fulfillment.domain\n",
+        "regla 3",
+        id="care_plan-importa-fulfillment",
+    ),
+    pytest.param(
+        "modules/consumption/x.py",
+        "from ..settlement import liquidacion\n",
+        "regla 3",
+        id="consumption-importa-settlement-relativo",
+    ),
     # Decisión 104 (MATU-40): catalog es capa 3; las capas 1 y 2 nunca lo importan
-    pytest.param("modules/consumption/application/lista.py", "from app.modules.catalog.domain import producto\n",
-                 "regla 1", id="consumption-importa-catalog"),
-    pytest.param("modules/care_plan/application/x.py", "import app.modules.catalog\n",
-                 "regla 1", id="care_plan-importa-catalog"),
-    pytest.param("modules/ordering/application/x.py", "from app.modules.notifications import enviar\n",
-                 "regla 4", id="ordering-importa-notifications"),
-    pytest.param("modules/backoffice/x.py", "import app.modules.notifications.application\n",
-                 "regla 4", id="backoffice-importa-notifications"),
-    pytest.param("modules/consumption/application/trabajo_diario.py",
-                 "from app.modules.notifications.application.avisos import ConsumidorQuiebreProximo\n",
-                 "regla 4", id="consumption-importa-notifications"),
-    pytest.param("modules/notifications/application/x.py", "from app.modules.ordering import pedido\n",
-                 "regla 1", id="notifications-importa-ordering-sin-flecha"),
-    pytest.param("shared/eventos.py", "from app.modules.catalog import eventos\n",
-                 "transversal", id="shared-importa-modulo"),
-    pytest.param("core/dependencias.py", "import app.modules.iam.api\n",
-                 "transversal", id="core-importa-modulo"),
+    pytest.param(
+        "modules/consumption/application/lista.py",
+        "from app.modules.catalog.domain import producto\n",
+        "regla 1",
+        id="consumption-importa-catalog",
+    ),
+    pytest.param(
+        "modules/care_plan/application/x.py", "import app.modules.catalog\n", "regla 1", id="care_plan-importa-catalog"
+    ),
+    pytest.param(
+        "modules/ordering/application/x.py",
+        "from app.modules.notifications import enviar\n",
+        "regla 4",
+        id="ordering-importa-notifications",
+    ),
+    pytest.param(
+        "modules/backoffice/x.py",
+        "import app.modules.notifications.application\n",
+        "regla 4",
+        id="backoffice-importa-notifications",
+    ),
+    pytest.param(
+        "modules/consumption/application/trabajo_diario.py",
+        "from app.modules.notifications.application.avisos import ConsumidorQuiebreProximo\n",
+        "regla 4",
+        id="consumption-importa-notifications",
+    ),
+    pytest.param(
+        "modules/notifications/application/x.py",
+        "from app.modules.ordering import pedido\n",
+        "regla 1",
+        id="notifications-importa-ordering-sin-flecha",
+    ),
+    pytest.param(
+        "shared/eventos.py", "from app.modules.catalog import eventos\n", "transversal", id="shared-importa-modulo"
+    ),
+    pytest.param("core/dependencias.py", "import app.modules.iam.api\n", "transversal", id="core-importa-modulo"),
 ]
 
 
@@ -424,34 +500,63 @@ def test_violacion_indica_archivo_linea_y_regla(tmp_path: Path) -> None:
 
 
 IMPORTACIONES_PERMITIDAS = [
-    pytest.param("modules/consumption/application/perfil.py",
-                 "from app.modules.care_plan.interfaz_consumo import PerfilLectura\n", id="consumption-por-interfaz"),
-    pytest.param("modules/consumption/application/perfil.py",
-                 "from app.modules.care_plan import interfaz_consumo\n", id="consumption-interfaz-como-submodulo"),
-    pytest.param("modules/consumption/application/lista.py",
-                 "from app.modules.care_circle.domain import persona\n", id="consumption-a-care_circle-transitiva"),
-    pytest.param("modules/settlement/servicio.py",
-                 "from app.modules.iam.domain import usuario\n", id="settlement-a-iam-transitiva"),
-    pytest.param("modules/replenishment/servicio.py",
-                 "from app.modules.catalog import api\nfrom app.modules.consumption import eventos\n",
-                 id="replenishment-a-catalog-y-consumption"),
+    pytest.param(
+        "modules/consumption/application/perfil.py",
+        "from app.modules.care_plan.interfaz_consumo import PerfilLectura\n",
+        id="consumption-por-interfaz",
+    ),
+    pytest.param(
+        "modules/consumption/application/perfil.py",
+        "from app.modules.care_plan import interfaz_consumo\n",
+        id="consumption-interfaz-como-submodulo",
+    ),
+    pytest.param(
+        "modules/consumption/application/lista.py",
+        "from app.modules.care_circle.domain import persona\n",
+        id="consumption-a-care_circle-transitiva",
+    ),
+    pytest.param(
+        "modules/settlement/servicio.py",
+        "from app.modules.iam.domain import usuario\n",
+        id="settlement-a-iam-transitiva",
+    ),
+    pytest.param(
+        "modules/replenishment/servicio.py",
+        "from app.modules.catalog import api\nfrom app.modules.consumption import eventos\n",
+        id="replenishment-a-catalog-y-consumption",
+    ),
     pytest.param("modules/rx/servicio.py", "import app.modules.care_circle.domain\n", id="rx-a-care_circle-transitiva"),
-    pytest.param("modules/backoffice/api/router.py",
-                 "from app.modules.payments.application import cobros\nfrom app.modules.iam import api\n",
-                 id="backoffice-a-payments-e-iam"),
-    pytest.param("modules/ordering/application/servicio.py",
-                 "from app.core.config import obtener_configuracion\nfrom app.shared.puertos import Reloj\n",
-                 id="modulo-a-core-y-shared"),
-    pytest.param("modules/catalog/application/servicio.py",
-                 "from ..domain import producto\nfrom . import otro\nfrom app.modules.catalog.domain import oferta\n",
-                 id="modulo-a-si-mismo"),
-    pytest.param("modules/notifications/application/envio.py",
-                 "from app.modules.notifications.domain import plantilla\n", id="notifications-a-si-mismo"),
-    pytest.param("modules/notifications/infrastructure/tarea.py",
-                 "from app.modules.consumption.events import QUIEBRE_PROXIMO\n", id="notifications-consume-eventos"),
+    pytest.param(
+        "modules/backoffice/api/router.py",
+        "from app.modules.payments.application import cobros\nfrom app.modules.iam import api\n",
+        id="backoffice-a-payments-e-iam",
+    ),
+    pytest.param(
+        "modules/ordering/application/servicio.py",
+        "from app.core.config import obtener_configuracion\nfrom app.shared.puertos import Reloj\n",
+        id="modulo-a-core-y-shared",
+    ),
+    pytest.param(
+        "modules/catalog/application/servicio.py",
+        "from ..domain import producto\nfrom . import otro\nfrom app.modules.catalog.domain import oferta\n",
+        id="modulo-a-si-mismo",
+    ),
+    pytest.param(
+        "modules/notifications/application/envio.py",
+        "from app.modules.notifications.domain import plantilla\n",
+        id="notifications-a-si-mismo",
+    ),
+    pytest.param(
+        "modules/notifications/infrastructure/tarea.py",
+        "from app.modules.consumption.events import QUIEBRE_PROXIMO\n",
+        id="notifications-consume-eventos",
+    ),
     pytest.param("main.py", "from app.modules.catalog.api import router\n", id="main-arma-la-aplicacion"),
-    pytest.param("shared/eventos.py", "from app.core.config import obtener_configuracion\nimport httpx\n",
-                 id="shared-a-core-y-terceros"),
+    pytest.param(
+        "shared/eventos.py",
+        "from app.core.config import obtener_configuracion\nimport httpx\n",
+        id="shared-a-core-y-terceros",
+    ),
 ]
 
 
@@ -516,19 +621,24 @@ def test_dominio_con_sdk_externo_falla(tmp_path: Path, codigo: str) -> None:
 
 
 CAPAS_EXTERNAS_DEL_MODULO = [
-    pytest.param(DOMINIO, "from app.modules.care_plan.infrastructure.repositorio import Repo\n",
-                 id="infrastructure-absoluto"),
+    pytest.param(
+        DOMINIO, "from app.modules.care_plan.infrastructure.repositorio import Repo\n", id="infrastructure-absoluto"
+    ),
     pytest.param(DOMINIO, "from ..infrastructure import repositorio\n", id="infrastructure-relativo"),
-    pytest.param(DOMINIO, "from app.modules.care_plan.application.ports import CustodiaClaves\n",
-                 id="application-absoluto"),
+    pytest.param(
+        DOMINIO, "from app.modules.care_plan.application.ports import CustodiaClaves\n", id="application-absoluto"
+    ),
     pytest.param(DOMINIO, "from ..application.ports import CustodiaClaves\n", id="application-relativo"),
     pytest.param(DOMINIO, "import app.modules.care_plan.api.router\n", id="api-absoluto"),
     pytest.param(DOMINIO, "from ..api import esquemas\n", id="api-relativo"),
     pytest.param(DOMINIO, "from app.modules.care_plan import events\n", id="events-absoluto"),
     pytest.param(DOMINIO, "from .. import events\n", id="events-relativo"),
     pytest.param(DOMINIO, "from app.modules.care_plan import CustodiaClaves\n", id="paquete-del-modulo"),
-    pytest.param("modules/care_plan/domain/relevo/acceso.py", "from ...infrastructure import repositorio\n",
-                 id="infrastructure-relativo-desde-subcarpeta"),
+    pytest.param(
+        "modules/care_plan/domain/relevo/acceso.py",
+        "from ...infrastructure import repositorio\n",
+        id="infrastructure-relativo-desde-subcarpeta",
+    ),
 ]
 
 
@@ -547,8 +657,9 @@ DOMINIO_A_DOMINIO = [
     pytest.param(DOMINIO, "import app.modules.care_plan.domain.seccion\n", id="absoluto-con-import"),
     pytest.param(DOMINIO, "from .seccion import Seccion\n", id="relativo"),
     pytest.param(DOMINIO, "from . import seccion\n", id="relativo-al-paquete"),
-    pytest.param("modules/care_plan/domain/relevo/acceso.py", "from ..seccion import Seccion\n",
-                 id="relativo-desde-subcarpeta"),
+    pytest.param(
+        "modules/care_plan/domain/relevo/acceso.py", "from ..seccion import Seccion\n", id="relativo-desde-subcarpeta"
+    ),
 ]
 
 
@@ -602,8 +713,16 @@ def test_reloj_del_sistema_fuera_de_domain_se_permite(tmp_path: Path) -> None:
 
 ANTES_DEL_PIN = APP / "modules" / "care_plan" / "application" / "canje_relevo.py"
 NADA_DE_LA_FICHA = (
-    "CifradorSecciones", "CustodiaClaves", "RepositorioClaves", "RepositorioFicha", "SeccionesRelevo",
-    ".infrastructure", ".domain.cifrado", "cifrador", "repositorio_claves", "repositorio_ficha",
+    "CifradorSecciones",
+    "CustodiaClaves",
+    "RepositorioClaves",
+    "RepositorioFicha",
+    "SeccionesRelevo",
+    ".infrastructure",
+    ".domain.cifrado",
+    "cifrador",
+    "repositorio_claves",
+    "repositorio_ficha",
 )
 
 

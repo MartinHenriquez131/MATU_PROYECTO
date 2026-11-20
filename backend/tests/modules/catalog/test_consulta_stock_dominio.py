@@ -46,8 +46,22 @@ FAMILIA = {
     "comuna": "Ñuñoa",
 }
 CLAVES_PROHIBIDAS = (
-    "grupo", "persona", "usuario", "pedido", "nombre", "correo", "email", "telefono", "direccion", "comuna",
-    "token", "cookie", "ip", "user_agent", "request_id", "jwt",
+    "grupo",
+    "persona",
+    "usuario",
+    "pedido",
+    "nombre",
+    "correo",
+    "email",
+    "telefono",
+    "direccion",
+    "comuna",
+    "token",
+    "cookie",
+    "ip",
+    "user_agent",
+    "request_id",
+    "jwt",
 )
 
 

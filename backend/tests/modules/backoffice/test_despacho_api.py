@@ -76,8 +76,11 @@ def test_de_pagado_a_entregado_y_el_retracto(despacho: Despacho) -> None:
     assert [t[0] for t in transiciones][-3:] == ["enviado_a_comercio", "preparando", "listo_retiro"]
     assert transiciones[-1][1:] == ("comercio", comercio_uno)
     # Lo preparado salió del stock y nada quedó apartado (O5)
-    [producto] = [p for p in d.comercio("uno", "GET", "/productos").json()["productos"]
-                  if p["oferta_id"] == d.e.oferta("panal", "uno")]
+    [producto] = [
+        p
+        for p in d.comercio("uno", "GET", "/productos").json()["productos"]
+        if p["oferta_id"] == d.e.oferta("panal", "uno")
+    ]
     assert producto["apartado"] == 0
 
     # Operación genera el código y el comercio lo valida
@@ -115,8 +118,12 @@ def test_de_pagado_a_entregado_y_el_retracto(despacho: Despacho) -> None:
         cx.execute("UPDATE pedido SET condiciones_version = '0.2' WHERE id = %s", (uuid.UUID(pedido["id"]),))
     ver = d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia)
     assert ver.status_code == 200 and ver.json()["retractos"] == []
-    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                  {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    r = d.post_familia(
+        f"/v1/pedidos/{pedido['id']}/retractos",
+        familia.admin,
+        familia,
+        {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]},
+    )
     assert r.status_code == 201, r.text
     # Las condiciones 0.2 devuelven también el envío (D-63-10, a)
     assert (r.json()["monto"], r.json()["incluye_envio"]) == (PRECIO_PANAL + COSTO_ENVIO, True)
@@ -131,8 +138,12 @@ def test_de_pagado_a_entregado_y_el_retracto(despacho: Despacho) -> None:
     # Resuelto, no se resuelve otra vez
     assert d.operacion("POST", f"/retractos/{r.json()['id']}/resolver", {"decision": "devolver"}).status_code == 409
     # H3: la misma línea admite otro retracto, solo por lo que queda (1 de 2)
-    otra = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                     {"lineas": [{"linea_id": str(linea[0]), "cantidad": 2}]})
+    otra = d.post_familia(
+        f"/v1/pedidos/{pedido['id']}/retractos",
+        familia.admin,
+        familia,
+        {"lineas": [{"linea_id": str(linea[0]), "cantidad": 2}]},
+    )
     assert otra.status_code == 422
 
     # Logs: ni el código, ni el token, ni la referencia
@@ -151,7 +162,8 @@ def test_el_faltante_se_devuelve_el_mismo_dia_por_unidades(despacho: Despacho) -
     assert d.cargo(pedido["id"]) == ("devuelto_parcial", total, PRECIO_PANAL)
     assert d.sql(
         "SELECT t.motivo_anulacion, t.monto FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id"
-        " WHERE c.pedido_id = %s AND t.tipo = 'anulacion'", uuid.UUID(pedido["id"]),
+        " WHERE c.pedido_id = %s AND t.tipo = 'anulacion'",
+        uuid.UUID(pedido["id"]),
     ) == [("producto_no_entregado", PRECIO_PANAL)]
     # La tarea del despacho no lo devuelve dos veces
     from app.core.db import obtener_fabrica_sesiones
@@ -174,9 +186,16 @@ def test_si_no_hay_ninguno_se_devuelve_todo_con_el_envio(despacho: Despacho) -> 
     assert d.estado_pedido(pedido["id"]) == "cancelado_con_devolucion"
     total = 2 * PRECIO_PANAL + COSTO_ENVIO
     assert d.cargo(pedido["id"]) == ("anulado", total, total)
-    assert d.pasarela.cobrado(d.sql(
-        "SELECT t.token FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id"
-        " WHERE c.pedido_id = %s AND t.tipo = 'venta'", uuid.UUID(pedido["id"]))[0][0]) == 0
+    assert (
+        d.pasarela.cobrado(
+            d.sql(
+                "SELECT t.token FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id"
+                " WHERE c.pedido_id = %s AND t.tipo = 'venta'",
+                uuid.UUID(pedido["id"]),
+            )[0][0]
+        )
+        == 0
+    )
 
 
 def test_el_codigo_vence_y_se_bloquea(despacho: Despacho) -> None:
@@ -190,19 +209,29 @@ def test_el_codigo_vence_y_se_bloquea(despacho: Despacho) -> None:
     malos = [f"{(int(codigo) + i) % 1_000_000:06d}" for i in range(1, 6)]
     resultados = [_validar(d, parte, m).json() for m in malos]
     assert [(r["resultado"], r["intentos_restantes"]) for r in resultados] == [
-        ("no_es", 4), ("no_es", 3), ("no_es", 2), ("no_es", 1), ("bloqueado", 0)]
+        ("no_es", 4),
+        ("no_es", 3),
+        ("no_es", 2),
+        ("no_es", 1),
+        ("bloqueado", 0),
+    ]
     # Bloqueado: ni el correcto sirve
     assert _validar(d, parte, codigo).json()["resultado"] == "bloqueado"
-    assert d.sql("SELECT codigo_hash IS NULL, codigo_bloqueado_en IS NOT NULL FROM pedido_comercio WHERE id = %s",
-                 uuid.UUID(parte)) == [(True, True)]
+    assert d.sql(
+        "SELECT codigo_hash IS NULL, codigo_bloqueado_en IS NOT NULL FROM pedido_comercio WHERE id = %s",
+        uuid.UUID(parte),
+    ) == [(True, True)]
     # Operación lo regenera; vence a los 90 minutos
     codigo = _codigo(d, parte)
     d.e.avanzar(VIDA_CODIGO + timedelta(seconds=1))
     assert _validar(d, parte, codigo).json()["resultado"] == "vencido"
     assert d.comercio("uno", "GET", f"/partes/{parte}").json()["estado_codigo"] == "vencido"
     # Auditoría del comercio: sin grupo ni persona, con la cuenta del encargado
-    filas = d.sql("SELECT DISTINCT accion, grupo_id, persona_cuidada_id, actor_tipo FROM auditoria"
-                  " WHERE entidad_id = %s AND actor_tipo = 'comercio'", uuid.UUID(parte))
+    filas = d.sql(
+        "SELECT DISTINCT accion, grupo_id, persona_cuidada_id, actor_tipo FROM auditoria"
+        " WHERE entidad_id = %s AND actor_tipo = 'comercio'",
+        uuid.UUID(parte),
+    )
     assert {f[0] for f in filas} >= {"comercio.preparar", "comercio.codigo_incorrecto", "comercio.codigo_bloqueo"}
     assert all(f[1] is None and f[2] is None for f in filas)
 
@@ -219,8 +248,11 @@ def test_la_parte_de_otro_comercio_es_404(despacho: Despacho) -> None:
     d = despacho
     _, pedido = d.pagado()
     parte, etag = _parte(d, pedido)
-    for metodo, ruta in (("GET", f"/partes/{parte}"), ("POST", f"/partes/{parte}/preparar"),
-                         ("POST", f"/partes/{parte}/listo")):
+    for metodo, ruta in (
+        ("GET", f"/partes/{parte}"),
+        ("POST", f"/partes/{parte}/preparar"),
+        ("POST", f"/partes/{parte}/listo"),
+    ):
         assert d.comercio("dos", metodo, ruta).status_code == 404
     assert _validar(d, parte, "123456", comercio="dos").status_code == 404
     assert parte not in [p["id"] for p in d.comercio("dos", "GET", "/partes").json()["partes"]]
@@ -237,8 +269,9 @@ def test_la_linea_y_la_oferta_de_otro_comercio_son_404_y_no_cambian(despacho: De
     [linea] = preparando.json()["lineas"]
     etag = preparando.headers["ETag"]
 
-    ajena = d.comercio("dos", "PUT", f"/partes/{parte}/lineas/{linea['id']}", {"estado": "preparada"},
-                       **{"If-Match": etag})
+    ajena = d.comercio(
+        "dos", "PUT", f"/partes/{parte}/lineas/{linea['id']}", {"estado": "preparada"}, **{"If-Match": etag}
+    )
     assert ajena.status_code == 404, ajena.text
     oferta = d.e.oferta("panal", "uno")
     antes = d.sql("SELECT stock, disponible FROM oferta WHERE id = %s", uuid.UUID(oferta))
@@ -246,8 +279,9 @@ def test_la_linea_y_la_oferta_de_otro_comercio_son_404_y_no_cambian(despacho: De
     assert otra.status_code == 404, otra.text
     assert d.sql("SELECT stock, disponible FROM oferta WHERE id = %s", uuid.UUID(oferta)) == antes
     # La línea sigue sin marcar: el comercio dueño la marca con el mismo ETag
-    propia = d.comercio("uno", "PUT", f"/partes/{parte}/lineas/{linea['id']}", {"estado": "preparada"},
-                        **{"If-Match": etag})
+    propia = d.comercio(
+        "uno", "PUT", f"/partes/{parte}/lineas/{linea['id']}", {"estado": "preparada"}, **{"If-Match": etag}
+    )
     assert propia.status_code == 200, propia.text
 
 
@@ -261,8 +295,9 @@ def test_las_rutas_con_parametro_de_comercio_y_operacion_son_404_para_la_familia
     parte = d.parte_de(pedido["id"])
     [(linea,)] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
     oferta = d.e.oferta("panal", "uno")
-    creada = d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias",
-                         {"tipo": "faltante", "descripcion": "Nota sintética"})
+    creada = d.operacion(
+        "POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "faltante", "descripcion": "Nota sintética"}
+    )
     assert creada.status_code == 201, creada.text
     incidencia = creada.json()["id"]
     huella_incidencia = d.sql("SELECT md5(i::text) FROM incidencia i WHERE id = %s", uuid.UUID(incidencia))
@@ -278,8 +313,11 @@ def test_las_rutas_con_parametro_de_comercio_y_operacion_son_404_para_la_familia
         ("POST", f"/v1/operacion/pedidos/{pedido['id']}/entregado", None),
         ("POST", f"/v1/operacion/pedidos/{pedido['id']}/no-entregado", None),
         ("POST", f"/v1/operacion/pedidos/{pedido['id']}/cancelar-con-devolucion", None),
-        ("POST", f"/v1/operacion/pedidos/{pedido['id']}/retractos", {"lineas": [{"linea_id": str(linea),
-                                                                                   "cantidad": 1}]}),
+        (
+            "POST",
+            f"/v1/operacion/pedidos/{pedido['id']}/retractos",
+            {"lineas": [{"linea_id": str(linea), "cantidad": 1}]},
+        ),
         ("POST", f"/v1/operacion/retractos/{uuid.uuid4()}/resolver", {"decision": "devolver"}),
         # La consola de MATU-81
         ("GET", f"/v1/operacion/pedidos/{pedido['id']}", None),
@@ -308,11 +346,15 @@ def test_una_cuenta_que_no_es_de_comercio_ni_de_operacion_recibe_404(despacho: D
     assert d.como(familia.admin, "GET", "/v1/comercio/partes").status_code == 404
     assert d.como(familia.admin, "GET", "/v1/operacion/pedidos").status_code == 404
     # El tipo de cuenta al entrar (O1)
-    assert d.e.iam.iniciar_sesion(email=familia.admin.email, contrasena=familia.admin.contrasena).json()[
-        "tipo_cuenta"] == "familia"
+    assert (
+        d.e.iam.iniciar_sesion(email=familia.admin.email, contrasena=familia.admin.contrasena).json()["tipo_cuenta"]
+        == "familia"
+    )
     encargado = d.encargados["uno"]
-    assert d.e.iam.iniciar_sesion(email=encargado.email, contrasena=encargado.contrasena).json()[
-        "tipo_cuenta"] == "comercio"
+    assert (
+        d.e.iam.iniciar_sesion(email=encargado.email, contrasena=encargado.contrasena).json()["tipo_cuenta"]
+        == "comercio"
+    )
 
 
 def test_comercio_inactivo_es_403(despacho: Despacho) -> None:
@@ -337,8 +379,9 @@ def test_r15_cancela_con_devolucion_antes_de_que_preparen_y_no_despues(despacho:
     # Solo el admin
     cuidador = d.e.usuario(familia, "cuidador") if "cuidador" in familia.miembros else None
     if cuidador is not None:
-        assert d.post_familia(f"/v1/pedidos/{pedido['id']}/cancelar-con-devolucion", cuidador,
-                         familia).status_code == 404
+        assert (
+            d.post_familia(f"/v1/pedidos/{pedido['id']}/cancelar-con-devolucion", cuidador, familia).status_code == 404
+        )
     r = d.post_familia(f"/v1/pedidos/{pedido['id']}/cancelar-con-devolucion", familia.admin, familia)
     assert r.status_code == 200, r.text
     total = 2 * PRECIO_PANAL + COSTO_ENVIO
@@ -369,8 +412,12 @@ def test_el_retracto_fuera_de_plazo_es_409(despacho: Despacho) -> None:
     d.operacion("POST", f"/pedidos/{pedido['id']}/entregado")
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
     d.e.avanzar(timedelta(days=15))
-    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                  {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    r = d.post_familia(
+        f"/v1/pedidos/{pedido['id']}/retractos",
+        familia.admin,
+        familia,
+        {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]},
+    )
     assert r.status_code == 409 and r.json()["type"] == "/errores/fuera-de-plazo"
     # Un pedido no entregado no tiene retracto
     familia2, pedido2 = d.pagado()
@@ -429,17 +476,20 @@ def test_operacion_genera_el_codigo_desde_la_consola_y_vence_solo(despacho: Desp
     assert tareas.codigo_retiro(parte, stream=logs, consola=consola, reloj=d.e.iam.reloj, config=config) == 0
     [codigo] = re.findall(r"\b[0-9]{6}\b", consola.getvalue())
     assert codigo not in logs.getvalue() and "codigo_retiro" in logs.getvalue()
-    assert d.sql("SELECT accion, actor_tipo, actor_ref, persona_cuidada_id IS NOT NULL FROM auditoria"
-                 " WHERE entidad_id = %s AND accion = 'codigo_retiro.generar'", uuid.UUID(parte)) == [
-        ("codigo_retiro.generar", "operacion", None, True)]
+    assert d.sql(
+        "SELECT accion, actor_tipo, actor_ref, persona_cuidada_id IS NOT NULL FROM auditoria"
+        " WHERE entidad_id = %s AND accion = 'codigo_retiro.generar'",
+        uuid.UUID(parte),
+    ) == [("codigo_retiro.generar", "operacion", None, True)]
     # Una parte que no existe, o un id que no es: falla sin escribir nada
-    assert tareas.codigo_retiro(str(uuid.uuid4()), stream=logs, consola=io.StringIO(), reloj=d.e.iam.reloj,
-                                config=config) == 1
+    assert (
+        tareas.codigo_retiro(str(uuid.uuid4()), stream=logs, consola=io.StringIO(), reloj=d.e.iam.reloj, config=config)
+        == 1
+    )
     assert tareas.codigo_retiro("no-es-un-id", stream=logs) == 2
     # Sin el secreto, tampoco
     sin_secreto = obtener_configuracion().model_copy(update={"codigo_retiro_secreto": None})
-    assert tareas.codigo_retiro(parte, stream=logs, consola=io.StringIO(), reloj=d.e.iam.reloj,
-                                config=sin_secreto) == 1
+    assert tareas.codigo_retiro(parte, stream=logs, consola=io.StringIO(), reloj=d.e.iam.reloj, config=sin_secreto) == 1
     assert "CODIGO_RETIRO_SECRETO" in logs.getvalue()
 
     # Vence a los 90 minutos: la tarea despacho vacía su huella sin que nadie lo pruebe
@@ -464,8 +514,12 @@ def test_la_copia_de_los_datos_trae_las_partes_los_faltantes_y_el_retracto(despa
     d.operacion("POST", f"/pedidos/{pedido['id']}/en-camino")
     d.operacion("POST", f"/pedidos/{pedido['id']}/entregado")
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
-    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                  {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    r = d.post_familia(
+        f"/v1/pedidos/{pedido['id']}/retractos",
+        familia.admin,
+        familia,
+        {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]},
+    )
     assert r.status_code == 201, r.text
     # Con la 0.3, el envío vuelve solo si vuelve todo lo entregado (D-63-10, b): faltó uno y se devuelve el otro
     assert (r.json()["monto"], r.json()["incluye_envio"]) == (PRECIO_PANAL + COSTO_ENVIO, True)
@@ -493,15 +547,17 @@ def test_la_copia_de_los_datos_trae_las_partes_los_faltantes_y_el_retracto(despa
     # Sale del grupo (queda otro admin): el retracto sin productos y sin el nombre del grupo (null, nunca "")
     cuidador = familia.miembros["cuidador"].usuario
     d.sql("UPDATE membresia SET rol = 'admin' WHERE usuario_id = %s AND grupo_id = %s", cuidador.id, familia.grupo.id)
-    d.sql("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE usuario_id = %s AND grupo_id = %s",
-          familia.admin.id, familia.grupo.id)
+    d.sql(
+        "UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE usuario_id = %s AND grupo_id = %s",
+        familia.admin.id,
+        familia.grupo.id,
+    )
     cuenta = d.como(familia.admin, "GET", "/v1/yo/datos")
     assert cuenta.status_code == 200, cuenta.text
     [retracto] = cuenta.json()["retractos"]
     assert (retracto["grupo"], retracto["sigue_en_el_grupo"], retracto["productos"]) == (None, False, None)
     assert retracto["referencia"] and retracto["estado"] == "solicitado"
     assert [(x["grupo"], x["sigue_en_el_grupo"]) for x in cuenta.json()["pagos"]] == [(None, False)]
-
 
 
 @pytest.mark.rf("RF-25")
@@ -522,8 +578,9 @@ def test_h1_operacion_cancela_con_devolucion_lo_que_no_se_entrego(despacho: Desp
     total = 2 * PRECIO_PANAL + COSTO_ENVIO
     assert d.estado_pedido(pedido["id"]) == "cancelado_con_devolucion"
     assert d.cargo(pedido["id"]) == ("anulado", total, total)
-    assert d.sql("SELECT actor_tipo FROM auditoria WHERE entidad_id = %s AND accion = 'pedido.cancelar'",
-                 uuid.UUID(pedido["id"])) == [("operacion",)]
+    assert d.sql(
+        "SELECT actor_tipo FROM auditoria WHERE entidad_id = %s AND accion = 'pedido.cancelar'", uuid.UUID(pedido["id"])
+    ) == [("operacion",)]
 
 
 @pytest.mark.rf("R15")
@@ -534,8 +591,10 @@ def test_h2_operacion_cancela_por_correo_antes_de_que_preparen(despacho: Despach
     assert r.status_code == 200, r.text
     parte = d.parte_de(pedido["id"])
     assert d.comercio("uno", "GET", f"/partes/{parte}").json()["motivo_cancelacion"] == "cancelada_por_familia"
-    [(motivo, actor)] = d.sql("SELECT motivo, actor_tipo FROM pedido_transicion WHERE pedido_id = %s"
-                              " AND hacia = 'cancelado_con_devolucion'", uuid.UUID(pedido["id"]))
+    [(motivo, actor)] = d.sql(
+        "SELECT motivo, actor_tipo FROM pedido_transicion WHERE pedido_id = %s AND hacia = 'cancelado_con_devolucion'",
+        uuid.UUID(pedido["id"]),
+    )
     assert (motivo, actor) == ("familia_cancela", "operacion")
 
 
@@ -555,13 +614,13 @@ def test_h2_h3_retracto_por_correo_a_nombre_de_quien_pago_y_varios_por_linea(des
 
     # Pasados los 10 días hábiles la familia ya no puede en la app, pero sí por correo hasta los 90 días
     d.e.avanzar(timedelta(days=30))
-    assert d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                     cuerpo).status_code == 409
+    assert d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia, cuerpo).status_code == 409
     r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo)
     assert r.status_code == 201, r.text
     assert r.json()["origen"] == "correo" and r.json()["incluye_envio"] is False
     assert d.sql("SELECT solicitado_por FROM retracto WHERE id = %s", uuid.UUID(r.json()["id"])) == [
-        (familia.admin.id,)]
+        (familia.admin.id,)
+    ]
     # Se rechaza (el sello venía abierto): esa unidad no se vuelve a pedir, y queda una
     rechazo = {"decision": "rechazar", "motivo": "sello_abierto"}
     assert d.operacion("POST", f"/retractos/{r.json()['id']}/resolver", rechazo).status_code == 200

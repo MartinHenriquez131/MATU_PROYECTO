@@ -18,26 +18,62 @@ OPERACIONES = {
     ("/v1/grupos/{grupo_id}/invitaciones", "post"): ("crearInvitacion", {"201", "401", "404", "422", "429", "503"}),
     ("/v1/grupos/{grupo_id}/invitaciones", "get"): ("listarInvitaciones", {"200", "401", "404"}),
     ("/v1/grupos/{grupo_id}/invitaciones/{invitacion_id}", "delete"): (
-        "anularInvitacion", {"204", "401", "404", "409"}),
+        "anularInvitacion",
+        {"204", "401", "404", "409"},
+    ),
     ("/v1/invitaciones/presentacion", "post"): ("presentarInvitacion", {"200", "410", "422", "423", "429", "503"}),
     ("/v1/invitaciones/verificacion", "post"): (
-        "verificarCodigoInvitacion", {"200", "410", "422", "423", "429", "503"}),
+        "verificarCodigoInvitacion",
+        {"200", "410", "422", "423", "429", "503"},
+    ),
     ("/v1/invitaciones/aceptacion", "post"): (
-        "aceptarInvitacion", {"201", "401", "409", "410", "422", "423", "429", "503"}),
+        "aceptarInvitacion",
+        {"201", "401", "409", "410", "422", "423", "429", "503"},
+    ),
     ("/v1/grupos/{grupo_id}/miembros", "get"): ("listarMiembros", {"200", "401", "404"}),
     ("/v1/grupos/{grupo_id}/miembros/{membresia_id}", "patch"): (
-        "cambiarMiembro", {"200", "401", "404", "409", "412", "422", "428"}),
+        "cambiarMiembro",
+        {"200", "401", "404", "409", "412", "422", "428"},
+    ),
     ("/v1/grupos/{grupo_id}/miembros/{membresia_id}", "delete"): ("sacarMiembro", {"200", "401", "404", "409"}),
     ("/v1/grupos/{grupo_id}/salida", "post"): ("salirDelGrupo", {"200", "401", "404", "409"}),
 }
-COMPONENTES = ("SolicitudInvitacion", "InvitacionCreada", "InvitadaPor", "InvitacionVista", "ListaInvitaciones",
-               "SolicitudPresentacionInvitacion", "PresentacionInvitacion", "SolicitudCanjeInvitacion",
-               "VerificacionInvitacion", "Union", "MiembroVista", "ListaMiembros", "SolicitudCambioMiembro",
-               "ResultadoCambioMiembro", "ResultadoSalida", "AutorVista", "AutorAccesoVista", "AutorPerfilVista",
-               "AutorizacionVista")
+COMPONENTES = (
+    "SolicitudInvitacion",
+    "InvitacionCreada",
+    "InvitadaPor",
+    "InvitacionVista",
+    "ListaInvitaciones",
+    "SolicitudPresentacionInvitacion",
+    "PresentacionInvitacion",
+    "SolicitudCanjeInvitacion",
+    "VerificacionInvitacion",
+    "Union",
+    "MiembroVista",
+    "ListaMiembros",
+    "SolicitudCambioMiembro",
+    "ResultadoCambioMiembro",
+    "ResultadoSalida",
+    "AutorVista",
+    "AutorAccesoVista",
+    "AutorPerfilVista",
+    "AutorizacionVista",
+)
 # Lo que nunca sale de un miembro ni de una invitación (C9, C24)
-PROHIBIDOS = {"email", "celular", "telefono", "usuario_id", "token", "token_hash", "codigo_hash", "intentos",
-              "codigo_intentos_fallidos", "destino_email", "destino_telefono", "ip"}
+PROHIBIDOS = {
+    "email",
+    "celular",
+    "telefono",
+    "usuario_id",
+    "token",
+    "token_hash",
+    "codigo_hash",
+    "intentos",
+    "codigo_intentos_fallidos",
+    "destino_email",
+    "destino_telefono",
+    "ip",
+}
 
 
 @pytest.fixture(scope="module")
@@ -69,7 +105,15 @@ def test_ningun_esquema_trae_contacto_ni_secretos(esquema: dict[str, Any]) -> No
         if not nombre.startswith("Solicitud"):
             assert not set(esquemas[nombre]["properties"]) & PROHIBIDOS, nombre
     assert set(esquemas["MiembroVista"]["properties"]) == {
-        "id", "nombre", "rol", "puede_ver_plan", "unido_en", "eres_tu", "etag", "enlaces_vigentes"}
+        "id",
+        "nombre",
+        "rol",
+        "puede_ver_plan",
+        "unido_en",
+        "eres_tu",
+        "etag",
+        "enlaces_vigentes",
+    }
     assert set(esquemas["SolicitudInvitacion"]["properties"]) == {"rol"}
     # Decisión 325: sin intentos_restantes en la verificación correcta
     assert "intentos_restantes" not in esquemas["VerificacionInvitacion"]["properties"]

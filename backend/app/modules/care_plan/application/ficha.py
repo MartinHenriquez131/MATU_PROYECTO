@@ -131,7 +131,9 @@ def leer_ficha(
         for guardada in repositorio.secciones_complementarias(plan.id):
             tipo = SeccionComplementaria(guardada.tipo)
             texto = cifrador.descifrar(
-                persona_cuidada_id=peticion.persona_cuidada_id, plan_id=plan.id, tipo=tipo.value,
+                persona_cuidada_id=peticion.persona_cuidada_id,
+                plan_id=plan.id,
+                tipo=tipo.value,
                 seccion=guardada.cifrada,
             )
             secciones[tipo] = EstadoCampo(
@@ -143,7 +145,9 @@ def leer_ficha(
         for seccion in repositorio.secciones(plan.id):
             campo = CampoFicha(seccion.tipo)
             texto = cifrador.descifrar(
-                persona_cuidada_id=peticion.persona_cuidada_id, plan_id=plan.id, tipo=campo.value,
+                persona_cuidada_id=peticion.persona_cuidada_id,
+                plan_id=plan.id,
+                tipo=campo.value,
                 seccion=seccion.cifrada,
             )
             campos[campo] = EstadoCampo(
@@ -166,7 +170,10 @@ def leer_ficha(
 
 
 def _estado_guardado(
-    peticion: PeticionFicha, plan_id: uuid.UUID, campo: CampoFicha, repositorio: RepositorioFicha,
+    peticion: PeticionFicha,
+    plan_id: uuid.UUID,
+    campo: CampoFicha,
+    repositorio: RepositorioFicha,
     cifrador: CifradorSecciones,
 ) -> EstadoCampo:
     seccion = repositorio.seccion(plan_id, campo.value)
@@ -184,12 +191,17 @@ def _estado_guardado(
 
 
 def _conflicto(
-    peticion: PeticionFicha, plan_id: uuid.UUID | None, campo: CampoFicha, repositorio: RepositorioFicha,
-    cifrador: CifradorSecciones, auditoria: AuditoriaFicha, ahora: datetime,
+    peticion: PeticionFicha,
+    plan_id: uuid.UUID | None,
+    campo: CampoFicha,
+    repositorio: RepositorioFicha,
+    cifrador: CifradorSecciones,
+    auditoria: AuditoriaFicha,
+    ahora: datetime,
 ) -> CampoEnConflicto:
     """El contenido vigente del campo, leído y auditado como plan.leer (contrato, decisión 8)."""
-    actual = CAMPO_NUNCA_ESCRITO if plan_id is None else _estado_guardado(
-        peticion, plan_id, campo, repositorio, cifrador
+    actual = (
+        CAMPO_NUNCA_ESCRITO if plan_id is None else _estado_guardado(peticion, plan_id, campo, repositorio, cifrador)
     )
     auditoria.registrar_lectura(_evento(peticion, plan_id, None, ahora))
     return CampoEnConflicto(campo=campo, actual=actual)
@@ -228,9 +240,7 @@ def guardar_campo(
                 peticion, None if plan is None else plan.id, campo, repositorio, cifrador, auditoria, ahora
             )
     elif plan is None:
-        repositorio.crear_plan(
-            uuid.uuid4(), peticion.grupo_id, peticion.persona_cuidada_id, peticion.usuario_id, ahora
-        )
+        repositorio.crear_plan(uuid.uuid4(), peticion.grupo_id, peticion.persona_cuidada_id, peticion.usuario_id, ahora)
         # Si otra escritura lo creó primero, crear_plan no escribió y se usa el de ella
         plan = repositorio.obtener_plan(peticion.persona_cuidada_id)
         if plan is None:

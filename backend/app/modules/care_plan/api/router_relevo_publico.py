@@ -245,7 +245,11 @@ def canjear_relevo(
     try:
         with sesion_tenant(fabrica, acceso_relevo_id=acceso_id, rol="relevo") as sesion:
             resultado = canjear(
-                solicitud.pin, RepositorioAccesoRelevoSQL(sesion), huellas, registro(sesion), reloj,
+                solicitud.pin,
+                RepositorioAccesoRelevoSQL(sesion),
+                huellas,
+                registro(sesion),
+                reloj,
                 getattr(request.state, "request_id", None),
             )
     except RelevoNoDisponible as error:

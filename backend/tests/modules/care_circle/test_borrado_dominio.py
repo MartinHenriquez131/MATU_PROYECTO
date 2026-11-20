@@ -38,11 +38,17 @@ AHORA = datetime(2026, 11, 8, 15, 0, tzinfo=UTC)
 PERSONA = uuid.UUID("00000000-0000-0000-0000-000000007201")
 
 
-def _autorizacion(finalidad: str = "plan_cuidado", revocado: datetime | None = None,
-                  motivo: str | None = None) -> AutorizacionRegistrada:
+def _autorizacion(
+    finalidad: str = "plan_cuidado", revocado: datetime | None = None, motivo: str | None = None
+) -> AutorizacionRegistrada:
     return AutorizacionRegistrada(
-        id=uuid.uuid4(), finalidad=finalidad, calidad_otorgante="titular", otorgado_en=AHORA - timedelta(days=30),
-        revision_vence_en=None, revocado_en=revocado, revocacion_motivo=motivo,
+        id=uuid.uuid4(),
+        finalidad=finalidad,
+        calidad_otorgante="titular",
+        otorgado_en=AHORA - timedelta(days=30),
+        revision_vence_en=None,
+        revocado_en=revocado,
+        revocacion_motivo=motivo,
     )
 
 
@@ -53,8 +59,9 @@ def _persona(eliminado: datetime | None = None, borrado: datetime | None = None)
 # --- Reglas ------------------------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("rol", "borra"), [("admin", True), ("cuidador", True), ("pagador", False),
-                                            ("observador", False), ("otro", False)])
+@pytest.mark.parametrize(
+    ("rol", "borra"), [("admin", True), ("cuidador", True), ("pagador", False), ("observador", False), ("otro", False)]
+)
 def test_borran_admin_y_cuidador_como_en_el_retiro(rol: str, borra: bool) -> None:
     assert puede_borrar(rol) is borra
 
@@ -73,8 +80,12 @@ def test_exigir_borrable_404_409_y_la_persona() -> None:
 
 def test_orden_de_bloqueo_plan_consumo_y_las_demas_al_final() -> None:
     finalidades = ["despacho", "consumo", "plan_cuidado", "aviso"]
-    assert sorted(finalidades, key=lambda f: (orden_de_bloqueo(f), f)) == ["plan_cuidado", "consumo", "aviso",
-                                                                         "despacho"]
+    assert sorted(finalidades, key=lambda f: (orden_de_bloqueo(f), f)) == [
+        "plan_cuidado",
+        "consumo",
+        "aviso",
+        "despacho",
+    ]
 
 
 def test_el_nombre_fijo_no_dice_nada() -> None:
@@ -131,8 +142,9 @@ class RepoBorrado:
         self.pasos.append("vigentes")
         return self.vigentes
 
-    def anonimizar(self, persona: PersonaParaBorrar, ahora: datetime, usuario_id: uuid.UUID,
-                   request_id: str | None) -> None:
+    def anonimizar(
+        self, persona: PersonaParaBorrar, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None
+    ) -> None:
         self.pasos.append("anonimizar")
         self.anonimizadas.append((persona.id, ahora))
 
@@ -155,22 +167,32 @@ def test_borrar_retira_con_motivo_borrado_aplica_los_efectos_y_cuenta() -> None:
     repo, retiros = RepoBorrado(_persona(), [plan, consumo]), RepoRetiros({})
     ficha, insumos = Efecto(cortados=3), Efecto()
 
-    resultado = borrar_persona(_solicitud(), RelojFijo(AHORA), repo, retiros, {"consumo": insumos,
-                                                                              "plan_cuidado": ficha})
+    resultado = borrar_persona(
+        _solicitud(), RelojFijo(AHORA), repo, retiros, {"consumo": insumos, "plan_cuidado": ficha}
+    )
 
     assert retiros.retiradas == [(plan.id, AHORA), (consumo.id, AHORA)]
     assert retiros.motivos == ["borrado", "borrado"]
     assert ficha.borrados == [AHORA] and insumos.borrados == [AHORA]
     assert repo.pasos == ["persona", "vigentes", "anonimizar"] and repo.anonimizadas == [(PERSONA, AHORA)]
-    assert (resultado.persona_id, resultado.borrado_en, resultado.enlaces_cortados,
-            resultado.autorizaciones_retiradas) == (PERSONA, AHORA, 3, 2)
+    assert (
+        resultado.persona_id,
+        resultado.borrado_en,
+        resultado.enlaces_cortados,
+        resultado.autorizaciones_retiradas,
+    ) == (PERSONA, AHORA, 3, 2)
 
 
 def test_borrar_lee_el_reloj_una_sola_vez() -> None:
     reloj = _RelojQueAvanza()
     retiros = RepoRetiros({})
-    resultado = borrar_persona(_solicitud(), reloj, RepoBorrado(_persona(), [_autorizacion()]), retiros,
-                               {"plan_cuidado": Efecto(), "consumo": Efecto()})
+    resultado = borrar_persona(
+        _solicitud(),
+        reloj,
+        RepoBorrado(_persona(), [_autorizacion()]),
+        retiros,
+        {"plan_cuidado": Efecto(), "consumo": Efecto()},
+    )
     assert retiros.retiradas[0][1] == resultado.borrado_en == reloj.actual
 
 
@@ -178,8 +200,13 @@ def test_sin_autorizaciones_vigentes_igual_borra_todo() -> None:
     """Las ya retiradas conservan su motivo (D2): el repositorio no las devuelve y no se tocan."""
     ficha, insumos = Efecto(), Efecto()
     retiros = RepoRetiros({})
-    resultado = borrar_persona(_solicitud("admin"), RelojFijo(AHORA), RepoBorrado(_persona(), []), retiros,
-                               {"plan_cuidado": ficha, "consumo": insumos})
+    resultado = borrar_persona(
+        _solicitud("admin"),
+        RelojFijo(AHORA),
+        RepoBorrado(_persona(), []),
+        retiros,
+        {"plan_cuidado": ficha, "consumo": insumos},
+    )
     assert retiros.retiradas == [] and resultado.autorizaciones_retiradas == 0
     assert ficha.borrados == [AHORA] and insumos.borrados == [AHORA]
 
@@ -188,16 +215,20 @@ def test_sin_autorizaciones_vigentes_igual_borra_todo() -> None:
 def test_pagador_y_observador_no_borran_y_no_se_lee_nada(rol: str) -> None:
     repo = RepoBorrado(_persona(), [_autorizacion()])
     with pytest.raises(RolSinPermisoBorrado):
-        borrar_persona(_solicitud(rol), RelojFijo(AHORA), repo, RepoRetiros({}),
-                       {"plan_cuidado": Efecto(), "consumo": Efecto()})
+        borrar_persona(
+            _solicitud(rol), RelojFijo(AHORA), repo, RepoRetiros({}), {"plan_cuidado": Efecto(), "consumo": Efecto()}
+        )
     assert repo.pasos == []
 
 
-@pytest.mark.parametrize(("persona", "error"), [
-    (None, PersonaNoEncontrada),
-    (_persona(eliminado=AHORA), PersonaNoEncontrada),
-    (_persona(eliminado=AHORA, borrado=AHORA), YaBorrada),
-])
+@pytest.mark.parametrize(
+    ("persona", "error"),
+    [
+        (None, PersonaNoEncontrada),
+        (_persona(eliminado=AHORA), PersonaNoEncontrada),
+        (_persona(eliminado=AHORA, borrado=AHORA), YaBorrada),
+    ],
+)
 def test_persona_ausente_o_ya_borrada_no_escribe_nada(persona: PersonaParaBorrar | None, error: type) -> None:
     repo, retiros, ficha = RepoBorrado(persona, [_autorizacion()]), RepoRetiros({}), Efecto()
     with pytest.raises(error):
@@ -217,6 +248,11 @@ def test_si_falla_un_efecto_la_excepcion_sigue_y_no_se_anonimiza() -> None:
     """La transacción de la petición la deshace (C13, la prueba contra la base lo verifica)."""
     repo = RepoBorrado(_persona(), [_autorizacion()])
     with pytest.raises(RuntimeError):
-        borrar_persona(_solicitud(), RelojFijo(AHORA), repo, RepoRetiros({}),
-                       {"plan_cuidado": Efecto(falla=True), "consumo": Efecto()})
+        borrar_persona(
+            _solicitud(),
+            RelojFijo(AHORA),
+            repo,
+            RepoRetiros({}),
+            {"plan_cuidado": Efecto(falla=True), "consumo": Efecto()},
+        )
     assert repo.anonimizadas == []

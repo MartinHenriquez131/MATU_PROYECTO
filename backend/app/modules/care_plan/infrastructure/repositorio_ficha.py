@@ -122,7 +122,11 @@ class RepositorioFichaSQL:
         return None if fila is None else PlanGuardado(id=fila.id)
 
     def crear_plan(
-        self, plan_id: uuid.UUID, grupo_id: uuid.UUID, persona_cuidada_id: uuid.UUID, usuario_id: uuid.UUID,
+        self,
+        plan_id: uuid.UUID,
+        grupo_id: uuid.UUID,
+        persona_cuidada_id: uuid.UUID,
+        usuario_id: uuid.UUID,
         ahora: datetime,
     ) -> bool:
         resultado = cast(
@@ -182,7 +186,12 @@ class RepositorioFichaSQL:
         return resultado.rowcount == 1
 
     def actualizar_seccion_si_version(
-        self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, version_esperada: int, usuario_id: uuid.UUID,
+        self,
+        plan_id: uuid.UUID,
+        tipo: str,
+        cifrada: SeccionCifrada,
+        version_esperada: int,
+        usuario_id: uuid.UUID,
         ahora: datetime,
     ) -> int | None:
         parametros = self._parametros(plan_id, tipo, cifrada, usuario_id, ahora)

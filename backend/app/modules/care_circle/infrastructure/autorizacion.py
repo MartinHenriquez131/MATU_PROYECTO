@@ -61,8 +61,12 @@ def persona_con_autorizacion(
         return None
     if bloquear:
         bloqueada = sesion.execute(_AUTORIZACION_BLOQUEADA, parametros).first()
-        autorizada = None if bloqueada is None else AutorizacionGuardada(
-            calidad_otorgante=bloqueada.calidad_otorgante, revision_vence_en=bloqueada.revision_vence_en
+        autorizada = (
+            None
+            if bloqueada is None
+            else AutorizacionGuardada(
+                calidad_otorgante=bloqueada.calidad_otorgante, revision_vence_en=bloqueada.revision_vence_en
+            )
         )
         return PersonaDelGrupo(id=fila.id, autorizacion=autorizada)
     autorizacion = (

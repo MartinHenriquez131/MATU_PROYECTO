@@ -71,8 +71,10 @@ def test_huella_del_codigo_depende_de_la_parte_y_del_secreto() -> None:
         huella_codigo(b"", parte, "482173")
 
 
-@pytest.mark.parametrize("codigo, valido", [("482173", True), ("48217", False), ("4821734", False),
-                                            ("48a173", False), ("４８２１７３", False)])
+@pytest.mark.parametrize(
+    "codigo, valido",
+    [("482173", True), ("48217", False), ("4821734", False), ("48a173", False), ("４８２１７３", False)],
+)
 def test_el_codigo_son_seis_cifras(codigo: str, valido: bool) -> None:
     assert codigo_valido(codigo) is valido
 

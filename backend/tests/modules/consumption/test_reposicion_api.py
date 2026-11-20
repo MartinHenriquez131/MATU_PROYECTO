@@ -76,14 +76,16 @@ def _auditoria(grupo: uuid.UUID) -> list[tuple[Any, ...]]:
     )
 
 
-def _compre(e: EntornoConsumo, usuario: UsuarioCreado, familia: FamiliaCreada, perfil: Any, cuerpo: Any,
-            **cabeceras: str) -> Any:
+def _compre(
+    e: EntornoConsumo, usuario: UsuarioCreado, familia: FamiliaCreada, perfil: Any, cuerpo: Any, **cabeceras: str
+) -> Any:
     extra: dict[str, Any] = {"If_Match": V1, **cabeceras}
     return e.pedir("POST", usuario, familia, COMPRE.format(perfil), json=cuerpo, **extra)
 
 
-def _quedan(e: EntornoConsumo, usuario: UsuarioCreado, familia: FamiliaCreada, perfil: Any, cuerpo: Any,
-            **cabeceras: str) -> Any:
+def _quedan(
+    e: EntornoConsumo, usuario: UsuarioCreado, familia: FamiliaCreada, perfil: Any, cuerpo: Any, **cabeceras: str
+) -> Any:
     extra: dict[str, Any] = {"If_Match": V1, **cabeceras}
     return e.pedir("POST", usuario, familia, QUEDAN.format(perfil), json=cuerpo, **extra)
 
@@ -112,7 +114,10 @@ def test_compre_en_cantidad_sin_alerta_suma_anota_y_no_crea_alerta(entorno_consu
     assert respuesta.status_code == 200, respuesta.text
     cuerpo = respuesta.json()
     assert (cuerpo["stock_unidades"], cuerpo["stock_medido_en"], cuerpo["fecha_quiebre_estimada"]) == (
-        48, HOY, "2026-11-01")
+        48,
+        HOY,
+        "2026-11-01",
+    )
     assert (cuerpo["dias_restantes"], cuerpo["avisando"], cuerpo["alerta_id"]) == (12, False, None)
     assert cuerpo["etag"] == '"v2"' and respuesta.headers["ETag"] == '"v2"'
     assert respuesta.headers["Cache-Control"] == "no-store"
@@ -123,7 +128,8 @@ def test_compre_en_cantidad_sin_alerta_suma_anota_y_no_crea_alerta(entorno_consu
     # Condición 9: sin alerta y fuera de la ventana, no se crea ninguna fila en alerta_quiebre
     assert _alertas(perfil) == []
     assert _auditoria(familia.grupo.id) == [
-        ("reposicion.declarar", "reposicion", rep_id, "usuario", cuidadora.id, True, None)]
+        ("reposicion.declarar", "reposicion", rep_id, "usuario", cuidadora.id, True, None)
+    ]
 
 
 def test_compre_en_envases_multiplica_por_las_unidades_del_envase(entorno_consumo: EntornoConsumo) -> None:
@@ -290,11 +296,19 @@ def test_compre_sin_cuerpo_es_422_y_la_cantidad_no_viaja_en_la_consulta(entorno_
     ("opciones", "cuerpo", "campo", "tipo"),
     [
         ({}, {"envases": 1}, "envases", "sin_unidades_por_envase"),
-        ({"stock_unidades": 95_000, "tasa_unidades": 10_000, "unidades_por_envase": 5000}, {"envases": 2},
-         "envases", "stock_maximo"),
+        (
+            {"stock_unidades": 95_000, "tasa_unidades": 10_000, "unidades_por_envase": 5000},
+            {"envases": 2},
+            "envases",
+            "stock_maximo",
+        ),
         ({"stock_unidades": 99_000, "tasa_unidades": 10_000}, {"cantidad": 5000}, "cantidad", "stock_maximo"),
-        ({"stock_unidades": 10, "tasa_unidades": 1, "tasa_dias": 90}, {"cantidad": 10_000}, "cantidad",
-         "cobertura_maxima"),
+        (
+            {"stock_unidades": 10, "tasa_unidades": 1, "tasa_dias": 90},
+            {"cantidad": 10_000},
+            "cantidad",
+            "cobertura_maxima",
+        ),
     ],
 )
 def test_compre_que_no_cabe_es_422_sin_tocar_nada(
@@ -465,7 +479,9 @@ def test_autorizacion_retirada_es_403_sin_consentimiento(entorno_consumo: Entorn
     e = entorno_consumo
     familia = e.familia(con_autorizacion=False)
     e.fabrica.autorizacion_consumo(
-        familia.persona, otorgante=familia.admin, otorgado_en=e.iam.reloj.ahora() - timedelta(days=10),
+        familia.persona,
+        otorgante=familia.admin,
+        otorgado_en=e.iam.reloj.ahora() - timedelta(days=10),
         revocado_en=e.iam.reloj.ahora() - timedelta(days=1),
     )
     perfil = e.fabrica.perfil_consumo(familia.persona)
@@ -484,7 +500,9 @@ def test_revision_vencida_es_403(entorno_consumo: EntornoConsumo, ruta: str) -> 
     e = entorno_consumo
     familia = e.familia(con_autorizacion=False)
     e.fabrica.autorizacion_consumo(
-        familia.persona, otorgante=familia.admin, calidad="cuidador_de_hecho",
+        familia.persona,
+        otorgante=familia.admin,
+        calidad="cuidador_de_hecho",
         otorgado_en=e.iam.reloj.ahora() - timedelta(days=366),
     )
     perfil = e.fabrica.perfil_consumo(familia.persona)
@@ -509,13 +527,17 @@ def test_me_quedan_reemplaza_el_stock_sin_anotar_una_compra(entorno_consumo: Ent
     assert respuesta.status_code == 200, respuesta.text
     cuerpo = respuesta.json()
     assert (cuerpo["stock_unidades"], cuerpo["stock_medido_en"], cuerpo["fecha_quiebre_estimada"]) == (
-        40, HOY, "2026-10-30")
+        40,
+        HOY,
+        "2026-10-30",
+    )
     assert (cuerpo["avisando"], cuerpo["alerta_id"], cuerpo["etag"]) == (False, None, '"v2"')
     assert respuesta.headers["ETag"] == '"v2"' and respuesta.headers["Cache-Control"] == "no-store"
     assert _reposiciones(perfil) == []
     assert _alertas(perfil) == []
     assert _auditoria(familia.grupo.id) == [
-        ("consumo.editar", "perfil_consumo", perfil, "usuario", cuidadora.id, True, None)]
+        ("consumo.editar", "perfil_consumo", perfil, "usuario", cuidadora.id, True, None)
+    ]
 
 
 @pytest.mark.rf("RF-12")
@@ -528,7 +550,9 @@ def test_me_quedan_descarta_las_alertas_que_dejan_de_corresponder(entorno_consum
     assert _quedan(e, familia.admin, familia, perfil, {"stock_unidades": 200}).status_code == 200
     assert _alertas(perfil) == [(abierta, "2026-10-26", "descartada")]
     assert [(f[0], f[2]) for f in _auditoria(familia.grupo.id)] == [
-        ("consumo.editar", perfil), ("alerta.descartar", abierta)]
+        ("consumo.editar", perfil),
+        ("alerta.descartar", abierta),
+    ]
 
 
 @pytest.mark.rf("RF-12")
@@ -585,7 +609,9 @@ def test_me_quedan_cobertura_maxima_412_y_428(entorno_consumo: EntornoConsumo) -
     respuesta = _quedan(e, familia.admin, familia, lento, {"stock_unidades": 100})
     assert respuesta.status_code == 422
     assert (respuesta.json()["errores"][0]["campo"], respuesta.json()["errores"][0]["tipo"]) == (
-        "stock_unidades", "cobertura_maxima")
+        "stock_unidades",
+        "cobertura_maxima",
+    )
     perfil = e.fabrica.perfil_consumo(familia.persona, version=3)
     assert _quedan(e, familia.admin, familia, perfil, {"stock_unidades": 3}).status_code == 412
     sin = e.pedir("POST", familia.admin, familia, QUEDAN.format(perfil), json={"stock_unidades": 3})
@@ -636,17 +662,23 @@ def test_compre_simultaneo_a_un_retiro_espera_y_termina_en_403(entorno_consumo: 
     respuestas: list[Any] = []
 
     def comprar() -> None:
-        respuestas.append(e.iam.cliente.post(
-            f"/v1/personas-cuidadas/{familia.persona.id}/consumo/{perfil}/reponer",
-            json={"cantidad": 30}, headers=cabeceras))
+        respuestas.append(
+            e.iam.cliente.post(
+                f"/v1/personas-cuidadas/{familia.persona.id}/consumo/{perfil}/reponer",
+                json={"cantidad": 30},
+                headers=cabeceras,
+            )
+        )
 
     fabrica = fabrica_sesiones()
     with sesion_tenant(fabrica, usuario_id=familia.admin.id, grupo_id=familia.grupo.id) as sesion:
         registro = RegistroAuditoriaSql(sesion, e.iam.reloj)
         retirar_autorizacion(
-            SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id,
-                            finalidad="consumo"),
-            e.iam.reloj, RepositorioRetirosSQL(sesion, familia.grupo.id, registro),
+            SolicitudRetiro(
+                usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id, finalidad="consumo"
+            ),
+            e.iam.reloj,
+            RepositorioRetirosSQL(sesion, familia.grupo.id, registro),
             efectos_de(sesion, familia.grupo.id, registro),
         )
         pid = pid_de(sesion)
@@ -697,9 +729,11 @@ def test_tras_90_dias_del_retiro_consumo_conservar_borra_las_compras(entorno_con
     assert len(_reposiciones(perfil)) == 1
     ahora = datetime.now(UTC)
     with psycopg.connect(DSN, autocommit=True) as cx:
-        cx.execute("UPDATE consentimiento SET revocado_en = %s, revocacion_motivo = 'retiro'"
-                   " WHERE persona_cuidada_id = %s AND finalidad = 'consumo'", (ahora - timedelta(days=91),
-                                                                               familia.persona.id))
+        cx.execute(
+            "UPDATE consentimiento SET revocado_en = %s, revocacion_motivo = 'retiro'"
+            " WHERE persona_cuidada_id = %s AND finalidad = 'consumo'",
+            (ahora - timedelta(days=91), familia.persona.id),
+        )
     conservar(unidad=ConservacionConsumoSql(fabrica_scheduler()), reloj=RelojFijo(ahora))
     assert _filas("SELECT 1 FROM perfil_consumo WHERE id = %s", perfil) == []
     assert _filas("SELECT 1 FROM reposicion WHERE perfil_id = %s", perfil) == []
@@ -711,8 +745,10 @@ def test_la_autorizacion_nueva_tras_90_dias_borra_las_compras(entorno_consumo: E
     familia = e.familia()
     perfil = e.fabrica.perfil_consumo(familia.persona)
     assert _compre(e, familia.admin, familia, perfil, {"cantidad": 30}).status_code == 200
-    retiro = e.iam.cliente.post(f"/v1/personas-cuidadas/{familia.persona.id}/consentimientos/consumo/retiro",
-                                headers=e.cabeceras(familia.admin, familia.grupo.id))
+    retiro = e.iam.cliente.post(
+        f"/v1/personas-cuidadas/{familia.persona.id}/consentimientos/consumo/retiro",
+        headers=e.cabeceras(familia.admin, familia.grupo.id),
+    )
     assert retiro.status_code == 200, retiro.text
     e.iam.reloj.avanzar(timedelta(days=90))
     e.tokens.clear()

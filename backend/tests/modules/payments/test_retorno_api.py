@@ -28,7 +28,13 @@ pytestmark = pytest.mark.rf("RF-25")
 
 RUTA = "/v1/pagos/retorno"
 CLAVES = {
-    "resultado", "ya_registrado", "anulacion", "volver_a_preguntar_en", "grupo_id", "persona_cuidada_id", "pedido_id",
+    "resultado",
+    "ya_registrado",
+    "anulacion",
+    "volver_a_preguntar_en",
+    "grupo_id",
+    "persona_cuidada_id",
+    "pedido_id",
     "pago_de_prueba",
 }
 
@@ -149,8 +155,15 @@ def test_lo_que_no_es_de_matu_es_404_sin_repetir_el_valor(escena: Escena, api: t
 
 @pytest.mark.parametrize(
     "cuerpo",
-    [{}, {"token_ws": ""}, {"token_ws": "con espacio"}, {"token_ws": "a" * 129}, {"TBK_ORDEN_COMPRA": "o" * 27},
-     {"otro": "valor-extra-sintetico"}, {"token_ws": "<script>"}],
+    [
+        {},
+        {"token_ws": ""},
+        {"token_ws": "con espacio"},
+        {"token_ws": "a" * 129},
+        {"TBK_ORDEN_COMPRA": "o" * 27},
+        {"otro": "valor-extra-sintetico"},
+        {"token_ws": "<script>"},
+    ],
     ids=["vacio", "token-vacio", "espacio", "largo", "orden-larga", "campo-extra", "caracteres"],
 )
 def test_422_sin_campos_validos_y_sin_repetir_el_valor(
@@ -274,9 +287,7 @@ def test_el_post_de_transbank_con_tbk_no_deja_los_valores_en_los_logs(
     cliente, salida = api
     orden, sesion = "orden" + TOKEN_SINTETICO[:20], "sesion" + TOKEN_SINTETICO[:30]
     with caplog.at_level(logging.DEBUG):
-        respuesta = _formulario(
-            cliente, f"TBK_TOKEN={TOKEN_SINTETICO}&TBK_ORDEN_COMPRA={orden}&TBK_ID_SESION={sesion}"
-        )
+        respuesta = _formulario(cliente, f"TBK_TOKEN={TOKEN_SINTETICO}&TBK_ORDEN_COMPRA={orden}&TBK_ID_SESION={sesion}")
     assert respuesta.status_code == 303 and TOKEN_SINTETICO in respuesta.headers["location"]
     for valor in (TOKEN_SINTETICO, orden, sesion):
         assert valor not in salida.getvalue()

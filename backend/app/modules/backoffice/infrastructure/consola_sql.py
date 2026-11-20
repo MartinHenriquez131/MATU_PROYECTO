@@ -144,8 +144,11 @@ _CAMBIAR_OFERTA = text(
 
 
 def lista(sesion: Session, estados: Sequence[str], todos: bool, con_problema: bool) -> list[Any]:
-    return list(sesion.execute(_LISTA, {"estados": list(estados), "todos": todos, "con_problema": con_problema,
-                                        "limite": LIMITE_LISTA + 1}))
+    return list(
+        sesion.execute(
+            _LISTA, {"estados": list(estados), "todos": todos, "con_problema": con_problema, "limite": LIMITE_LISTA + 1}
+        )
+    )
 
 
 def buscar(sesion: Session, referencia: str) -> list[Any]:
@@ -193,8 +196,10 @@ def anulaciones_pendientes(sesion: Session) -> list[Any]:
 
 
 def retracto_detalle(sesion: Session, retracto_id: uuid.UUID) -> tuple[Any, list[Any]]:
-    return (sesion.execute(_RETRACTO_DETALLE, {"id": retracto_id}).first(),
-            list(sesion.execute(_RETRACTO_LINEAS, {"id": retracto_id})))
+    return (
+        sesion.execute(_RETRACTO_DETALLE, {"id": retracto_id}).first(),
+        list(sesion.execute(_RETRACTO_LINEAS, {"id": retracto_id})),
+    )
 
 
 def fijar_motivo_rechazo(sesion: Session, retracto_id: uuid.UUID, motivo: str) -> None:
@@ -209,23 +214,61 @@ def incidencia(sesion: Session, incidencia_id: uuid.UUID) -> Any:
     return sesion.execute(_INCIDENCIA, {"id": incidencia_id}).first()
 
 
-def crear_incidencia(sesion: Session, incidencia_id: uuid.UUID, pedido_id: uuid.UUID, tipo: str, descripcion: bytes,
-                     clave_id: uuid.UUID, asignada: uuid.UUID | None, ahora: datetime) -> uuid.UUID:
+def crear_incidencia(
+    sesion: Session,
+    incidencia_id: uuid.UUID,
+    pedido_id: uuid.UUID,
+    tipo: str,
+    descripcion: bytes,
+    clave_id: uuid.UUID,
+    asignada: uuid.UUID | None,
+    ahora: datetime,
+) -> uuid.UUID:
     """``descripcion`` ya cifrada con la clave ``clave_id`` (app/shared/notas_operacion.py)."""
-    return uuid.UUID(str(sesion.execute(_CREAR_INCIDENCIA, {
-        "id": incidencia_id, "pedido": pedido_id, "tipo": tipo, "descripcion": descripcion, "clave": clave_id,
-        "asignada": asignada, "ahora": ahora,
-    }).scalar_one()))
+    return uuid.UUID(
+        str(
+            sesion.execute(
+                _CREAR_INCIDENCIA,
+                {
+                    "id": incidencia_id,
+                    "pedido": pedido_id,
+                    "tipo": tipo,
+                    "descripcion": descripcion,
+                    "clave": clave_id,
+                    "asignada": asignada,
+                    "ahora": ahora,
+                },
+            ).scalar_one()
+        )
+    )
 
 
-def editar_incidencia(sesion: Session, incidencia_id: uuid.UUID, version: int, estado: str,
-                      asignada: uuid.UUID | None, resolucion: bytes | None, clave_id: uuid.UUID | None,
-                      resuelta_en: datetime | None) -> bool:
+def editar_incidencia(
+    sesion: Session,
+    incidencia_id: uuid.UUID,
+    version: int,
+    estado: str,
+    asignada: uuid.UUID | None,
+    resolucion: bytes | None,
+    clave_id: uuid.UUID | None,
+    resuelta_en: datetime | None,
+) -> bool:
     """``resolucion`` ya cifrada con ``clave_id``, o None para dejar la guardada."""
-    return sesion.execute(_EDITAR_INCIDENCIA, {
-        "id": incidencia_id, "version": version, "estado": estado, "asignada": asignada, "resolucion": resolucion,
-        "clave": clave_id, "resuelta_en": resuelta_en,
-    }).first() is not None
+    return (
+        sesion.execute(
+            _EDITAR_INCIDENCIA,
+            {
+                "id": incidencia_id,
+                "version": version,
+                "estado": estado,
+                "asignada": asignada,
+                "resolucion": resolucion,
+                "clave": clave_id,
+                "resuelta_en": resuelta_en,
+            },
+        ).first()
+        is not None
+    )
 
 
 def catalogo(sesion: Session) -> list[Any]:
@@ -236,7 +279,9 @@ def oferta(sesion: Session, oferta_id: uuid.UUID) -> Any:
     return sesion.execute(_OFERTA, {"id": oferta_id}).first()
 
 
-def cambiar_oferta(sesion: Session, oferta_id: uuid.UUID, precio: int, stock: int, disponible: bool,
-                   ahora: datetime) -> None:
-    sesion.execute(_CAMBIAR_OFERTA, {"id": oferta_id, "precio": precio, "stock": stock, "disponible": disponible,
-                                     "ahora": ahora})
+def cambiar_oferta(
+    sesion: Session, oferta_id: uuid.UUID, precio: int, stock: int, disponible: bool, ahora: datetime
+) -> None:
+    sesion.execute(
+        _CAMBIAR_OFERTA, {"id": oferta_id, "precio": precio, "stock": stock, "disponible": disponible, "ahora": ahora}
+    )

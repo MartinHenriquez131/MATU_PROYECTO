@@ -258,8 +258,10 @@ class RetractoVistaFamilia(RetractoVista):
     es_tuyo: bool
     motivo_rechazo: Annotated[
         Literal["sello_abierto", "producto_no_recibido"] | None,
-        Field(description="Solo si estado es rechazado: sello_abierto, o producto_no_recibido (MATU no recibió el"
-              " producto de vuelta); null en los demás"),
+        Field(
+            description="Solo si estado es rechazado: sello_abierto, o producto_no_recibido (MATU no recibió el"
+            " producto de vuelta); null en los demás"
+        ),
     ]
 
 
@@ -308,8 +310,15 @@ class RetractosDelPedido(_Estricto):
 # --- Tus pedidos (MATU-92, rutas 1 y 2) --------------------------------------------------------------------------
 
 EstadoFamiliaApi = Literal[
-    "pagado", "enviado_a_comercio", "preparando", "listo_retiro", "en_ruta", "entregado", "no_entregado",
-    "reprogramado", "cancelado_con_devolucion",
+    "pagado",
+    "enviado_a_comercio",
+    "preparando",
+    "listo_retiro",
+    "en_ruta",
+    "entregado",
+    "no_entregado",
+    "reprogramado",
+    "cancelado_con_devolucion",
 ]
 _DESCRIPCION_ESTADO = (
     "El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y"
@@ -498,18 +507,26 @@ class CosaAnotadaVista(_Estricto):
     """Una cosa que el equipo de MATU anotó del pedido y cómo se resolvió. Los mismos siete campos de LoQuePasoCopia
     («Datos de»). Nunca el id de la incidencia, quién del equipo la anotó, a quién se asignó ni su versión."""
 
-    tipo: Literal["faltante", "entrega_fallida", "reclamo_familia", "cobro_sin_respuesta", "devolucion_pendiente",
-                  "otro"]
+    tipo: Literal[
+        "faltante", "entrega_fallida", "reclamo_familia", "cobro_sin_respuesta", "devolucion_pendiente", "otro"
+    ]
     estado: Literal["abierta", "en_gestion", "resuelta"]
     anotado_en: datetime
     resuelto_en: datetime | None
     nota: Annotated[str | None, Field(description="Lo anotado; null si nota_disponible es false")]
-    resolucion: Annotated[str | None, Field(description="Cómo se resolvió; null si no se resolvió o si nota_disponible"
-                                                        " es false")]
-    nota_disponible: Annotated[bool, Field(description=(
-        "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la"
-        " resolución vienen null y ya no se pueden leer"
-    ))]
+    resolucion: Annotated[
+        str | None, Field(description="Cómo se resolvió; null si no se resolvió o si nota_disponible es false")
+    ]
+    nota_disponible: Annotated[
+        bool,
+        Field(
+            description=(
+                "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la"
+                " nota y la"
+                " resolución vienen null y ya no se pueden leer"
+            )
+        ),
+    ]
 
 
 class LoQuePasoDelPedido(_Estricto):

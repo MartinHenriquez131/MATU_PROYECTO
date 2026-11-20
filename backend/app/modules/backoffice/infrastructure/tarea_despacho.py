@@ -62,7 +62,10 @@ def ejecutar(
     with sesion_tenant(fabrica_scheduler, rol="operacion") as sesion:
         vencidos = int(sesion.execute(_VENCER, {"ahora": reloj.ahora()}).scalar_one())
     log.info(
-        "despacho: %d revisados, %d avanzados, %d fallidos, %d codigos vencidos", revisados, avanzados, fallidos,
+        "despacho: %d revisados, %d avanzados, %d fallidos, %d codigos vencidos",
+        revisados,
+        avanzados,
+        fallidos,
         vencidos,
     )
     return ResultadoDespacho(revisados, avanzados, fallidos, vencidos)

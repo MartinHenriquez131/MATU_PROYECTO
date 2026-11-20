@@ -73,8 +73,10 @@ def test_la_0_2_trae_el_pago_y_la_frase_del_piloto_dentro_de_la_huella() -> None
     # Las secciones van del 1 al 13, sin las remisiones «igual que la versión 0.1» del borrador
     assert "igual que la" not in texto
     assert "te lo enviamos al correo" not in texto
-    assert [f"## {n}." for n in range(1, 14)] == [linea[: len(f"## {n}.")] for n, linea in enumerate(
-        (x for x in texto.splitlines() if x.startswith("## ")), start=1)]
+    assert [f"## {n}." for n in range(1, 14)] == [
+        linea[: len(f"## {n}.")]
+        for n, linea in enumerate((x for x in texto.splitlines() if x.startswith("## ")), start=1)
+    ]
 
 
 def test_la_0_1_sigue_publicada_con_su_huella() -> None:
@@ -96,14 +98,17 @@ def test_la_ruta_es_publica_y_se_revalida() -> None:
 
 
 @pytest.mark.rf("RF-25")
-@pytest.mark.parametrize(("consulta", "codigo", "version"), [
-    ("?version=0.1", 200, "0.1"),
-    ("?version=0.2", 200, "0.2"),
-    ("?version=0.3", 200, "0.3"),
-    ("?version=0.4", 404, None),
-    ("?version=uno", 422, None),
-    ("?version=0.1.2", 422, None),
-])
+@pytest.mark.parametrize(
+    ("consulta", "codigo", "version"),
+    [
+        ("?version=0.1", 200, "0.1"),
+        ("?version=0.2", 200, "0.2"),
+        ("?version=0.3", 200, "0.3"),
+        ("?version=0.4", 404, None),
+        ("?version=uno", 422, None),
+        ("?version=0.1.2", 422, None),
+    ],
+)
 def test_version_entrega_la_aceptada_y_no_otra(consulta: str, codigo: int, version: str | None) -> None:
     """Decisión 240: el comprobante enlaza a la versión aceptada. Otra, 404; otra forma, 422, sin repetir el valor."""
     respuesta = _cliente().get("/v1/condiciones-pedido" + consulta)
@@ -123,8 +128,10 @@ def test_la_0_3_trae_lo_que_pasa_despues_de_pagar_y_las_anteriores_siguen() -> N
     assert (vigente.version, str(vigente.actualizada_en)) == ("0.3", "2026-11-13")
     assert vigente.texto != condiciones_de("0.2").texto
     assert condiciones_de("0.2").huella == PUBLICADAS["0.2"][1] and condiciones_de("0.1").huella == PUBLICADAS["0.1"][1]
-    assert [f"## {n}." for n in range(1, 14)] == [linea[: len(f"## {n}.")] for n, linea in enumerate(
-        (x for x in vigente.texto.splitlines() if x.startswith("## ")), start=1)]
+    assert [f"## {n}." for n in range(1, 14)] == [
+        linea[: len(f"## {n}.")]
+        for n, linea in enumerate((x for x in vigente.texto.splitlines() if x.startswith("## ")), start=1)
+    ]
     assert "## 9. Derecho a retracto" in vigente.texto and "## 6. Cancelar" in vigente.texto
 
 
@@ -136,5 +143,5 @@ def test_la_0_3_es_la_del_documento_desde_la_seccion_1() -> None:
 
     fuente = normalizar_saltos((Path(os.environ["MATU_DOCS_LEGAL"]) / "condiciones-pedido.md").read_text("utf-8"))
     assert "`0.3`" in fuente
-    texto = fuente[fuente.index("## 1. Quién vende"):].rstrip("\n") + "\n"
+    texto = fuente[fuente.index("## 1. Quién vende") :].rstrip("\n") + "\n"
     assert huella_de(texto) == PUBLICADAS["0.3"][1] == condiciones_vigentes().huella

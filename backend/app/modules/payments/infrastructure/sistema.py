@@ -29,9 +29,7 @@ class ResolverVentaSQL:
     def __init__(self, fabrica: sessionmaker[Session]) -> None:
         self._fabrica = fabrica
 
-    def __call__(
-        self, token: str | None, orden: str | None, sesion: str | None
-    ) -> tuple[uuid.UUID, uuid.UUID] | None:
+    def __call__(self, token: str | None, orden: str | None, sesion: str | None) -> tuple[uuid.UUID, uuid.UUID] | None:
         with sesion_tenant(self._fabrica, rol="sistema") as s:
             f = s.execute(_RESOLVER, {"token": token, "orden": orden, "sesion": sesion}).first()
         return None if f is None else (f.transaccion_id, f.grupo_id)

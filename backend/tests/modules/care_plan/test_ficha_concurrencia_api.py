@@ -114,7 +114,10 @@ def test_if_match_desactualizado_412(entorno_ficha: EntornoFicha) -> None:
     assert problema["actual"]["texto"] == del_cuidador
     assert problema["actual"]["etag"] == '"v2"' == pierde.headers["etag"]
     assert problema["actual"]["actualizado_por"] == {
-        "id": str(cuidador.id), "nombre": cuidador.nombre, "autor_activo": True}
+        "id": str(cuidador.id),
+        "nombre": cuidador.nombre,
+        "autor_activo": True,
+    }
     assert problema["actual"]["actualizado_en"] is not None
     assert problema["detail"].startswith(cuidador.nombre)
     assert de_la_admin not in pierde.text
@@ -130,9 +133,12 @@ def test_412_no_fusiona_y_la_persona_decide(entorno_ficha: EntornoFicha) -> None
     grupo, persona = familia.grupo.id, familia.persona.id
     assert entorno_ficha.escribir(admin, grupo, persona, "red_apoyo", {"texto": _texto("Carmen")}).status_code == 201
     del_cuidador = _texto("el cuidador")
-    assert entorno_ficha.escribir(
-        cuidador, grupo, persona, "red_apoyo", {"texto": del_cuidador}, _si_coincide(1)
-    ).status_code == 200
+    assert (
+        entorno_ficha.escribir(
+            cuidador, grupo, persona, "red_apoyo", {"texto": del_cuidador}, _si_coincide(1)
+        ).status_code
+        == 200
+    )
     de_la_admin = _texto("Carmen otra vez")
     pierde = entorno_ficha.escribir(admin, grupo, persona, "red_apoyo", {"texto": de_la_admin}, _si_coincide(1))
     actual = _es_412(pierde, "red_apoyo")["actual"]
@@ -155,12 +161,16 @@ def test_dos_campos_distintos_no_chocan(entorno_ficha: EntornoFicha) -> None:
     grupo, persona = familia.grupo.id, familia.persona.id
     assert entorno_ficha.escribir(admin, grupo, persona, "rutina", {"texto": _texto("Carmen")}).status_code == 201
     assert entorno_ficha.escribir(cuidador, grupo, persona, "red_apoyo", {"texto": _texto("él")}).status_code == 201
-    assert entorno_ficha.escribir(
-        admin, grupo, persona, "rutina", {"texto": _texto("C")}, _si_coincide(1)
-    ).status_code == 200
-    assert entorno_ficha.escribir(
-        cuidador, grupo, persona, "red_apoyo", {"texto": _texto("él")}, _si_coincide(1)
-    ).status_code == 200
+    assert (
+        entorno_ficha.escribir(admin, grupo, persona, "rutina", {"texto": _texto("C")}, _si_coincide(1)).status_code
+        == 200
+    )
+    assert (
+        entorno_ficha.escribir(
+            cuidador, grupo, persona, "red_apoyo", {"texto": _texto("él")}, _si_coincide(1)
+        ).status_code
+        == 200
+    )
 
 
 # --- Criterio 3: sin If-Match, o con If-Match: *, 428 -------------------------------------------------
@@ -314,8 +324,12 @@ def test_rol_y_consentimiento_van_antes_que_la_precondicion(entorno_ficha: Entor
     assert observador.status_code == 404
     sin_consentimiento = entorno_ficha.familia(con_consentimiento=False)
     respuesta = entorno_ficha.escribir(
-        sin_consentimiento.admin, sin_consentimiento.grupo.id, sin_consentimiento.persona.id, "rutina",
-        {"texto": "x"}, None,
+        sin_consentimiento.admin,
+        sin_consentimiento.grupo.id,
+        sin_consentimiento.persona.id,
+        "rutina",
+        {"texto": "x"},
+        None,
     )
     assert respuesta.status_code == 403
 
@@ -405,8 +419,9 @@ def test_log_sin_texto_en_412_y_428(entorno_ficha: EntornoFicha, caplog: pytest.
 # --- Criterio 2 y 4, con concurrencia real: exactamente una gana ----------------------------------------------
 
 
-def _carrera(entorno: EntornoFicha, cabeceras: dict[str, str], *usuarios: UsuarioCreado, persona: uuid.UUID,
-             grupo: uuid.UUID) -> list[int]:
+def _carrera(
+    entorno: EntornoFicha, cabeceras: dict[str, str], *usuarios: UsuarioCreado, persona: uuid.UUID, grupo: uuid.UUID
+) -> list[int]:
     """Dos PUT al mismo campo desde dos hilos, cada uno con su cliente, soltados a la vez."""
     barrera = threading.Barrier(len(usuarios))
     estados: list[int] = []
@@ -462,7 +477,9 @@ def test_dos_primeras_escrituras_simultaneas_gana_una(entorno_ficha: EntornoFich
 def _cifrada_falsa() -> SeccionCifrada:
     # El repositorio nunca descifra: basta un contenido opaco con la forma de una sección
     return SeccionCifrada(
-        contenido_cifrado=secrets.token_bytes(8), nonce=secrets.token_bytes(12), tag_auth=secrets.token_bytes(16),
+        contenido_cifrado=secrets.token_bytes(8),
+        nonce=secrets.token_bytes(12),
+        tag_auth=secrets.token_bytes(16),
         kek_version=1,
     )
 

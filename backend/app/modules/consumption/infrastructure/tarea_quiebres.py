@@ -171,9 +171,7 @@ def recalcular_grupo(fabrica: sessionmaker[Session], grupo_id: uuid.UUID, reloj:
         )
 
 
-def recalcular_todos(
-    fabrica: sessionmaker[Session], scheduler: sessionmaker[Session], reloj: Reloj
-) -> ResultadoTarea:
+def recalcular_todos(fabrica: sessionmaker[Session], scheduler: sessionmaker[Session], reloj: Reloj) -> ResultadoTarea:
     """fabrica es la de matu_app (el trabajo de cada grupo) y scheduler la de matu_scheduler (la lista)."""
     grupos = grupos_activos(scheduler)
     fallidos = materializadas = descartadas = 0

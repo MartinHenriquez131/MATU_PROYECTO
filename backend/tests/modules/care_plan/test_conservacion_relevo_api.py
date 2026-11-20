@@ -46,12 +46,19 @@ def _telefono(acceso: uuid.UUID) -> tuple[Any, ...] | None:
     return _una("SELECT otorgado_a_telefono, telefono_borrado_en FROM acceso_relevo WHERE id = %s", acceso)
 
 
-def _terminar(acceso: uuid.UUID, expira_en: datetime, revocado_en: datetime | None = None,
-              pin_intentos: int = 0) -> None:
+def _terminar(
+    acceso: uuid.UUID, expira_en: datetime, revocado_en: datetime | None = None, pin_intentos: int = 0
+) -> None:
     """Acorta la vida del acceso (y lo corta, o lo bloquea) como superusuario."""
-    _ejecutar("UPDATE acceso_relevo SET creado_en = %s, expira_en = %s, revocado_en = %s,"
-              " pin_intentos_fallidos = %s WHERE id = %s",
-              expira_en - timedelta(days=1), expira_en, revocado_en, pin_intentos, acceso)
+    _ejecutar(
+        "UPDATE acceso_relevo SET creado_en = %s, expira_en = %s, revocado_en = %s,"
+        " pin_intentos_fallidos = %s WHERE id = %s",
+        expira_en - timedelta(days=1),
+        expira_en,
+        revocado_en,
+        pin_intentos,
+        acceso,
+    )
 
 
 def _tarea(instante: datetime) -> int:
@@ -59,8 +66,9 @@ def _tarea(instante: datetime) -> int:
 
 
 def _lista(entorno: EntornoAbrir, familia: FamiliaCreada) -> dict[str, dict[str, Any]]:
-    respuesta = entorno.ficha.iam.cliente.get(RUTA_ACCESOS.format(familia.persona.id),
-                                              headers=entorno.ficha._cabeceras(familia.admin, familia.grupo.id))
+    respuesta = entorno.ficha.iam.cliente.get(
+        RUTA_ACCESOS.format(familia.persona.id), headers=entorno.ficha._cabeceras(familia.admin, familia.grupo.id)
+    )
     assert respuesta.status_code == 200, respuesta.text
     return {item["id"]: item for item in respuesta.json()["items"]}
 
@@ -68,7 +76,8 @@ def _lista(entorno: EntornoAbrir, familia: FamiliaCreada) -> dict[str, dict[str,
 def test_telefono_relevo_se_borra_a_los_30_dias(entorno: EntornoAbrir) -> None:
     familia = entorno.familia_con_ficha()
     vigente, vencido, cortado, bloqueado, reciente = (
-        entorno.compartir(familia, telefono_relevo=TELEFONO)[0] for _ in range(5))
+        entorno.compartir(familia, telefono_relevo=TELEFONO)[0] for _ in range(5)
+    )
     _terminar(vencido, FIN)
     # C1: cortado antes de vencer, cuenta desde el corte
     _terminar(cortado, FIN + timedelta(days=5), revocado_en=FIN)

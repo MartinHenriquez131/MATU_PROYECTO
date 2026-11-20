@@ -127,9 +127,11 @@ def test_pagina_con_cursor(entorno: EntornoAbrir) -> None:
     primera = _lista(_aperturas(entorno, familia.admin, familia.grupo.id, familia.persona.id, limite=2))
     assert [i["tipo"] for i in primera["items"]] == ["apertura", "pin_incorrecto"]
     assert primera["siguiente_cursor"]
-    segunda = _lista(_aperturas(
-        entorno, familia.admin, familia.grupo.id, familia.persona.id, limite=2, cursor=primera["siguiente_cursor"]
-    ))
+    segunda = _lista(
+        _aperturas(
+            entorno, familia.admin, familia.grupo.id, familia.persona.id, limite=2, cursor=primera["siguiente_cursor"]
+        )
+    )
     assert [i["tipo"] for i in segunda["items"]] == ["presentacion"]
     assert segunda["siguiente_cursor"] is None
 
@@ -198,9 +200,16 @@ def test_sin_token_401(entorno: EntornoAbrir) -> None:
 # --- Camino de error de la consulta ----------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("query", [
-    {"cursor": "no-es-un-cursor"}, {"cursor": "x" * 201}, {"limite": 0}, {"limite": 101}, {"limite": "diez"},
-])
+@pytest.mark.parametrize(
+    "query",
+    [
+        {"cursor": "no-es-un-cursor"},
+        {"cursor": "x" * 201},
+        {"limite": 0},
+        {"limite": 101},
+        {"limite": "diez"},
+    ],
+)
 def test_consulta_invalida_422(entorno: EntornoAbrir, query: dict[str, Any]) -> None:
     familia = entorno.familia_con_ficha()
     respuesta = _aperturas(entorno, familia.admin, familia.grupo.id, familia.persona.id, **query)
@@ -209,9 +218,7 @@ def test_consulta_invalida_422(entorno: EntornoAbrir, query: dict[str, Any]) -> 
     assert respuesta.json()["errores"]
 
 
-def test_los_logs_no_llevan_nombre_telefono_ni_token(
-    entorno: EntornoAbrir, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_los_logs_no_llevan_nombre_telefono_ni_token(entorno: EntornoAbrir, caplog: pytest.LogCaptureFixture) -> None:
     familia = entorno.familia_con_ficha()
     _, token, _ = _rosa_abre(entorno, familia)
     caplog.clear()

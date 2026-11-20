@@ -59,7 +59,8 @@ class Avisos:
     def evento(self, pedido: dict[str, Any], tipo: str) -> EventoTomado:
         [(evento_id, grupo_id, payload, intentos)] = self.d.sql(
             "SELECT id, grupo_id, payload, intentos FROM evento_outbox WHERE agregado_id = %s AND tipo = %s",
-            uuid.UUID(pedido["id"]), tipo,
+            uuid.UUID(pedido["id"]),
+            tipo,
         )
         return EventoTomado(evento_id, grupo_id, tipo, payload, intentos)
 
@@ -79,7 +80,9 @@ class Avisos:
     def dispositivo(self, usuario: UsuarioCreado, n: int) -> None:
         self.d.sql(
             "INSERT INTO dispositivo (id, usuario_id, plataforma, push_token) VALUES (%s, %s, 'web', %s)",
-            uuid.uuid4(), usuario.id, TOKEN_PUSH.format(n),
+            uuid.uuid4(),
+            usuario.id,
+            TOKEN_PUSH.format(n),
         )
 
     def preferencia(self, usuario: UsuarioCreado, canal: str, activo: bool) -> None:
@@ -87,7 +90,9 @@ class Avisos:
             "INSERT INTO preferencia_notificacion (usuario_id, tipo_evento, canal, activo)"
             " VALUES (%s, 'pedido', %s, %s)"
             " ON CONFLICT (usuario_id, tipo_evento, canal) DO UPDATE SET activo = EXCLUDED.activo",
-            usuario.id, canal, activo,
+            usuario.id,
+            canal,
+            activo,
         )
 
 
@@ -149,8 +154,15 @@ def test_no_entregado_emite_pedido_no_entregado_y_avisa_a_quien_pago(despacho: D
     assert enviado.mensaje.pie == PIE_PEDIDO
     # Volver a salir desde no_entregado no emite otro
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/en-camino").json()["estado"] == "en_ruta"
-    assert len(d.sql("SELECT 1 FROM evento_outbox WHERE agregado_id = %s AND tipo = 'PedidoNoEntregado'",
-                     uuid.UUID(pedido["id"]))) == 1
+    assert (
+        len(
+            d.sql(
+                "SELECT 1 FROM evento_outbox WHERE agregado_id = %s AND tipo = 'PedidoNoEntregado'",
+                uuid.UUID(pedido["id"]),
+            )
+        )
+        == 1
+    )
 
 
 # --- Solo quien pagó (C4) -----------------------------------------------------------------------------------------
@@ -173,8 +185,9 @@ def test_entregado_avisa_solo_al_admin_que_pago_y_no_a_quien_cuida(despacho: Des
     }
     assert {x.usuario_id for x in avisos.correo.enviados} == {familia.admin.id}
     assert [x.push_token for x in avisos.push.enviados] == [TOKEN_PUSH.format(1)]
-    assert d.sql("SELECT consumidor FROM evento_consumido WHERE evento_id = %s",
-                 avisos.evento(pedido, "PedidoEntregado").id) == [("notifications.pedido.PedidoEntregado",)]
+    assert d.sql(
+        "SELECT consumidor FROM evento_consumido WHERE evento_id = %s", avisos.evento(pedido, "PedidoEntregado").id
+    ) == [("notifications.pedido.PedidoEntregado",)]
 
 
 def test_pago_el_pagador_y_paso_a_observador_recibe_y_el_admin_no(despacho: Despacho, avisos: Avisos) -> None:
@@ -183,8 +196,9 @@ def test_pago_el_pagador_y_paso_a_observador_recibe_y_el_admin_no(despacho: Desp
     pagador = familia.miembros["pagador"].usuario
     pedido = _pagado_por(d, familia, pagador)
     _entregado(d, pedido)
-    d.sql("UPDATE membresia SET rol = 'observador' WHERE usuario_id = %s AND grupo_id = %s",
-          pagador.id, familia.grupo.id)
+    d.sql(
+        "UPDATE membresia SET rol = 'observador' WHERE usuario_id = %s AND grupo_id = %s", pagador.id, familia.grupo.id
+    )
 
     assert isinstance(avisos.consumir(pedido, "PedidoEntregado"), Hecho)
 
@@ -201,8 +215,9 @@ def test_quien_pago_y_salio_del_grupo_se_omite(despacho: Despacho, avisos: Aviso
     pagador = familia.miembros["pagador"].usuario
     pedido = _pagado_por(d, familia, pagador)
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/cancelar-con-devolucion").status_code == 200
-    d.sql("UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s",
-          pagador.id, familia.grupo.id)
+    d.sql(
+        "UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s", pagador.id, familia.grupo.id
+    )
 
     assert isinstance(avisos.consumir(pedido, "PedidoCanceladoConDevolucion"), Hecho)
 
@@ -216,8 +231,11 @@ def test_quien_retiro_la_autorizacion_de_pedidos_recibe(despacho: Despacho, avis
     familia = _familia(d)
     pedido = _pagado_por(d, familia, familia.admin)
     _entregado(d, pedido)
-    d.sql("UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro'"
-          " WHERE persona_cuidada_id = %s AND finalidad = 'despacho' AND revocado_en IS NULL", familia.persona.id)
+    d.sql(
+        "UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro'"
+        " WHERE persona_cuidada_id = %s AND finalidad = 'despacho' AND revocado_en IS NULL",
+        familia.persona.id,
+    )
 
     assert isinstance(avisos.consumir(pedido, "PedidoEntregado"), Hecho)
 
@@ -335,7 +353,9 @@ def test_pago_anulado_avisa_a_quien_pago_aunque_el_cargo_se_cierre_sin_cobro(
     d.sql(
         "INSERT INTO evento_outbox (grupo_id, tipo, agregado_tipo, agregado_id, payload)"
         " VALUES (%s, 'PagoAnulado', 'pedido', %s, %s)",
-        familia.grupo.id, uuid.UUID(pedido["id"]), json.dumps({"pedido_id": pedido["id"]}),
+        familia.grupo.id,
+        uuid.UUID(pedido["id"]),
+        json.dumps({"pedido_id": pedido["id"]}),
     )
 
     assert isinstance(avisos.consumir(pedido, "PagoAnulado"), Hecho)
@@ -347,8 +367,13 @@ def test_pago_anulado_avisa_a_quien_pago_aunque_el_cargo_se_cierre_sin_cobro(
 def test_pedido_pagado_no_tiene_consumidor_de_aviso() -> None:
     with pytest.raises(ValueError):
         ConsumidorAvisoPedido(
-            tipo="PedidoPagado", unidad=None, correo=None, push=None, reloj=None,  # type: ignore[arg-type]
-            origen_web=ORIGEN, push_permitido=lambda _: True,
+            tipo="PedidoPagado",
+            unidad=None,  # type: ignore[arg-type]
+            correo=None,  # type: ignore[arg-type]
+            push=None,  # type: ignore[arg-type]
+            reloj=None,  # type: ignore[arg-type]
+            origen_web=ORIGEN,
+            push_permitido=lambda _: True,
         )
 
 
@@ -366,8 +391,11 @@ def test_ni_la_fila_ni_el_log_llevan_el_destino_ni_el_pedido(
     with caplog.at_level(logging.INFO, logger="matu.notifications"):
         assert isinstance(avisos.consumir(pedido, "PedidoEntregado"), Hecho)
 
-    [(fila,)] = d.sql("SELECT to_jsonb(n) FROM notificacion n WHERE usuario_id = %s AND plantilla = 'pedido_novedad'"
-                      " AND canal = 'correo'", familia.admin.id)
+    [(fila,)] = d.sql(
+        "SELECT to_jsonb(n) FROM notificacion n WHERE usuario_id = %s AND plantilla = 'pedido_novedad'"
+        " AND canal = 'correo'",
+        familia.admin.id,
+    )
     texto = json.dumps(fila)
     assert familia.admin.email not in texto and pedido["id"] not in texto
     registros = [r for r in caplog.records if r.name.startswith("matu.notifications")]
@@ -390,8 +418,12 @@ def test_tus_datos_muestra_el_aviso_del_pedido_y_datos_de_la_persona_no(despacho
     assert cuenta.status_code == 200, cuenta.text
     tipos = {(a["tipo"], a["canal"]) for a in cuenta.json()["avisos_enviados"]}
     assert tipos == {("pedido", "correo"), ("pedido", "push")}
-    persona = d.como(familia.admin, "GET", f"/v1/personas-cuidadas/{familia.persona.id}/datos",
-                     **{"X-Grupo-Id": str(familia.grupo.id)})
+    persona = d.como(
+        familia.admin,
+        "GET",
+        f"/v1/personas-cuidadas/{familia.persona.id}/datos",
+        **{"X-Grupo-Id": str(familia.grupo.id)},
+    )
     assert persona.status_code == 200, persona.text
     assert "pedido_novedad" not in persona.text and "avisos_enviados" not in persona.text
     assert persona.json()["insumos"]["avisos"] in ([], None)

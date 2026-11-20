@@ -197,9 +197,7 @@ def crear_cuenta(
     except EmailYaRegistrado:
         # Riesgo aceptado en el backlog: el 409 revela que el email existe. Se mitiga con el
         # límite por IP de MATU-25. El detalle nunca repite el email.
-        raise ErrorMATU(
-            409, tipo="email-registrado", detalle="Ese email ya tiene una cuenta. Inicia sesión"
-        ) from None
+        raise ErrorMATU(409, tipo="email-registrado", detalle="Ese email ya tiene una cuenta. Inicia sesión") from None
     return CuentaCreadaRespuesta(id=cuenta.id, nombre=cuenta.nombre, email=cuenta.email)
 
 

@@ -1,6 +1,7 @@
 """Genera la matriz de acceso por eje (10-rls-matriz-de-acceso.png y .svg) en MATU_DIAGRAMAS,
 por defecto ../MATU/docs/diagramas/modelo-datos.
 Cada celda está respaldada por una prueba de tests/test_aislamiento.py."""
+
 import os
 import pathlib
 
@@ -13,19 +14,44 @@ import matplotlib.pyplot as plt  # noqa: E402
 # Se puede cambiar con la variable MATU_DIAGRAMAS.
 POR_DEFECTO = pathlib.Path(__file__).resolve().parents[3] / "MATU" / "docs" / "diagramas" / "modelo-datos"
 SALIDA = pathlib.Path(os.environ.get("MATU_DIAGRAMAS", POR_DEFECTO))
-COLUMNAS = ["Plan de cuidado\n(secciones, clave,\naccesos)", "Perfil de\nconsumo", "Pedido", "Líneas y\nprecios",
-            "Dirección\nde entrega", "Cargo y\npagos", "Liquidación\nal comercio", "Auditoría"]
+COLUMNAS = [
+    "Plan de cuidado\n(secciones, clave,\naccesos)",
+    "Perfil de\nconsumo",
+    "Pedido",
+    "Líneas y\nprecios",
+    "Dirección\nde entrega",
+    "Cargo y\npagos",
+    "Liquidación\nal comercio",
+    "Auditoría",
+]
 FILAS = [
     ("Familia\nusuario + grupo", ["Según rol*", "Sí", "Sí", "Sí", "Sí", "Sí", "Nunca", "Su grupo"]),
-    ("Relevo\nrol relevo + acceso\n(sin grupo)", ["Solo secciones\nhabilitadas y vigente", "Nunca", "Nunca", "Nunca",
-                                               "Nunca", "Nunca", "Nunca", "Inserta la\nsuya"]),
-    ("Comercio\ncomercio_id", ["Nunca", "Nunca", "Enviados o\nposteriores", "Sí", "Nunca", "Nunca",
-                               "Los suyos", "Nunca"]),
-    ("Repartidor\nrepartidor_id", ["Nunca", "Nunca", "Su asignación\nactiva", "Nunca", "Su asignación\nactiva",
-                                   "Nunca", "Nunca", "Nunca"]),
+    (
+        "Relevo\nrol relevo + acceso\n(sin grupo)",
+        [
+            "Solo secciones\nhabilitadas y vigente",
+            "Nunca",
+            "Nunca",
+            "Nunca",
+            "Nunca",
+            "Nunca",
+            "Nunca",
+            "Inserta la\nsuya",
+        ],
+    ),
+    (
+        "Comercio\ncomercio_id",
+        ["Nunca", "Nunca", "Enviados o\nposteriores", "Sí", "Nunca", "Nunca", "Los suyos", "Nunca"],
+    ),
+    (
+        "Repartidor\nrepartidor_id",
+        ["Nunca", "Nunca", "Su asignación\nactiva", "Nunca", "Su asignación\nactiva", "Nunca", "Nunca", "Nunca"],
+    ),
     ("Operación\nrol operacion", ["Nunca", "Nunca", "Todos", "Todos", "Todos", "Todos", "Todos", "Lee todo"]),
-    ("Sistema · worker\nrol sistema + grupo", ["Nunca", "Su grupo", "Su grupo", "Su grupo", "Su grupo", "Su grupo",
-                                               "Nunca", "Inserta"]),
+    (
+        "Sistema · worker\nrol sistema + grupo",
+        ["Nunca", "Su grupo", "Su grupo", "Su grupo", "Su grupo", "Su grupo", "Nunca", "Inserta"],
+    ),
     ("Sin contexto", ["Nunca"] * 8),
 ]
 
@@ -40,9 +66,16 @@ def color(v):
 
 fig, ax = plt.subplots(figsize=(17, 7.4))
 ax.axis("off")
-t = ax.table(cellText=[f[1] for f in FILAS], rowLabels=[f[0] for f in FILAS], colLabels=COLUMNAS,
-             cellLoc="center", loc="center", cellColours=[[color(v) for v in f[1]] for f in FILAS],
-             rowColours=["#eef1f6"] * len(FILAS), colColours=["#0A253E"] * len(COLUMNAS))
+t = ax.table(
+    cellText=[f[1] for f in FILAS],
+    rowLabels=[f[0] for f in FILAS],
+    colLabels=COLUMNAS,
+    cellLoc="center",
+    loc="center",
+    cellColours=[[color(v) for v in f[1]] for f in FILAS],
+    rowColours=["#eef1f6"] * len(FILAS),
+    colColours=["#0A253E"] * len(COLUMNAS),
+)
 t.auto_set_font_size(False)
 t.set_fontsize(10.5)
 for (r, c), celda in t.get_celld().items():
@@ -54,10 +87,19 @@ for (r, c), celda in t.get_celld().items():
     if c == -1:
         celda.get_text().set_weight("bold")
         celda.set_width(0.14)
-ax.set_title("MATU · Qué filas alcanza cada eje de acceso (RLS forzado · verificado por tests/test_aislamiento.py)",
-             fontsize=14, weight="bold", pad=18)
-fig.text(0.02, 0.02, "* admin y cuidador siempre · pagador solo con permiso explícito · observador nunca.     "
-         "Verde: acceso completo     Amarillo: acotado     Rojo: cero filas por política", fontsize=10)
+ax.set_title(
+    "MATU · Qué filas alcanza cada eje de acceso (RLS forzado · verificado por tests/test_aislamiento.py)",
+    fontsize=14,
+    weight="bold",
+    pad=18,
+)
+fig.text(
+    0.02,
+    0.02,
+    "* admin y cuidador siempre · pagador solo con permiso explícito · observador nunca.     "
+    "Verde: acceso completo     Amarillo: acotado     Rojo: cero filas por política",
+    fontsize=10,
+)
 SALIDA.mkdir(parents=True, exist_ok=True)
 for ext in ("png", "svg"):
     fig.savefig(SALIDA / f"10-rls-matriz-de-acceso.{ext}", dpi=160, bbox_inches="tight", facecolor="white")

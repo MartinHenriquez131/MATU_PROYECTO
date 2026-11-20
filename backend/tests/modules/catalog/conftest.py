@@ -71,11 +71,20 @@ def _sembrar(cx: psycopg.Connection, catalogo: CatalogoSintetico) -> None:
             "INSERT INTO producto (categoria_id, nombre, marca, presentacion, unidad, unidades_por_envase,"
             " retracto_pierde_al_abrir, activo, requiere_receta)"
             " VALUES (%s, %s, 'Marca de ejemplo', %s, 'unidad', 30, %s, %s, %s) RETURNING id",
-            (catalogo.categorias[categoria], f"Producto {clave} {s}", "Paquete de 30 unidades", retracto, activo,
-             receta),
+            (
+                catalogo.categorias[categoria],
+                f"Producto {clave} {s}",
+                "Paquete de 30 unidades",
+                retracto,
+                activo,
+                receta,
+            ),
         )
-    comercios = (("uno", "Almacén El Ejemplo", "activo"), ("dos", "Bodega La Muestra", "activo"),
-                 ("suspendido", "Comercio Suspendido", "suspendido"))
+    comercios = (
+        ("uno", "Almacén El Ejemplo", "activo"),
+        ("dos", "Bodega La Muestra", "activo"),
+        ("suspendido", "Comercio Suspendido", "suspendido"),
+    )
     for i, (clave, fantasia, estado) in enumerate(comercios):
         razon, rut = f"Razón social secreta {clave} {s}", rut_ficticio(f"7{5 + i}{s}")
         direccion, telefono = f"Calle de Prueba {i} {s}", f"+56 2 5555 0{s[:3]}"

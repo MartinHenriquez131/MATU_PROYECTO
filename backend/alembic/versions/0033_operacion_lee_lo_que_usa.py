@@ -135,9 +135,7 @@ def _ejecutar(sql: str) -> None:
 
 OPERACION = "app_rol() = 'operacion'"
 CONSERVACION = f"{OPERACION} AND current_setting('app.conservacion', true) = 'pedidos'"
-FICTICIO = (
-    f"{OPERACION} AND EXISTS (SELECT 1 FROM comercio c WHERE c.id = usuario_comercio.comercio_id AND c.ficticio)"
-)
+FICTICIO = f"{OPERACION} AND EXISTS (SELECT 1 FROM comercio c WHERE c.id = usuario_comercio.comercio_id AND c.ficticio)"
 # La de la 0024
 PARTICIPACION_DEL_GRUPO = (
     "EXISTS (SELECT 1 FROM cargo c JOIN pedido p ON p.id = c.pedido_id"
@@ -267,23 +265,31 @@ END $$;
 """
 # (i) El valor de app.funcion con que se entra, y quién pagó con el marcador 'solicitante_retracto'. VOLATILE: cambia
 # app.funcion con set_config, y una función STABLE no cambia la configuración (observación 3 del QA)
-SOLICITANTE_0033 = SOLICITANTE.replace("{VOLATILIDAD}", "VOLATILE").replace(
-    "{ANTES}", " := current_setting('app.funcion', true)").replace(
-    "{PAGADOR}",
-    """    -- Quien pagó: la primera participación con un cobro (como _QUIEN_PAGO desde MATU-63)
+SOLICITANTE_0033 = (
+    SOLICITANTE.replace("{VOLATILIDAD}", "VOLATILE")
+    .replace("{ANTES}", " := current_setting('app.funcion', true)")
+    .replace(
+        "{PAGADOR}",
+        """    -- Quien pagó: la primera participación con un cobro (como _QUIEN_PAGO desde MATU-63)
     PERFORM set_config('app.funcion', 'solicitante_retracto', true);
     SELECT pa.usuario_id INTO v_pagador FROM public.participacion pa JOIN public.cargo c ON c.id = pa.cargo_id
      WHERE c.pedido_id = p_pedido AND pa.monto_cobrado > 0 ORDER BY pa.id LIMIT 1;
 """,
-) + "REVOKE ALL ON FUNCTION operacion_solicitante_retracto(uuid, bytea, uuid) FROM PUBLIC;\n"
+    )
+    + "REVOKE ALL ON FUNCTION operacion_solicitante_retracto(uuid, bytea, uuid) FROM PUBLIC;\n"
+)
 # La de la 0032 (SOLICITANTE_0032), igual letra por letra
-SOLICITANTE_0032 = SOLICITANTE.replace("{VOLATILIDAD}", "STABLE").replace("{ANTES}", "").replace(
-    "{PAGADOR}",
-    """    -- Quien pagó: la primera participación con un cobro (como _QUIEN_PAGO desde MATU-63)
+SOLICITANTE_0032 = (
+    SOLICITANTE.replace("{VOLATILIDAD}", "STABLE")
+    .replace("{ANTES}", "")
+    .replace(
+        "{PAGADOR}",
+        """    -- Quien pagó: la primera participación con un cobro (como _QUIEN_PAGO desde MATU-63)
     SELECT pa.usuario_id INTO v_pagador FROM public.participacion pa JOIN public.cargo c ON c.id = pa.cargo_id
      WHERE c.pedido_id = p_pedido AND pa.monto_cobrado > 0 ORDER BY pa.id LIMIT 1;
     v_antes := current_setting('app.funcion', true);
 """,
+    )
 )
 
 INCIDENCIAS = """
@@ -344,7 +350,11 @@ ALTER POLICY invitacion_conservacion_leer ON invitacion USING (app_rol() = 'oper
 
 UPGRADE = COMERCIOS + ENTREGA + PARTICIPACIONES + SOLICITANTE_0033 + INCIDENCIAS + INVITACIONES_0033
 DOWNGRADE = (
-    INVITACIONES_0032 + INCIDENCIAS_BAJADA + SOLICITANTE_0032 + PARTICIPACIONES_BAJADA + ENTREGA_BAJADA
+    INVITACIONES_0032
+    + INCIDENCIAS_BAJADA
+    + SOLICITANTE_0032
+    + PARTICIPACIONES_BAJADA
+    + ENTREGA_BAJADA
     + COMERCIOS_BAJADA
 )
 

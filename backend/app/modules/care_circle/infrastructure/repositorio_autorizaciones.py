@@ -20,8 +20,7 @@ from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, E
 from app.shared.puertos import RegistroAuditoria
 
 _BLOQUEAR_PERSONA = text(
-    "SELECT 1 FROM persona_cuidada WHERE id = :persona_id AND grupo_id = :grupo_id AND eliminado_en IS NULL"
-    " FOR SHARE"
+    "SELECT 1 FROM persona_cuidada WHERE id = :persona_id AND grupo_id = :grupo_id AND eliminado_en IS NULL FOR SHARE"
 )
 
 _HAY_VIGENTE = text(

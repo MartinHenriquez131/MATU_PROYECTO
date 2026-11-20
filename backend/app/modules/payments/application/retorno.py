@@ -124,9 +124,7 @@ def procesar(
                 if cierre is None:
                     # Webpay no responde, y la persona salió o se le acabó el tiempo: no se cobró nada
                     cierre = Cierre(
-                        ResultadoPago.ABANDONADO
-                        if caso is CasoRetorno.USUARIO_SALIO
-                        else ResultadoPago.TIEMPO_AGOTADO
+                        ResultadoPago.ABANDONADO if caso is CasoRetorno.USUARIO_SALIO else ResultadoPago.TIEMPO_AGOTADO
                     )
         elif venta.estado is EstadoVenta.AUTORIZANDO and puede_reintentar_commit(venta.commit_intentado_en, ahora):
             # Decisión 233: un commit sin respuesta se reintenta como mucho cada 10 segundos

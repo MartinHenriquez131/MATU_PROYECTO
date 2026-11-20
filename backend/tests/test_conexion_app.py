@@ -51,8 +51,18 @@ def test_app_se_conecta_como_matu_app_sin_privilegios() -> None:
         "DELETE FROM usuario WHERE false",
         "DELETE FROM acceso_relevo WHERE false",
     ],
-    ids=["borrar-token", "alargar-token", "mover-token", "cambiar-huella", "password-hash", "mfa",
-         "hacerse-operacion", "cambiar-estado", "borrar-cuenta", "borrar-acceso"],
+    ids=[
+        "borrar-token",
+        "alargar-token",
+        "mover-token",
+        "cambiar-huella",
+        "password-hash",
+        "mfa",
+        "hacerse-operacion",
+        "cambiar-estado",
+        "borrar-cuenta",
+        "borrar-acceso",
+    ],
 )
 def test_la_app_no_borra_tokens_ni_cuentas_ni_lee_la_contrasena(sentencia: str) -> None:
     with pytest.raises(DBAPIError) as error, obtener_engine().connect() as cx:
