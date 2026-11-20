@@ -74,6 +74,9 @@ Cada historia agrega aquí lo suyo:
   son SecretStr, como las claves: ni el repr, ni el str, ni model_dump muestran su valor. Quien necesita el valor lo
   pide con .get_secret_value() en el punto de uso (el motor, las tareas, los clientes de Redis, la pasarela), y nunca
   lo pasa a un log ni a un mensaje. PUSH_CUENTAS_PERMITIDAS no sale en el repr ni en model_dump (exclude=True)
+- MATU-80 (K1 del TESTER del 20-11): DB_POOL_SIZE, DB_MAX_OVERFLOW y DB_POOL_TIMEOUT, el pool de conexiones de los
+  motores de la API y de las tareas. Opcionales: por omisión 10, 20 y 10 s. Con el pool lleno, la API responde 503
+  /errores/servicio-no-disponible con Retry-After, sin datos (app/core/errores.py)
 """
 
 import base64
@@ -85,7 +88,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from app.core.vapid import ClaveVapidInvalida, validar_clave_privada
@@ -160,6 +163,21 @@ class Configuracion(BaseSettings):
     # MATU-79: SecretStr, como DATABASE_URL. app/tareas.py las lee con .get_secret_value()
     scheduler_database_url: SecretStr = SecretStr("")
     publisher_database_url: SecretStr = SecretStr("")
+
+    # MATU-80 (K1 del TESTER del 20-11): el pool de conexiones de cada motor (app/core/db.py y app/tareas.py). Sin
+    # configurar, SQLAlchemy deja 5 más 10 de desborde con 30 s de espera, y con 50 usuarios la API respondía 500.
+    # - DB_POOL_SIZE y DB_MAX_OVERFLOW son topes, no reservas: el pool abre una conexión solo cuando una petición la
+    #   pide y conserva abiertas hasta DB_POOL_SIZE. 10 + 20 = 30 por proceso de la API, que ya es más de lo que usa un
+    #   proceso de uvicorn (las rutas síncronas corren en un grupo de 40 hilos, y casi ninguna espera más de una
+    #   conexión). Postgres de Railway admite 100 (3 para el superusuario): la API con 30, los cron (1 o 2 cada uno,
+    #   en procesos que duran segundos), el healthcheck (sin pool), Alembic en el pre-deploy y una consola a mano
+    #   quedan bajo 50, y caben una segunda réplica o un segundo worker antes de tocar el tope.
+    # - DB_POOL_TIMEOUT: los segundos que una petición espera una conexión libre antes de responder 503 con
+    #   Retry-After (app/core/errores.py). 10 en vez de 30: con el pool lleno, esperar más solo alarga la fila.
+    # No son secretos
+    db_pool_size: int = Field(default=10, ge=1, le=50)
+    db_max_overflow: int = Field(default=20, ge=0, le=50)
+    db_pool_timeout: int = Field(default=10, ge=1, le=60)
 
     # Versión vigente de la política de privacidad (docs/legal/politica-privacidad.md del
     # repositorio MATU), en formato MAYOR.MENOR. Un valor con otro formato impide cargar la
@@ -336,6 +354,15 @@ class Configuracion(BaseSettings):
             except ValueError:
                 raise ValueError("PUSH_CUENTAS_PERMITIDAS debe ser una lista de UUID separados por coma") from None
         return frozenset(cuentas)
+
+    @field_validator("db_pool_size", "db_max_overflow", "db_pool_timeout", mode="before")
+    @classmethod
+    def _pool_vacio_es_omision(cls, valor: object, info: ValidationInfo) -> object:
+        # MATU-80: DB_POOL_SIZE= en el .env o en Railway cuenta como no definida, con su valor por omisión
+        if valor == "":
+            assert info.field_name is not None
+            return cls.model_fields[info.field_name].default
+        return valor
 
     @field_validator("dinero_real_autorizado", mode="before")
     @classmethod
