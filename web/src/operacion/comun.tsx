@@ -1,7 +1,7 @@
 // Piezas que comparten las pantallas de la consola de operación (MATU-81): las etiquetas de estado
 // (siempre ícono y palabra, nunca solo el color), la fila de una cola, el foco después de montar, la
 // hora del servidor y la columna de la cola con su detalle. Ningún color ni tamaño fuera del tema.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useReducer, useRef, type ReactNode } from 'react'
 import {
   Ban,
   Check,
@@ -167,19 +167,24 @@ export function Atencion({ children }: { children: ReactNode }) {
 
 /**
  * El foco va a un elemento cuando ya está montado (P1 de la revisión de MATU-63): el efecto corre
- * después de cada render y espera a que el elemento exista. Nunca termina en `body`.
+ * después de cada render y espera a que el elemento exista. Nunca termina en `body`. El pedido pendiente
+ * va en una referencia (MATU-79): soltarlo no necesita otro render.
  */
 export function useFocoAlMontar() {
-  const [foco, setFoco] = useState<{ id: string; selector?: string } | null>(null)
+  const foco = useRef<{ id: string; selector?: string } | null>(null)
+  const [, repintar] = useReducer((n: number) => n + 1, 0)
   useEffect(() => {
-    if (!foco) return
-    const el = document.getElementById(foco.id)
-    const objetivo = foco.selector ? el?.querySelector<HTMLElement>(foco.selector) : el
+    if (!foco.current) return
+    const el = document.getElementById(foco.current.id)
+    const objetivo = foco.current.selector ? el?.querySelector<HTMLElement>(foco.current.selector) : el
     if (!objetivo) return
     objetivo.focus()
-    setFoco(null)
+    foco.current = null
   })
-  return useCallback((id: string, selector?: string) => setFoco({ id, selector }), [])
+  return useCallback((id: string, selector?: string) => {
+    foco.current = { id, selector }
+    repintar()
+  }, [])
 }
 
 /** La hora del servidor (cabecera `Date` de la última respuesta), nunca el reloj del teléfono solo. */

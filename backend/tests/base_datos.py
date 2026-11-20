@@ -37,7 +37,7 @@ MENSAJE_CI_SIN_BASE = (
 def variables_de_base_faltantes() -> list[str]:
     """Los nombres de las variables de conexión que faltan para las pruebas con base. Nunca sus valores."""
     faltan = []
-    if not obtener_configuracion().database_url:
+    if not obtener_configuracion().database_url.get_secret_value():
         faltan.append("DATABASE_URL")
     if not DSN:
         faltan.append("MATU_TEST_DSN")

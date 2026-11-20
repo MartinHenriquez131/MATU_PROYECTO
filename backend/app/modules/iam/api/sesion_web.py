@@ -54,7 +54,8 @@ def request_id(request: Request) -> str | None:
 
 @lru_cache
 def _contadores_redis() -> ContadoresEntrada:
-    return ContadoresEntradaRedis(redis.Redis.from_url(obtener_configuracion().redis_url, socket_timeout=2))
+    url = obtener_configuracion().redis_url.get_secret_value()
+    return ContadoresEntradaRedis(redis.Redis.from_url(url, socket_timeout=2))
 
 
 def obtener_contadores() -> ContadoresEntrada:

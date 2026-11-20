@@ -1,7 +1,7 @@
 // Tus productos (especificación MATU-63, sección 8): cuántos tiene de cada producto y si lo ofrece en
 // MATU. El precio se lee y no se edita (D-63-2). Un solo editor abierto a la vez: su «Guardar» es la
 // única acción principal de la pantalla en ese momento.
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useId, useReducer, useRef, useState, type FormEvent } from 'react'
 import { Ban, TriangleAlert } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import { cambiarProducto, listarProductos, type ProductoDelComercio, type SolicitudProducto } from '../compartido/api/comercio'
@@ -134,16 +134,21 @@ function FilaProducto({
 
   /**
    * P2-11: el foco vuelve a «Cambiar cuántos tienes» cuando el botón ya está montado (con el editor
-   * cerrado). Un `setTimeout` corría antes y el foco caía en `body`.
+   * cerrado). Un `setTimeout` corría antes y el foco caía en `body`. El pedido pendiente va en una
+   * referencia (MATU-79): soltarlo no necesita otro render.
    */
-  const [focoCambiar, setFocoCambiar] = useState(false)
-  const enfocarCambiar = () => setFocoCambiar(true)
+  const focoCambiar = useRef(false)
+  const [, repintar] = useReducer((n: number) => n + 1, 0)
+  const enfocarCambiar = () => {
+    focoCambiar.current = true
+    repintar()
+  }
   useEffect(() => {
-    if (!focoCambiar || abierto) return
+    if (!focoCambiar.current || abierto) return
     const b = document.getElementById(idCambiar(p.oferta_id))
     if (!b) return
     b.focus()
-    setFocoCambiar(false)
+    focoCambiar.current = false
   })
 
   const abrir = () => {

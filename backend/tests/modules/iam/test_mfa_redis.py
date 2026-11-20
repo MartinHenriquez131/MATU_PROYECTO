@@ -13,7 +13,7 @@ from app.modules.iam.infrastructure.mfa_redis import PREFIJO_DESAFIO, PREFIJO_FA
 
 
 def _cliente() -> "redis.Redis | None":
-    cliente = redis.Redis.from_url(obtener_configuracion().redis_url, socket_timeout=1)
+    cliente = redis.Redis.from_url(obtener_configuracion().redis_url.get_secret_value(), socket_timeout=1)
     try:
         cliente.ping()
     except redis.RedisError:
