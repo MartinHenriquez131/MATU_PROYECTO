@@ -176,6 +176,10 @@ def test_quiebres_con_un_grupo_fallido_queda_fallo_y_sale_con_uno_pero_procesa_l
     assert all(str(g) not in FormateadorJSON().format(r) for r in caplog.records for g in grupos)
 
 
+# MATU-80 (K2 y RNF-05): sin JIT, con el plan genérico y preparando desde la primera vez, como la API
+ARGUMENTOS_SESION = {"options": "-c jit=off -c plan_cache_mode=force_generic_plan", "prepare_threshold": 0}
+
+
 def test_el_engine_de_las_tareas_lleva_un_tope_de_conexion(monkeypatch: pytest.MonkeyPatch) -> None:
     recibido: dict[str, Any] = {}
 
@@ -188,12 +192,12 @@ def test_el_engine_de_las_tareas_lleva_un_tope_de_conexion(monkeypatch: pytest.M
         update={"database_url": SecretStr("postgresql+psycopg://u@db.invalid/x")}
     )
     tareas.fabrica_tareas(config)
-    assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S, "options": "-c jit=off"}
+    assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S, **ARGUMENTOS_SESION}
     assert 0 < tareas.TIEMPO_CONEXION_S <= 10
     # Las conexiones de los roles de las tareas llevan el mismo tope
     for rol in (tareas.ROL_SCHEDULER, tareas.ROL_PUBLISHER):
         assert tareas.fabrica_de_rol(f"postgresql+psycopg://{rol}@db.invalid/x", rol) is not None
-        assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S, "options": "-c jit=off"}
+        assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S, **ARGUMENTOS_SESION}
 
 
 def test_con_la_base_inalcanzable_la_tarea_falla_pronto(caplog: pytest.LogCaptureFixture) -> None:
