@@ -3994,6 +3994,8 @@ MARCAS_0034 = ("aviso_correo",)
 # MATU-124 (0035): el marcador de cada función de conservación y el de pago_resolver_venta
 MARCAS_0035 = ("pedido_conservar", "consumo_conservar", "iam_conservar", "quiebre_conservar", "relevo_conservar",
                "plan_destruir_claves", "pago_resolver_venta", "invitacion_conservar")
+# MATU-128 (0036): el marcador de pedido_lo_que_paso
+MARCAS_0036 = ("lo_que_paso",)
 
 
 def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
@@ -4003,7 +4005,7 @@ def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
 
 
 @pytest.mark.rf("RF-38")
-@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034)
+@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034 + MARCAS_0036)
 @pytest.mark.parametrize("contexto", [{}, {"usuario_id": U_NUEVO}, {"usuario_id": U_OBS_A, "grupo_id": G_A}])
 def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
     """O2: las políticas del marcador son TO matu_owner. matu_app que fija app.funcion no ve ni escribe más."""
@@ -4019,7 +4021,7 @@ def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
 
 
 @pytest.mark.rf("RF-38")
-@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034 + MARCAS_0035)
+@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029 + MARCAS_0034 + MARCAS_0035 + MARCAS_0036)
 def test_el_marcador_puesto_por_matu_app_no_abre_las_otras_funciones_definer(cx, marca):
     """O2: con el marcador puesto, las funciones SECURITY DEFINER que matu_app ejecuta devuelven lo mismo, y las de la
     0026 lo pisan con el suyo y lo limpian al salir."""
@@ -4071,7 +4073,10 @@ def test_las_politicas_del_marcador_son_solo_de_matu_owner_y_las_definer_de_matu
                        # MATU-79 (0034): cuenta_contacto_propia filtra por app_usuario(); acceso_relevo_telefono por el
                        # grupo y app_escribe_plan(), fuera de operación, sistema y relevo; aviso_correo pisa el
                        # marcador con 'aviso_correo', exige sistema sin cuenta y devuelve el anterior al salir
-                       "cuenta_contacto_propia", "acceso_relevo_telefono", "aviso_correo"}
+                       "cuenta_contacto_propia", "acceso_relevo_telefono", "aviso_correo",
+                       # MATU-128 (0036): primero app_pago_el_pedido (false con su marcador puesto), después pisa el
+                       # marcador con 'lo_que_paso', lee solo el pedido pedido y devuelve el anterior al salir
+                       "pedido_lo_que_paso"}
     # MATU-124 (H4): también las definer de los triggers y las que ejecutan las tareas. Una nueva hace fallar esta
     # prueba hasta revisar que fije su marcador antes de leer y devuelva el anterior al salir
     de_trigger = {f for (f,) in cx.execute(
@@ -5839,6 +5844,219 @@ def test_79c_el_sistema_no_borra_ni_reescribe_el_registro_de_avisos(cx):
     cx.execute("RESET ROLE")
     assert _quedan(cx, "notificacion", propios) == set(propios)
     assert cx.execute("SELECT estado FROM notificacion WHERE id = %s", (propios[0],)).fetchone() == ("enviada",)
+
+
+# ---- MATU-128 (migración 0036): quien pagó un pedido ve lo que pasó con él, por pedido_lo_que_paso
+
+# P es PED_A_ENVIADO, que paga U_PAG_A («Paga»); Q, otro pedido pagado del grupo A que paga U_ADMIN_A. U_PAG2_A es
+# pagador y no pagó P; U_ADMIN_A administra y no pagó P
+PED_A_Q_128 = uuid.UUID("00000000-0000-0000-0000-0000000128a1")
+CARGO_Q_128 = uuid.UUID("00000000-0000-0000-0000-0000000128a2")
+PARTICIPACION_Q_128 = uuid.UUID("00000000-0000-0000-0000-0000000128a3")
+INC_P_128 = uuid.UUID("00000000-0000-0000-0000-0000000128b1")
+INC_Q_128 = uuid.UUID("00000000-0000-0000-0000-0000000128b2")
+NOTA_128 = "Nota sintética: faltó un paquete"
+RESOLUCION_128 = "Resolución sintética: se devolvió su precio"
+LO_QUE_PASO_128 = (
+    "SELECT id, tipo, estado, descripcion, clave_notas_id, resolucion, resolucion_clave_id, nota_dek_cifrada,"
+    " nota_kek_version, resolucion_dek_cifrada, resolucion_kek_version FROM pedido_lo_que_paso(%s)"
+)
+
+
+def _lo_que_paso_128(cx, operador):
+    """Como superusuario: P lo paga U_PAG_A; Q, U_ADMIN_A. La clave de las notas de la persona de A es una de verdad
+    (envuelta con una KEK de prueba), y cada pedido tiene una incidencia cifrada con ella; la de P, resuelta. Devuelve
+    la custodia y el id de la clave."""
+    from app.shared.notas_operacion import CustodiaNotas, cifrar_nota
+
+    custodia = CustodiaNotas(os.urandom(32), 1)
+    dek, envuelta = custodia.nueva_dek()
+    cx.execute("SET LOCAL session_replication_role = replica")
+    cx.execute("UPDATE participacion SET usuario_id = %s WHERE id = %s", (U_PAG_A, PARTICIPACION_A))
+    cx.execute("INSERT INTO pedido (id, grupo_id, persona_cuidada_id, comercio_id, estado, subtotal_productos,"
+               " costo_envio, total, creado_por, total_confirmado_en, total_vence_en, pagado_en, condiciones_version,"
+               " condiciones_aceptadas_en, condiciones_huella, condiciones_aceptadas_por) VALUES (%s, %s, %s, %s,"
+               " 'enviado_a_comercio', 12990, 2990, 15980, %s, now() - interval '5 minutes',"
+               " now() + interval '10 minutes', now(), '0.1', now(), repeat('a', 64), %s)",
+               (PED_A_Q_128, G_A, P_A, COMERCIO, U_ADMIN_A, U_ADMIN_A))
+    cx.execute("INSERT INTO cargo (id, pedido_id, estado, monto_cobrado) VALUES (%s, %s, 'pagado', 15980)",
+               (CARGO_Q_128, PED_A_Q_128))
+    cx.execute("INSERT INTO participacion (id, cargo_id, usuario_id, porcentaje_bp, estado, monto_cobrado)"
+               " VALUES (%s, %s, %s, 10000, 'pagada', 15980)", (PARTICIPACION_Q_128, CARGO_Q_128, U_ADMIN_A))
+    cx.execute("SET LOCAL session_replication_role = origin")
+    [(clave,)] = cx.execute("INSERT INTO clave_notas (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+                            " VALUES (%s, %s, %s, 1) RETURNING id", (G_A, P_A, envuelta)).fetchall()
+    for incidencia, pedido in ((INC_P_128, PED_A_ENVIADO), (INC_Q_128, PED_A_Q_128)):
+        cx.execute("INSERT INTO incidencia (id, pedido_id, tipo, descripcion, clave_notas_id, creada_por, asignada_a)"
+                   " VALUES (%s, %s, 'faltante', %s, %s, %s, %s)",
+                   (incidencia, pedido, cifrar_nota(dek, incidencia, "descripcion", NOTA_128), clave, operador,
+                    operador))
+    cx.execute("UPDATE incidencia SET estado = 'resuelta', resuelta_en = now(), resolucion = %s,"
+               " resolucion_clave_id = %s WHERE id = %s",
+               (cifrar_nota(dek, INC_P_128, "resolucion", RESOLUCION_128), clave, INC_P_128))
+    return custodia, clave
+
+
+def _lo_que_paso_de(cx, pedido=PED_A_ENVIADO, **ctx):
+    como(cx, **ctx)
+    filas = cx.execute(LO_QUE_PASO_128, (pedido,)).fetchall()
+    cx.execute("RESET ROLE")
+    return filas
+
+
+@pytest.mark.rf("RF-20")
+@pytest.mark.rf("Ley-21.719")
+def test_128_a1_a2_quien_pago_lee_lo_que_paso_y_lo_descifra_tambien_en_se_informa(cx, operador_81):
+    """A1: el pagador que pagó P recibe su incidencia, con la clave de las notas de ese pedido, y la descifra con la
+    DEK. A2: la misma cuenta, después de pasar a «Se informa», también. Fallan sin la 0036 (la función no existe)."""
+    from app.shared.notas_operacion import descifrar_nota
+
+    custodia, clave = _lo_que_paso_128(cx, operador_81)
+    for rol in ("pagador", "observador"):
+        cx.execute("UPDATE membresia SET rol = %s WHERE grupo_id = %s AND usuario_id = %s", (rol, G_A, U_PAG_A))
+        [fila] = _lo_que_paso_de(cx, usuario_id=U_PAG_A, grupo_id=G_A)
+        (id_, tipo, estado, descripcion, clave_nota, resolucion, clave_resolucion, dek_nota, version_nota, dek_res,
+         version_res) = fila
+        assert (id_, tipo, estado, clave_nota, clave_resolucion) == (INC_P_128, "faltante", "resuelta", clave, clave)
+        assert version_nota == version_res == 1
+        dek = custodia.desenvolver(bytes(dek_nota), version_nota)
+        assert dek is not None and dek == custodia.desenvolver(bytes(dek_res), version_res)
+        assert descifrar_nota(dek, id_, "descripcion", bytes(descripcion)) == NOTA_128, rol
+        assert descifrar_nota(dek, id_, "resolucion", bytes(resolucion)) == RESOLUCION_128, rol
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_128_a3_a6_quien_no_pago_ese_pedido_o_salio_lee_cero_filas(cx, operador_81):
+    """A3: otro pedido del grupo, que pagó otra cuenta. A4: un pagador y el admin que no pagaron P. A5: otro grupo,
+    también con el grupo de P forjado en el contexto, y quien pagó con el grupo de otro. A6: quien pagó y salió."""
+    _lo_que_paso_128(cx, operador_81)
+    # El control: cada uno lee lo de su propio pedido
+    assert [f[0] for f in _lo_que_paso_de(cx, usuario_id=U_PAG_A, grupo_id=G_A)] == [INC_P_128]
+    assert [f[0] for f in _lo_que_paso_de(cx, PED_A_Q_128, usuario_id=U_ADMIN_A, grupo_id=G_A)] == [INC_Q_128]
+    # A3
+    assert _lo_que_paso_de(cx, PED_A_Q_128, usuario_id=U_PAG_A, grupo_id=G_A) == []
+    # A4
+    for usuario in (U_PAG2_A, U_ADMIN_A, U_OBS_A):
+        assert _lo_que_paso_de(cx, usuario_id=usuario, grupo_id=G_A) == [], usuario
+    # A5
+    for ctx in ({"usuario_id": U_ADMIN_B, "grupo_id": G_B}, {"usuario_id": U_ADMIN_B, "grupo_id": G_A},
+                {"usuario_id": U_PAG_A, "grupo_id": G_B}, {"usuario_id": U_PAG_A}):
+        assert _lo_que_paso_de(cx, **ctx) == [], ctx
+    # A6
+    _retirar(cx, U_PAG_A)
+    assert _lo_que_paso_de(cx, usuario_id=U_PAG_A, grupo_id=G_A) == []
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_128_a7_operacion_sistema_relevo_comercio_y_repartidor_leen_cero_filas(cx, operador_81):
+    """A7: los contextos de operación, sistema y relevo, y las sesiones de comercio y de repartidor, también con la
+    cuenta que pagó en el contexto."""
+    _lo_que_paso_128(cx, operador_81)
+    contextos = [
+        {}, {"grupo_id": G_A},
+        {"usuario_id": operador_81, "rol": "operacion"},
+        {"usuario_id": operador_81, "rol": "operacion", "grupo_id": G_A},
+        {"rol": "operacion", "grupo_id": G_A}, {"usuario_id": U_PAG_A, "grupo_id": G_A, "rol": "operacion"},
+        {"rol": "sistema", "grupo_id": G_A}, {"usuario_id": U_PAG_A, "grupo_id": G_A, "rol": "sistema"},
+        {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE, "grupo_id": G_A},
+        {"usuario_id": U_PAG_A, "grupo_id": G_A, "rol": "relevo", "acceso_relevo_id": ACC_VIGENTE},
+        {"usuario_id": U_ENC, "comercio_id": COMERCIO},
+        {"usuario_id": U_PAG_A, "grupo_id": G_A, "comercio_id": COMERCIO},
+        {"usuario_id": U_REP, "repartidor_id": REPARTIDOR},
+        {"usuario_id": U_PAG_A, "grupo_id": G_A, "repartidor_id": REPARTIDOR},
+    ]
+    for ctx in contextos:
+        assert _lo_que_paso_de(cx, **ctx) == [], ctx
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_128_a8_a12_matu_app_con_el_marcador_y_el_select_directo_leen_cero_filas(cx, operador_81):
+    """A12 (C4): un SELECT directo de quien pagó sobre incidencia y clave_notas sigue en 0 filas, porque
+    incidencia_familia y clave_notas_familia_leer no cambian. A8: matu_app que fija 'lo_que_paso' tampoco gana nada:
+    las políticas del marcador son TO matu_owner."""
+    _lo_que_paso_128(cx, operador_81)
+    for usuario in (U_PAG_A, U_PAG2_A, U_OBS_A):
+        como(cx, usuario_id=usuario, grupo_id=G_A)
+        assert (contar(cx, "incidencia"), contar(cx, "clave_notas")) == (0, 0), usuario
+        cx.execute("SELECT set_config('app.funcion', 'lo_que_paso', true)")
+        assert (contar(cx, "incidencia"), contar(cx, "clave_notas")) == (0, 0), usuario
+        cx.execute("RESET ROLE")
+    # El admin sigue leyendo las del grupo por incidencia_familia («Datos de»), con o sin el marcador
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "incidencia") == 2
+    cx.execute("SELECT set_config('app.funcion', 'lo_que_paso', true)")
+    assert contar(cx, "incidencia") == 2
+    cx.execute("RESET ROLE")
+    # Otro grupo con el marcador: nada
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    cx.execute("SELECT set_config('app.funcion', 'lo_que_paso', true)")
+    assert (contar(cx, "incidencia"), contar(cx, "clave_notas")) == (0, 0)
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_128_a9_a13_la_funcion_devuelve_columnas_fijas_y_solo_la_ejecuta_matu_app(cx):
+    """A9 (C2): las columnas de pedido_lo_que_paso no incluyen creada_por, asignada_a ni version. A13 (C1): PUBLIC no
+    tiene EXECUTE, y la función es SECURITY DEFINER de matu_owner, VOLATILE y con search_path fijo."""
+    [(nombres, definer, volatilidad, config, dueno)] = cx.execute(
+        "SELECT proargnames, prosecdef, provolatile, proconfig, pg_get_userbyid(proowner) FROM pg_proc"
+        " WHERE proname = 'pedido_lo_que_paso'").fetchall()
+    assert nombres == ["p_pedido", "id", "tipo", "estado", "creada_en", "resuelta_en", "descripcion", "clave_notas_id",
+                       "resolucion", "resolucion_clave_id", "nota_dek_cifrada", "nota_kek_version",
+                       "resolucion_dek_cifrada", "resolucion_kek_version"]
+    assert not {"creada_por", "asignada_a", "version"} & set(nombres)
+    assert (definer, volatilidad, dueno) == (True, "v", "matu_owner")
+    assert config == ["search_path=pg_catalog, public, pg_temp"]
+    for rol, puede in (("public", False), ("matu_scheduler", False), ("matu_publisher", False), ("matu_app", True)):
+        assert cx.execute("SELECT has_function_privilege(%s, 'pedido_lo_que_paso(uuid)', 'EXECUTE')",
+                          (rol,)).fetchone() == (puede,), rol
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_128_a10_no_devuelve_una_clave_ajena_y_con_la_clave_destruida_la_dek_sale_null(cx, operador_81):
+    """A10: una incidencia de P que apuntara a la clave de las notas de otro grupo (solo se puede sin triggers) sale
+    sin DEK ni versión: la aplicación falla cerrada. Con la clave de P destruida (el borrado de la persona), la DEK
+    sale NULL y la versión se mantiene: la nota sale como no disponible."""
+    _, clave = _lo_que_paso_128(cx, operador_81)
+    [(ajena,)] = cx.execute("INSERT INTO clave_notas (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+                            " VALUES (%s, %s, %s, 1) RETURNING id", (G_B, P_B, DEK_ENVUELTA)).fetchall()
+    otra = uuid.uuid4()
+    cx.execute("SET LOCAL session_replication_role = replica")
+    cx.execute("INSERT INTO incidencia (id, pedido_id, tipo, descripcion, clave_notas_id, creada_por, creada_en)"
+               " VALUES (%s, %s, 'otro', %s, %s, %s, now() + interval '1 minute')",
+               (otra, PED_A_ENVIADO, NOTA_CIFRADA, ajena, operador_81))
+    cx.execute("SET LOCAL session_replication_role = origin")
+    filas = _lo_que_paso_de(cx, usuario_id=U_PAG_A, grupo_id=G_A)
+    # E5: en el orden en que se anotaron
+    assert [f[0] for f in filas] == [INC_P_128, otra]
+    assert filas[0][4] == clave and filas[0][7] is not None
+    assert (filas[1][4], filas[1][7], filas[1][8]) == (ajena, None, None)
+    # Ninguna DEK de otro grupo sale, aunque se pida su pedido
+    assert _lo_que_paso_de(cx, PED_B_ENVIADO, usuario_id=U_PAG_A, grupo_id=G_A) == []
+    # La clave de P destruida: la DEK en NULL, la versión igual
+    cx.execute("UPDATE clave_notas SET dek_cifrada_con_kek = NULL, destruida_en = now() WHERE id = %s", (clave,))
+    [destruida, _] = _lo_que_paso_de(cx, usuario_id=U_PAG_A, grupo_id=G_A)
+    assert (destruida[0], destruida[7], destruida[8], destruida[9], destruida[10]) == (INC_P_128, None, 1, None, 1)
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.parametrize("antes", ["", "invitacion", "lo_que_paso", "pago_propio"])
+def test_128_a11_app_funcion_vuelve_al_valor_con_que_entro(cx, operador_81, antes):
+    """A11 (C3): pedido_lo_que_paso devuelve app.funcion al valor con que entró, con filas o sin ellas. Con
+    'pago_propio' ya puesto, app_pago_el_pedido responde false: 0 filas (falla cerrada)."""
+    _lo_que_paso_128(cx, operador_81)
+    for pedido, usuario in ((PED_A_ENVIADO, U_PAG_A), (PED_A_ENVIADO, U_PAG2_A), (PED_A_Q_128, U_PAG_A)):
+        como(cx, usuario_id=usuario, grupo_id=G_A)
+        cx.execute("SELECT set_config('app.funcion', %s, true)", (antes,))
+        filas = cx.execute(LO_QUE_PASO_128, (pedido,)).fetchall()
+        assert cx.execute("SELECT current_setting('app.funcion', true)").fetchone() == (antes,), (pedido, usuario)
+        esperadas = 1 if (pedido, usuario) == (PED_A_ENVIADO, U_PAG_A) and antes != "pago_propio" else 0
+        assert len(filas) == esperadas, (pedido, usuario, antes)
+        cx.execute("RESET ROLE")
 
 
 # ------------------------------------------------------------------ MATU-124 (migración 0035): cada conservación con

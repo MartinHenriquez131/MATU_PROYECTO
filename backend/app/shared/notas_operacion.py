@@ -13,11 +13,16 @@ de los datos), y ninguno de los dos importa care_plan.
   40 bytes en ``clave_notas.dek_cifrada_con_kek``. La KEK solo existe con ``CUSTODIA_KEK=entorno_sintetico`` (local,
   pruebas o staging; la configuración no carga en otro entorno).
 - El largo de 1 a 500 caracteres se valida aquí, sobre el texto, antes de cifrar (la base valida el largo cifrado).
+- MATU-128 (R5, C9): la nota tampoco lleva algo con forma de correo, de teléfono chileno o de RUT (decisión de Jorge
+  del 19-11), porque la lee también quien pagó el pedido. Es un filtro mínimo de la regla D5 (que no lleve nombres,
+  datos de contacto, datos de salud, la dirección ni quién de la familia reclamó), no la reemplaza: la consola la
+  advierte al escribir.
 - Ningún error lleva el texto, la clave ni un valor recibido: los mensajes son fijos. El repr oculta la KEK.
 """
 
 import base64
 import binascii
+import re
 import secrets
 import uuid
 from typing import Literal
@@ -41,8 +46,16 @@ Campo = Literal["descripcion", "resolucion"]
 class NotaInvalida(ValueError):
     """La nota no tiene de 1 a 500 caracteres. El mensaje es fijo: nunca lleva el texto."""
 
+    def __init__(self, mensaje: str = "la nota debe tener de 1 a 500 caracteres") -> None:
+        super().__init__(mensaje)
+
+
+class NotaConContacto(NotaInvalida):
+    """La nota tiene algo con forma de correo, de teléfono chileno o de RUT (R5). El mensaje es fijo: nunca lleva el
+    texto ni lo que se encontró."""
+
     def __init__(self) -> None:
-        super().__init__("la nota debe tener de 1 a 500 caracteres")
+        super().__init__("la nota no puede llevar correos, teléfonos ni RUT")
 
 
 class NotasNoDisponibles(RuntimeError):
@@ -52,10 +65,53 @@ class NotasNoDisponibles(RuntimeError):
         super().__init__("las notas de operación no se pueden cifrar")
 
 
+# Algo con forma de correo: texto sin espacios, una arroba y un dominio con punto
+_CORREO = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+")
+# Algo con forma de RUT (decisión de Jorge del 19-11): el número, con los puntos de los miles (12.345.678-9 o
+# 7.654.321-K) o sin ellos (12345678-9), el guion y el dígito verificador. Sin el guion no es un RUT: es una cantidad o
+# un monto. No va pegado a una letra ni a otro guion, ni con un punto antes, como un código o un número de serie
+# (SN12345678-9, 2026-1234567-1, 1.234.567.890-1); un punto después sí, el del final de una frase. Basta la forma: el
+# dígito verificador no se comprueba
+_RUT = re.compile(r"(?<![\w.-])(?:\d{1,2}\.\d{3}\.\d{3}|\d{7,8})-[\dkK](?![\w-])")
+# Una tira de números separados por espacios, guiones o paréntesis, como se escribe un teléfono, que no va pegada a una
+# letra (los números dentro de una palabra o de un código, como «a1b2», no son un teléfono). El punto no separa: en
+# Chile separa los miles de un monto ($69.000)
+_TIRA = re.compile(r"(?<!\w)\d[\d \t()\-]*\d(?!\w)")
+_GRUPO = re.compile(r"\d+")
+_LARGO_MAXIMO_TELEFONO = 12
+
+
+def _es_telefono(digitos: str) -> bool:
+    """Un número de Chile: 9 dígitos que no empiezan con 0 ni 1 (celular, 9 y 8 dígitos; fijo, el código de área y el
+    número), o los mismos con el 56 del país adelante. Los ceros del prefijo de larga distancia no cuentan."""
+    if digitos.startswith("56") and len(digitos) == 11:
+        digitos = digitos[2:]
+    digitos = digitos.lstrip("0")
+    return len(digitos) == 9 and digitos[0] in "23456789"
+
+
+def _tiene_telefono(texto: str) -> bool:
+    """Si alguna tira de números, o una parte seguida de sus grupos, forma un número de Chile."""
+    for tira in _TIRA.finditer(texto):
+        grupos = _GRUPO.findall(tira.group())
+        for inicio in range(len(grupos)):
+            digitos = ""
+            for grupo in grupos[inicio:]:
+                digitos += grupo
+                if len(digitos) > _LARGO_MAXIMO_TELEFONO:
+                    break
+                if _es_telefono(digitos):
+                    return True
+    return False
+
+
 def validar_nota(texto: str) -> str:
-    """El texto, si tiene de 1 a 500 caracteres. Si no, NotaInvalida."""
+    """El texto, si tiene de 1 a 500 caracteres (si no, NotaInvalida) y nada con forma de correo, de RUT o de
+    teléfono chileno (si no, NotaConContacto). El RUT se mira antes que el teléfono: sus dígitos pueden sumar nueve."""
     if not LARGO_MINIMO_NOTA <= len(texto) <= LARGO_MAXIMO_NOTA:
         raise NotaInvalida()
+    if _CORREO.search(texto) or _RUT.search(texto) or _tiene_telefono(texto):
+        raise NotaConContacto()
     return texto
 
 

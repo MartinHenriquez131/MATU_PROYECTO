@@ -187,4 +187,16 @@ export const TUS_PEDIDOS = {
   errCancelar: 'No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba.', // [L 31]
   /** Sin la última frase: la pantalla no pudo volver a leer el pedido, así que no sabe si sigue igual. */
   errCancelarSinLeer: 'No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo.', // [L 31] sin «Todo sigue como estaba.»
+
+  /**
+   * MATU-128 (especificación 6.2): «Lo que pasó con tu pedido» en el detalle. El título, los tipos, los
+   * estados y las fechas son los de «Datos de» (`MIS_DATOS.loQuePaso`, lenguaje 39): no se copian aquí.
+   */
+  loQuePaso: {
+    sinClave: 'Por ahora no podemos revisar si anotamos algo sobre este pedido. Vuelve a intentarlo en unos minutos.', // [L 39] N1
+    sinRed: 'No pudimos revisar si anotamos algo sobre este pedido. Revisa tu conexión y vuelve a intentarlo.', // [L 39] N2
+    nadaAnotado: 'No hay nada anotado sobre este pedido.', // [L 39] N3
+    /** Solo para lectores de pantalla, si el bloque llega después de que se ve el detalle. */
+    masAbajo: 'Más abajo está lo que pasó con tu pedido.', // [L 39] N4
+  },
 } as const

@@ -15,7 +15,8 @@ regenera: un texto nuevo es una versión nueva (POLITICA_VERSION y una fila nuev
 Qué hace, en este orden (decisión de Jorge D2, MATU-75):
 
 1. Quita los comentarios HTML <!-- … -->. Desde la 0.11, la fuente guarda ahí sus notas internas, sus PENDIENTE y
-   las citas de ADR.
+   las citas de ADR. MATU-128: un comentario seguido de una coma, un punto, un punto y coma, dos puntos o un
+   paréntesis de cierre se quita con el espacio que lo precede, para que no quede «devolución , y».
 2. Toma desde «## En un minuto» hasta el final. Lo de arriba es el encabezado interno (versión, estado, aprobaciones
    y notas por historia) y no se muestra.
 3. Quita las citas internas «> ADR-…» y la línea en blanco que las sigue (fuentes anteriores a la 0.11).
@@ -54,6 +55,8 @@ PENDIENTE = "Todavía no lo definimos."
 CARPETA = Path(__file__).resolve().parents[1] / "app" / "modules" / "iam" / "politica"
 
 _COMENTARIO = re.compile(r"<!--.*?-->", re.DOTALL)
+# Un solo comentario: nunca cruza un «-->», para no comerse el texto entre dos comentarios
+_COMENTARIO_ANTES_DE_PUNTUACION = re.compile(r"[ \t]+<!--(?:(?!-->).)*-->(?=[,.;:)])", re.DOTALL)
 _CITA_INTERNA = re.compile(r"^> ADR-[^\n]*\n(?:\n)?", re.MULTILINE)
 _PARENTESIS_INTERNO = re.compile(r" ?\((?=[^()]*(?:MATU-\d|ADR-\d|Jorge))[^()]*\)")
 _APROBACION = re.compile(r" ?(?:La|Las|Lo|Los) aprobó Jorge el \d{2}-\d{2}\.")
@@ -99,6 +102,7 @@ def _falla(linea: str) -> bool:
 def convertir(fuente: str) -> str:
     """El texto para la persona a partir del .md de docs. Lanza ValueError si queda algo interno."""
     texto = fuente.replace("\r\n", "\n").replace("\r", "\n")
+    texto = _COMENTARIO_ANTES_DE_PUNTUACION.sub("", texto)
     texto = _COMENTARIO.sub("", texto)
     inicio = texto.find(INICIO)
     if inicio < 0:

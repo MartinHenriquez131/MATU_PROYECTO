@@ -28,6 +28,8 @@ export type LineaRetracto = S['LineaRetracto']
 export type EstadoPedidoVista = S['EstadoPedidoVista']
 export type MotivoCancelar = FilaPedido['cancelar_motivo']
 export type MotivoArrepentirse = FilaPedido['arrepentirse_motivo']
+/** MATU-128: una cosa que anotó el equipo de MATU, con los siete campos del contrato y nada más. */
+export type CosaAnotada = S['CosaAnotadaVista']
 
 /**
  * La fila de quien ve el pago trae la referencia; la del observador, no (decisión 436). MATU-116 (C10):
@@ -58,6 +60,15 @@ export async function listarPedidos(personaId: string, cursor: string | null = n
 /** `GET /v1/pedidos/{id}/seguimiento` (decisión 438). El observador recibe 404, salvo en un pedido que pagó (MATU-116). */
 export async function leerSeguimiento(pedidoId: string): Promise<Seguimiento> {
   return (await apiFamilia.get<Seguimiento>(`/v1/pedidos/${enc(pedidoId)}/seguimiento`)).data
+}
+
+/**
+ * `GET /v1/pedidos/{id}/lo-que-paso` (MATU-128, decisión 484), con `X-Grupo-Id` del interceptor. Quién
+ * la recibe lo decide el servidor con quién pagó el pedido, nunca el rol: 404 a quien no lo pagó, 503
+ * si hay algo anotado y falta la clave. Ordenadas por `anotado_en`; vacía si no hay nada anotado.
+ */
+export async function leerLoQuePaso(pedidoId: string): Promise<CosaAnotada[]> {
+  return (await apiFamilia.get<S['LoQuePasoDelPedido']>(`/v1/pedidos/${enc(pedidoId)}/lo-que-paso`)).data.lo_que_paso
 }
 
 /** `GET /v1/pedidos/{id}/retractos` (decisión 442). Solo de un pedido entregado: si no, 404. */

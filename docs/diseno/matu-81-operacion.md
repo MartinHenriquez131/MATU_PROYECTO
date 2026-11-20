@@ -749,9 +749,12 @@ Una sola acción principal por estado (la tabla sale de `acciones`, P3). Cada un
 │ ( ) Otra cosa                      │
 │                                    │
 │ Nota                               │  label font-bold
-│ ┃ No escribas nombres, datos de    │  Nota atenta borde, ayuda del campo
-│ ┃ salud ni la dirección. La familia│
-│ ┃ puede leer esta nota.            │
+│ ┃ No escribas nombres, teléfonos,  │  Nota atenta borde, ayuda del campo (C8 de MATU-128)
+│ ┃ correos, datos de salud ni la    │
+│ ┃ dirección, ni quién de la        │
+│ ┃ familia reclamó. La leen quien   │
+│ ┃ pagó el pedido y quien           │
+│ ┃ administra o cuida.              │
 │ [                              ]   │  textarea, min-h-32
 │ [                              ]   │
 │ 0 de 500 caracteres                │  contador text-base text-tenue
@@ -759,7 +762,7 @@ Una sola acción principal por estado (la tabla sale de `acciones`, P3). Cada un
 │ [ Guardar la incidencia ] Cancelar │  principal + texto
 ```
 
-- **La ayuda** va **antes** del campo, como `Nota tono="atenta" borde` con `TriangleAlert`, y en el `aria-describedby` del `textarea`. Texto exacto [A81, C11]: «No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota.». Va arriba y no debajo porque tiene que leerse antes de escribir, y en `atenta` porque es una advertencia, no una explicación.
+- **La ayuda** va **antes** del campo, como `Nota tono="atenta" borde` con `TriangleAlert`, y en el `aria-describedby` del `textarea`. Texto exacto [A81, C11, y C8 de MATU-128, que lo amplió]: «No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida.». Va arriba y no debajo porque tiene que leerse antes de escribir, y en `atenta` porque es una advertencia, no una explicación.
 - **El campo:** el `textarea` de `EditorSeccion` (`bg-hoja ring-2 ring-inset ring-borde focus-visible:ring-turquesa rounded-xl px-4 py-3 text-lg`), `maxLength` 500, `spellCheck` por omisión, `autoComplete="off"`. Contador «`{n}` de 500 caracteres» [L, `textos.ts`], con `aria-live="polite"` solo desde 450.
 - **Textos [NUEVO]:** `h3` «Anotar una incidencia» · `legend` «¿Qué pasó?» · `label` «Nota» · «Guardar la incidencia» · «Guardando…» · «Cancelar».
 - **No pide confirmar:** no mueve dinero ni cambia el pedido.
@@ -938,7 +941,7 @@ Como «Tus productos» del comercio ([C63] 8.2): una columna de `max-w-3xl`, cad
 ## 14. Criterios visuales verificables
 
 1. **Un solo macizo.** En cada pantalla y estado hay a lo sumo **un** elemento con `bg-turquesa` o `bg-pronto` fuera de un diálogo abierto. En Pedidos, Cobros, Retractos sin elegir, Incidencias sin elegir y Catálogo sin editor, ninguno.
-2. **Sin datos de la familia.** Ninguna pantalla de `/operacion` muestra un nombre de persona, una dirección, un teléfono, un grupo ni un correo, salvo el que se escribe en 8.5 mientras se escribe. Un `grep` de `web/src/operacion/` no encuentra «María», «Carmen», «Rosa», «Rodrigo» ni «grupo_id», ni un campo de dirección (`direccion`, `comuna`, `region` como propiedad de un dato). La palabra «dirección» aparece **una sola vez**, en la ayuda obligatoria de C11 («No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota.», `INCIDENCIAS.ayuda` de `textos.ts`), que es una advertencia y no un dato: el criterio se cumple si esa es la única coincidencia. Lo que se verifica en pantalla es que ningún texto visible de `/operacion` traiga una dirección, un nombre o un teléfono de la familia.
+2. **Sin datos de la familia.** Ninguna pantalla de `/operacion` muestra un nombre de persona, una dirección, un teléfono, un grupo ni un correo, salvo el que se escribe en 8.5 mientras se escribe. Un `grep` de `web/src/operacion/` no encuentra «María», «Carmen», «Rosa», «Rodrigo» ni «grupo_id», ni un campo de dirección (`direccion`, `comuna`, `region` como propiedad de un dato). La palabra «dirección» aparece **una sola vez**, en la ayuda obligatoria de C11, ampliada por la C8 de MATU-128 («No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida.», `INCIDENCIAS.ayuda` de `textos.ts`), que es una advertencia y no un dato: el criterio se cumple si esa es la única coincidencia. Lo que se verifica en pantalla es que ningún texto visible de `/operacion` traiga una dirección, un nombre o un teléfono de la familia.
 3. **Sin tarjeta.** Ninguna pantalla muestra «terminada en», últimos 4, tipo de tarjeta, cuotas ni código de autorización. «Orden de compra» sí aparece en el pago y en Cobros.
 4. **Nada en la URL.** Ninguna ruta de `/operacion` lleva un id, una referencia, un `buy_order`, un correo ni un código. La búsqueda es un `POST` con la referencia en el cuerpo. Recargar `/operacion/pedido` lleva a `/operacion`. El `<title>` del pedido no lleva la referencia.
 5. **El código del teléfono:** el campo tiene `autocomplete="one-time-code"`, `inputmode="numeric"` y `type="text"`; pegar «482 173» deja «482173»; con 6 números no envía solo.
@@ -949,7 +952,7 @@ Como «Tus productos» del comercio ([C63] 8.2): una columna de `max-w-3xl`, cad
 10. **El monto** de los diálogos es el `monto_a_devolver` de la API: el código de `web/src/operacion/` no resta montos para mostrarlos.
 11. **Retracto:** «No devolver» no envía sin uno de los dos motivos; el diálogo dice «La familia ve el motivo».
 12. **Retracto por correo:** el campo del correo tiene `autocomplete="off"`; después de cualquier respuesta del servidor el campo está vacío; ningún aviso repite el correo; no hay lista ni sugerencias de correos.
-13. **Incidencia:** la ayuda «No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota.» está a la vista antes del campo y en su `aria-describedby`, al anotar y al resolver. El `textarea` tiene `maxlength="500"` y contador.
+13. **Incidencia:** la ayuda «No escribas nombres, teléfonos, correos, datos de salud ni la dirección, ni quién de la familia reclamó. La leen quien pagó el pedido y quien administra o cuida.» (C8 de MATU-128) está a la vista antes del campo y en su `aria-describedby`, al anotar y al resolver. El `textarea` tiene `maxlength="500"` y contador.
 14. **Línea de tiempo:** cada hecho dice su actor en palabras («La familia», el comercio, «Equipo de MATU», «MATU, de forma automática»), nunca un nombre de persona.
 15. **Catálogo:** todo precio se ve como `$12.990 · IVA incluido`; el aviso «El precio nuevo vale solo para los pedidos que se confirmen desde ahora…» está a la vista; un comercio real no tiene «Cambiar».
 16. **Estado nunca solo por color:** toda `Etiqueta` tiene ícono y palabra (la palabra queda en `angosto`).

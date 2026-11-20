@@ -11,6 +11,11 @@
 // primera vez) y tus-pedidos-plazo@ (el plazo de la app venció, y otro pasó los 90 días).
 // MATU-116: tus-pedidos-se-informa-pago@ (se informa y pagó dos de los cuatro: esos llegan con
 // `vista: 'pagaste'` y la fila de quien paga, con `puede_cancelar` en false; los demás, con `se_informa`).
+// MATU-128: `GET /v1/pedidos/{id}/lo-que-paso` responde solo a quien pagó ese pedido (nunca según el rol):
+// a los demás, 404. Con tus-pedidos-lo-que-paso@ (Paga), lo-que-paso-se-informa@ (Se informa y pagó),
+// lo-que-paso-sin-clave@ (503), lo-que-paso-red@ (500 las dos primeras lecturas de cada pedido, de nuevo
+// cada vez que se entra con la cuenta) y
+// lo-que-paso-lento@ (2 s).
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { comercioDe, COSTO_ENVIO, productoDe, type Pedido, type Responder, type RetractoDoble, type Rol, type SeguimientoDoble, type UsuarioPedido } from './pedido'
@@ -153,6 +158,44 @@ export function listarPagados(req: IncomingMessage, res: ServerResponse, { json,
 
 const usadas = new Map<string, unknown>()
 const primeraVez = new Set<string>()
+/** lo-que-paso-red@: cuántas lecturas de `lo-que-paso` lleva cada pedido de cada cuenta (se cuenta cada petición). */
+const lecturasLoQuePaso = new Map<string, number>()
+const claveLectura = (usuarioId: string, pedidoId: string) => `${usuarioId} ${pedidoId}`
+/** Las lecturas que responden 500 antes del 200: dos, porque con `StrictMode` el detalle pide la ruta dos veces. */
+const LECTURAS_CON_500 = 2
+
+/**
+ * MATU-128 (P3 de la revisión): entrar con lo-que-paso-red@ vuelve a cero sus lecturas, para que N2 se vea
+ * de nuevo en cada pedido sin reiniciar `npm run dev`. Solo en el doble.
+ */
+export function olvidarLecturasLoQuePaso(usuarioId: string) {
+  for (const clave of [...lecturasLoQuePaso.keys()]) if (clave.startsWith(`${usuarioId} `)) lecturasLoQuePaso.delete(clave)
+}
+
+/**
+ * MATU-128 (decisión 484): lo que anotó el equipo de MATU, para quien pagó este pedido. Lo decide quién
+ * pagó (`pagado.quien`), nunca el rol: el admin que no pagó recibe 404 y lo ve en «Datos de». Ordenado por
+ * `anotado_en` (E5); sin nada anotado, 200 con la lista vacía aunque falte la clave (E4).
+ */
+export function verLoQuePaso(req: IncomingMessage, res: ServerResponse, { json, problema }: Responder, u: UsuarioPedido, p: Pedido) {
+  res.setHeader('Cache-Control', 'no-store')
+  if ((req.method ?? 'GET') !== 'GET' || !p.pagado || p.pagado.quien !== u.id) return problema(res, 404, '/errores/no-encontrado')
+  const items = [...(p.loQuePaso ?? [])].sort((a, b) => a.anotado_en.localeCompare(b.anotado_en))
+  // lo-que-paso-red@ (P2 de la revisión visual): cuenta cada petición, no solo si el pedido ya se leyó.
+  // Con `StrictMode` (npm run dev) el detalle pide la ruta dos veces al montarse: si solo la primera
+  // diera 500, la segunda traería el 200 y N2 nunca se vería. Las dos primeras responden 500 (N2) y
+  // «Volver a intentar», la tercera, trae lo que hay. Sin `StrictMode`, el primer reintento da 500 otra vez.
+  if (u.modo === 'lo-que-paso-red') {
+    const clave = claveLectura(u.id, p.id)
+    const lecturas = (lecturasLoQuePaso.get(clave) ?? 0) + 1
+    lecturasLoQuePaso.set(clave, lecturas)
+    if (lecturas <= LECTURAS_CON_500) return problema(res, 500, '/errores/interno')
+  }
+  if (u.modo === 'lo-que-paso-sin-clave' && items.length) return problema(res, 503, '/errores/servicio-no-disponible')
+  const responder = () => json(res, 200, { lo_que_paso: items })
+  if (u.modo === 'lo-que-paso-lento') return void setTimeout(responder, 2000)
+  return responder()
+}
 
 /** El seguimiento, los retractos y cancelar con devolución de un pedido pagado. */
 export function atenderTusPedidos(

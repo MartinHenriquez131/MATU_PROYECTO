@@ -134,3 +134,60 @@ describe('El doble de «Tus pedidos»', () => {
     expect(c3).toMatchObject({ status: 409, cuerpo: { type: '/errores/ya-se-prepara' } })
   })
 })
+
+describe('El doble de «Lo que pasó con tu pedido» (MATU-128)', () => {
+  type Cosa = Record<string, unknown> & { anotado_en: string }
+  const lqp = async (email: string) => {
+    const { h, personaId } = await entrar(email)
+    const items = (await pedir('GET', `/v1/personas-cuidadas/${personaId}/pedidos`, null, h)).cuerpo.items as Fila[]
+    const [reciente, preparando, entregado, cancelado] = items
+    const ver = (f: Fila) => pedir('GET', `/v1/pedidos/${f.pedido_id}/lo-que-paso`, null, h)
+    return { ver, reciente, preparando, entregado, cancelado }
+  }
+
+  it.each(['tus-pedidos-lo-que-paso@example.com', 'lo-que-paso-se-informa@example.com'])('%s: lo que pagó con cosas anotadas (siete campos, por anotado_en), sin nada, y 404 en lo que pagó otra persona', async (email) => {
+    const { ver, reciente, preparando, entregado, cancelado } = await lqp(email)
+    const con = await ver(entregado)
+    expect(con.status).toBe(200)
+    const cosas = con.cuerpo.lo_que_paso as Cosa[]
+    expect(cosas.map((c) => c.tipo)).toEqual(['faltante', 'entrega_fallida'])
+    expect(cosas[0].anotado_en < cosas[1].anotado_en).toBe(true)
+    for (const c of cosas) expect(Object.keys(c).sort()).toEqual(['anotado_en', 'estado', 'nota', 'nota_disponible', 'resolucion', 'resuelto_en', 'tipo'])
+    expect(await ver(reciente)).toMatchObject({ status: 200, cuerpo: { lo_que_paso: [] } })
+    // El preparando tiene algo anotado, pero lo pagó otra cuenta: 404, nunca según el rol.
+    expect((await ver(preparando)).status).toBe(404)
+    expect((await ver(cancelado)).status).toBe(404)
+  })
+
+  it('quien cuida y no pagó: 404 (lo ve en «Datos de»)', async () => {
+    const { ver, entregado } = await lqp('tus-pedidos-cuidador@example.com')
+    expect((await ver(entregado)).status).toBe(404)
+  })
+
+  it('sin la clave: 503 si hay algo anotado; 200 vacío si no hay nada (E4)', async () => {
+    const { ver, reciente, entregado } = await lqp('lo-que-paso-sin-clave@example.com')
+    expect(await ver(entregado)).toMatchObject({ status: 503, cuerpo: { type: '/errores/servicio-no-disponible' } })
+    expect(await ver(reciente)).toMatchObject({ status: 200, cuerpo: { lo_que_paso: [] } })
+  })
+
+  it('red: las dos primeras lecturas de cada pedido responden 500 (StrictMode pide dos veces) y la tercera lo que hay', async () => {
+    const { ver, entregado } = await lqp('lo-que-paso-red@example.com')
+    expect((await ver(entregado)).status).toBe(500)
+    expect((await ver(entregado)).status).toBe(500)
+    const otra = await ver(entregado)
+    expect(otra.status).toBe(200)
+    expect(otra.cuerpo.lo_que_paso as Cosa[]).toHaveLength(2)
+  })
+
+  it('red (P3): entrar de nuevo con la cuenta vuelve a cero las lecturas, y N2 se ve otra vez en el mismo pedido', async () => {
+    const primera = await lqp('lo-que-paso-red@example.com')
+    expect((await primera.ver(primera.entregado)).status).toBe(500)
+    expect((await primera.ver(primera.entregado)).status).toBe(500)
+    expect((await primera.ver(primera.entregado)).status).toBe(200)
+    const otraVez = await lqp('lo-que-paso-red@example.com')
+    expect(otraVez.entregado.pedido_id).toBe(primera.entregado.pedido_id)
+    expect((await otraVez.ver(otraVez.entregado)).status).toBe(500)
+    expect((await otraVez.ver(otraVez.entregado)).status).toBe(500)
+    expect((await otraVez.ver(otraVez.entregado)).status).toBe(200)
+  })
+})

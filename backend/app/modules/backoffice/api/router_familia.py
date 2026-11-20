@@ -6,6 +6,7 @@ D-63-9 y D-63-10). Decisiones 422 a 424 y 436 en adelante.
     POST /v1/pedidos/{pedido_id}/cancelar-con-devolucion  admin. Idempotency-Key. 200
     GET  /v1/pedidos/{pedido_id}/retractos                admin, cuidador, pagador y el observador que pagó. 200
     POST /v1/pedidos/{pedido_id}/retractos                admin o quien pagó, en cualquier rol. Idempotency-Key. 201
+    GET  /v1/pedidos/{pedido_id}/lo-que-paso              solo quien pagó ese pedido, en cualquier rol. 200
 
 Viven en backoffice porque orquestan el despacho (fulfillment) y la devolución (payments). Un rol que no alcanza, un
 pedido o una persona de otro grupo, una persona eliminada, un pedido vencido (2 años desde la entrega o la
@@ -22,6 +23,10 @@ es UUID: 404, nunca 403. No piden la autorización despacho (C1). Cache-Control:
 - MATU-116 (J1, C5; decisión 475): el observador que pagó un pedido lo ve en la lista con la fila «pagaste», tiene su
   detalle (puede_cancelar siempre false, con su motivo) y puede arrepentirse. De los pedidos que no pagó, la fila
   «se_informa» y 404 en el resto.
+- MATU-128 (R2, R3 y C5; decisión 484): lo-que-paso responde solo a quien pagó ese pedido (pagados_por, y en la base
+  pedido_lo_que_paso de la 0036), nunca según el rol: a los demás, 404. Como el detalle, el grupo va en X-Grupo-Id.
+  Sin nada anotado, 200 con la lista vacía aunque falte la KEK (E4); con algo que descifrar y sin ella,
+  503. No se audita (C7). La nota y la resolución nunca van a logs, errores, eventos ni auditoría.
 """
 
 import uuid
@@ -36,9 +41,11 @@ from app.core.db import obtener_fabrica_sesiones
 from app.core.errores import ErrorMATU
 from app.modules.backoffice.api import vistas_familia as vistas
 from app.modules.backoffice.api.esquemas import (
+    CosaAnotadaVista,
     EstadoPedidoVista,
     ListaPedidosPagados,
     ListaPedidosPagadosObservador,
+    LoQuePasoDelPedido,
     RetractosDelPedido,
     RetractoVistaFamilia,
     SeguimientoPedido,
@@ -48,6 +55,7 @@ from app.modules.backoffice.api.esquemas import (
 from app.modules.backoffice.application import pedidos_familia as tus_pedidos
 from app.modules.backoffice.application.despacho import NoCancelable, cancelar_pagado
 from app.modules.backoffice.infrastructure.lectura_pedidos import LecturaPedidosSQL
+from app.modules.backoffice.infrastructure.lo_que_paso_sql import NotasDelPedidoSQL
 from app.modules.backoffice.infrastructure.sistema import AbrirDespachoSQL
 from app.modules.care_circle.api.dependencias import SesionDeGrupo
 from app.modules.care_circle.api.router_autorizaciones import RelojDep
@@ -61,6 +69,7 @@ from app.modules.payments.infrastructure.pasarela import obtener_pasarela
 from app.modules.payments.infrastructure.repositorio_pagos import RepositorioPagosSQL
 from app.modules.payments.infrastructure.repositorio_retractos import RepositorioRetractosSQL
 from app.shared.auditoria_sql import RegistroAuditoriaSql
+from app.shared.notas_operacion import CustodiaNotas, NotasNoDisponibles, obtener_custodia_notas
 
 router = APIRouter(tags=["pedidos"])
 
@@ -68,6 +77,7 @@ _PROBLEMA: dict[str, Any] = {"content": {"application/problem+json": {}}}
 _ID = Annotated[str, Path(json_schema_extra={"format": "uuid"})]
 Fabrica = Annotated[sessionmaker[Session], Depends(obtener_fabrica_sesiones)]
 PasarelaDep = Annotated[PasarelaWebpay | None, Depends(obtener_pasarela)]
+CustodiaNotasDep = Annotated[CustodiaNotas | None, Depends(obtener_custodia_notas)]
 _RESPUESTAS: dict[int | str, dict[str, Any]] = {
     401: {"description": "no-autenticado o token-invalido", **_PROBLEMA},
     404: {
@@ -409,3 +419,74 @@ def pedir_retracto(
         ) from None
     idem.completar(endpoint, clave, status.HTTP_201_CREATED, pedido.pedido_id)
     return vistas.retracto_familia(unidad, retractos, r, contexto.usuario_id)
+
+
+# --- Lo que pasó con tu pedido (MATU-128) --------------------------------------------------------------------------
+
+
+@router.get(
+    "/pedidos/{pedido_id}/lo-que-paso",
+    response_model=LoQuePasoDelPedido,
+    responses={
+        401: _RESPUESTAS[401],
+        404: {
+            "description": "Quien pregunta no pagó este pedido (en cualquier rol, también admin, cuidador o pagador),"
+            " salió del grupo, o el pedido no es del grupo de X-Grupo-Id, no está"
+            " pagado, es de una persona eliminada o venció",
+            **_PROBLEMA,
+        },
+        503: {
+            "description": "Hay algo anotado y la clave de las notas no se puede abrir (sin la KEK). El resto del"
+            " detalle del pedido sigue funcionando. Sin nada anotado, la ruta responde 200 con la lista vacía",
+            **_PROBLEMA,
+        },
+    },
+    summary="«Lo que pasó con tu pedido»: lo que anotó el equipo de MATU, para quien pagó el pedido",
+    description=(
+        "MATU-128 (R2, R3 y C5; decisión 484). Solo quien pagó este pedido, en cualquier rol (también «Se informa»),"
+        " mientras siga activo en el grupo: lo decide el servidor con lo que pagó cada cuenta, nunca con el rol, y la"
+        " pantalla muestra el bloque solo si la ruta responde 200 con algo. El admin y el cuidador que no pagaron"
+        " reciben 404 y lo siguen viendo en la copia de los datos («Datos de»). Por cada cosa anotada: tipo, estado,"
+        " anotado_en, resuelto_en, la nota y la resolución descifradas y nota_disponible (decisión 471). Nunca quién"
+        " del equipo la anotó, a quién se asignó ni su id. Ordenadas por anotado_en, de la más antigua a la más"
+        " reciente; vacía si no hay nada anotado (aunque falte la KEK). Cache-Control: no-store. No se audita. La"
+        " nota y la resolución nunca van a logs, errores, eventos ni auditoría. Capa 3"
+    ),
+)
+def ver_lo_que_paso(
+    response: Response,
+    pedido_id: _ID,
+    contexto: SesionDeGrupo,
+    reloj: RelojDep,
+    custodia: CustodiaNotasDep,
+) -> LoQuePasoDelPedido:
+    try:
+        cosas = tus_pedidos.lo_que_paso(
+            _lectura(contexto),
+            NotasDelPedidoSQL(contexto.sesion, custodia),
+            contexto.rol,
+            contexto.usuario_id,
+            _uuid(pedido_id),
+            reloj.ahora(),
+        )
+    except tus_pedidos.PedidoNoEncontrado:
+        raise ErrorMATU(404) from None
+    except NotasNoDisponibles:
+        raise ErrorMATU(
+            503, detalle="Lo anotado no se puede revisar en este momento. Cita el request_id si lo reportas"
+        ) from None
+    response.headers["Cache-Control"] = "no-store"
+    return LoQuePasoDelPedido(
+        lo_que_paso=[
+            CosaAnotadaVista(
+                tipo=x.tipo,
+                estado=x.estado,
+                anotado_en=x.anotado_en.astimezone(UTC),
+                resuelto_en=None if x.resuelto_en is None else x.resuelto_en.astimezone(UTC),
+                nota=x.nota,
+                resolucion=x.resolucion,
+                nota_disponible=x.nota_disponible,
+            )
+            for x in cosas
+        ]
+    )

@@ -267,6 +267,17 @@ def test_el_generador_convierte_la_fuente_siempre_igual() -> None:
     assert generador.convertir(FUENTE_SINTETICA.replace("\n", "\r\n")) == ESPERADO
 
 
+def test_el_generador_no_deja_un_espacio_antes_de_la_puntuacion_al_quitar_un_comentario() -> None:
+    """MATU-128: la fuente de la 0.26 trae «devolución <!-- … -->, y». Sin esto quedaba «devolución , y». Un comentario
+    entre dos palabras deja un solo espacio, como antes."""
+    generador = _generador()
+    fuente = ("## En un minuto\n\nSe guarda 2 años desde que se cancela <!-- nota\ninterna -->, y su pago 6 años"
+              " <!-- otra -->. Lo ves <!-- c --> en «Tus datos» (sección 10 <!-- d -->).\n")
+    assert generador.convertir(fuente) == (
+        "## En un minuto\n\nSe guarda 2 años desde que se cancela, y su pago 6 años. Lo ves en «Tus datos»"
+        " (sección 10).\n")
+
+
 def test_el_generador_falla_si_queda_algo_interno() -> None:
     generador = _generador()
     with pytest.raises(ValueError, match="referencias internas"):
@@ -810,17 +821,15 @@ def test_la_0_24_sigue_publicada() -> None:
 @pytest.mark.rf("Ley-21.719")
 @pytest.mark.rf("RF-37")
 @pytest.mark.rf("R3")
-def test_la_0_25_esta_publicada_y_es_la_de_env_example() -> None:
+def test_la_0_25_sigue_publicada() -> None:
     """MATU-116: la 0.25 dice en §6 que quien pagó y pasó a «Se informa» sigue viendo ese pedido como quien pagó, y en
     §10 que «Tus datos» trae sus pagos aunque haya cambiado de rol o salido del grupo. Solo ve más de sus propios
-    datos: nadie vuelve a aceptar. De la 0.11 a la 0.24 siguen publicadas."""
+    datos: nadie vuelve a aceptar. De la 0.11 a la 0.24 siguen publicadas. Desde MATU-128 la vigente es la 0.26."""
     anteriores = {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21", "0.22",
                   "0.23", "0.24"}
     assert anteriores | {"0.25"} <= set(PUBLICADAS)
     huella = "aa1167e62cdc0c3467972d4789f55020da11ef2f7f98cba1a45a1a499ebc64c8"  # pragma: allowlist secret
     assert PUBLICADAS["0.25"] == huella
-    valores = dotenv_values(BACKEND.parent / ".env.example")
-    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.25", "2026-11-18")
     texto = texto_publicado("0.25")
     assert texto != texto_publicado("0.24")
     for parte in (
@@ -846,3 +855,43 @@ def test_la_0_25_esta_publicada_y_es_la_de_env_example() -> None:
         assert parte in texto, parte
     # Lo de la 0.24 sigue en el texto vigente
     assert "- La versión 0.24 aclara que el equipo que opera MATU no ve tu email ni tu celular" in texto
+
+
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.rf("RF-20")
+def test_la_0_26_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-128: la 0.26 dice en §6, §9 y §10 que quien pagó un pedido ve, en ese pedido, lo que anotó el equipo de
+    MATU si hubo un problema, mientras siga en el grupo, y que nunca dice quién del equipo lo anotó. Es información de
+    una compra que esa persona pagó: nadie vuelve a aceptar (§12). De la 0.11 a la 0.25 siguen publicadas."""
+    anteriores = {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21", "0.22",
+                  "0.23", "0.24", "0.25"}
+    assert anteriores | {"0.26"} <= set(PUBLICADAS)
+    huella = "e23feafa0cfe125ea94e004c0103abf5738c55bbab469aef09e0178ba266e232"  # pragma: allowlist secret
+    assert PUBLICADAS["0.26"] == huella
+    valores = dotenv_values(BACKEND.parent / ".env.example")
+    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.26", "2026-11-19")
+    texto = texto_publicado("0.26")
+    assert texto != texto_publicado("0.25")
+    for parte in (
+        # §6: quien paga, el observador que pagó y el equipo de MATU
+        "Quien pagó un pedido ve también, en ese pedido, lo que anotó el equipo de MATU si hubo un problema.",
+        "la franja de entrega que pagaste y lo que anotó el equipo de MATU si hubo un problema, sin la dirección ni el"
+        " teléfono de contacto,",
+        "lo anota con lo que pasó y cómo se resolvió, sin nombres, datos de contacto, datos de salud ni la dirección.",
+        "y quien pagó ese pedido, en «Tus pedidos», mientras siga en el grupo. Nunca dice quién del equipo la anotó.",
+        # §9
+        "y quien pagó el pedido lo ve en ese pedido, en «Tus pedidos».",
+        # §10
+        "En los pedidos que pagaste ves también lo que anotó el equipo de MATU si hubo un problema.",
+        "Si necesitas el resto, el detalle de un pedido o lo que anotó el equipo de MATU de un pedido que pagaste,",
+        # §12: el cambio de la 0.26 y por qué nadie vuelve a aceptar
+        "- La versión 0.26 agrega que quien pagó un pedido ve, en ese pedido, lo que anotó el equipo de MATU si hubo"
+        " un problema. No te pedimos aceptar de nuevo esta política ni volver a dar las autorizaciones: es información"
+        " de una compra que tú pagaste, sin nuevos usos, datos, destinatarios fuera del grupo ni declaraciones.",
+        # El comentario de la fuente ya no deja un espacio antes de la coma
+        "2 años desde que se entrega o se cancela con devolución, y su devolución con los pagos, 6 años.",
+    ):
+        assert parte in texto, parte
+    assert "devolución , y" not in texto
+    # Lo de la 0.25 sigue en el texto vigente
+    assert "- La versión 0.25 aclara que quien pagó un pedido sigue viendo sus pagos en «Tus datos»" in texto

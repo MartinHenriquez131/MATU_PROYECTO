@@ -20,6 +20,8 @@ RUTAS = (
     "/v1/pedidos/{pedido_id}/cancelar-con-devolucion",
     "/v1/pedidos/{pedido_id}/pago",
     "/v1/pedidos/{pedido_id}",
+    # MATU-128 (C5)
+    "/v1/pedidos/{pedido_id}/lo-que-paso",
 )
 # Las respuestas de la familia sobre un pedido pagado
 VISTAS_DE_LA_FAMILIA = (
@@ -27,6 +29,8 @@ VISTAS_DE_LA_FAMILIA = (
     "RetractoVistaFamilia", "EstadoPedidoVista", "PagoVista", "PagoVistaObservador",
     # MATU-116 (C5): el detalle del observador que pagó el pedido
     "SeguimientoPedidoPagaste",
+    # MATU-128 (C5): «Lo que pasó con tu pedido», para quien lo pagó
+    "LoQuePasoDelPedido",
 )
 NUNCA_A_LA_FAMILIA = {
     "codigo", "codigo_hash", "codigo_generado_en", "codigo_expira_en", "codigo_usado_en", "codigo_intentos",
@@ -156,3 +160,28 @@ def test_los_motivos_son_los_de_la_especificacion(esquema: dict[str, Any]) -> No
     arrepentirse = {v for x in fila["arrepentirse_motivo"]["anyOf"] for v in x.get("enum", [])}
     assert cancelar == {"rol", "ya_se_prepara", "cancelado"}
     assert arrepentirse == {"rol", "sin_entregar", "plazo_app_vencido", "plazo_vencido", "nada_disponible"}
+
+
+@pytest.mark.rf("RNF-07")
+@pytest.mark.rf("Ley-21.719")
+def test_128_lo_que_paso_tiene_siete_campos_estrictos_y_sus_codigos(esquema: dict[str, Any]) -> None:
+    """MATU-128 (C2 y C5): la proyección es extra="forbid", con los mismos siete campos de LoQuePasoCopia («Datos de»)
+    y nunca el id de la incidencia, quién la anotó, a quién se asignó ni su versión. La ruta dice 200, 401, 404, 422
+    (el de validación que FastAPI suma por los parámetros) y 503, y su 200 es LoQuePasoDelPedido."""
+    schemas = esquema["components"]["schemas"]
+    for nombre in ("LoQuePasoDelPedido", "CosaAnotadaVista"):
+        assert schemas[nombre].get("additionalProperties") is False, nombre
+    assert set(schemas["LoQuePasoDelPedido"]["properties"]) == {"lo_que_paso"}
+    cosa = set(schemas["CosaAnotadaVista"]["properties"])
+    assert cosa == set(schemas["LoQuePasoCopia"]["properties"]) == {
+        "tipo", "estado", "anotado_en", "resuelto_en", "nota", "resolucion", "nota_disponible"}
+    assert set(schemas["CosaAnotadaVista"]["required"]) == cosa
+    assert not _propiedades(esquema, "LoQuePasoDelPedido") & {
+        "id", "incidencia_id", "creada_por", "asignada_a", "asignada", "version", "clave_notas_id", "pedido_id"}
+    assert schemas["CosaAnotadaVista"]["properties"]["tipo"] == schemas["LoQuePasoCopia"]["properties"]["tipo"]
+    ruta = esquema["paths"]["/v1/pedidos/{pedido_id}/lo-que-paso"]
+    assert set(ruta) == {"get"}
+    assert set(ruta["get"]["responses"]) == {"200", "401", "404", "422", "503"}
+    assert "LoQuePasoDelPedido" in json.dumps(ruta["get"]["responses"]["200"])
+    # No pide cuerpo ni cabeceras de escritura
+    assert "requestBody" not in ruta["get"]

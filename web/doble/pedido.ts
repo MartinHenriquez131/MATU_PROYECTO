@@ -9,7 +9,7 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { catalogoDoble } from './catalogo'
-import { atenderTusPedidos, listarPagados } from './tusPedidos'
+import { atenderTusPedidos, listarPagados, verLoQuePaso } from './tusPedidos'
 
 export type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 export type Regla = 'otro_comercio' | 'quitar'
@@ -60,6 +60,18 @@ export interface Pedido {
   devoluciones?: DevolucionDoble[]
   /** MATU-92: cómo va después de pagar (tusPedidos.ts). Sin él, recién pagado. */
   seguimiento?: SeguimientoDoble
+  /** MATU-128: lo que anotó el equipo de MATU, como `CosaAnotadaVista`. Sin quién lo anotó. */
+  loQuePaso?: CosaAnotadaDoble[]
+}
+/** MATU-128: los siete campos de `CosaAnotadaVista`, y nada más. */
+export interface CosaAnotadaDoble {
+  tipo: 'faltante' | 'entrega_fallida' | 'reclamo_familia' | 'cobro_sin_respuesta' | 'devolucion_pendiente' | 'otro'
+  estado: 'abierta' | 'en_gestion' | 'resuelta'
+  anotado_en: string
+  resuelto_en: string | null
+  nota: string | null
+  resolucion: string | null
+  nota_disponible: boolean
 }
 /** MATU-92: el estado para la familia y las partes de un pedido pagado. Sin códigos de retiro (D-63-5). */
 export interface SeguimientoDoble {
@@ -355,7 +367,7 @@ export function atenderPedido(
   const ruta = (req.url ?? '').split('?')[0]
   const mDir = /^\/v1\/personas-cuidadas\/([^/]+)\/direccion$/.exec(ruta)
   const mPersona = /^\/v1\/personas-cuidadas\/([^/]+)\/(pedidos|pedido-en-curso|pedido-pagado)$/.exec(ruta)
-  const mPedido = /^\/v1\/pedidos\/([^/]+)(?:\/(lineas|reglas-faltante|confirmar|contacto|cambiar|cancelar|pagar|pago|seguimiento|retractos|cancelar-con-devolucion))?$/.exec(ruta)
+  const mPedido = /^\/v1\/pedidos\/([^/]+)(?:\/(lineas|reglas-faltante|confirmar|contacto|cambiar|cancelar|pagar|pago|seguimiento|retractos|cancelar-con-devolucion|lo-que-paso))?$/.exec(ruta)
   if (!mDir && !mPersona && !mPedido) return false
   res.setHeader('Cache-Control', 'no-store')
   const no = () => (problema(res, 404, '/errores/no-encontrado'), true)
@@ -490,6 +502,8 @@ export function atenderPedido(
   if (accion === 'pagar') return pagar(req, res, cuerpo, r, u, rol, p, sinPermiso), true
   // MATU-92: el seguimiento, los retractos y cancelar con devolución (tusPedidos.ts).
   if (accion === 'seguimiento' || accion === 'retractos' || accion === 'cancelar-con-devolucion') return atenderTusPedidos(req, res, cuerpo, r, u, rol, p, accion), true
+  // MATU-128: lo que pasó con el pedido, para quien lo pagó (tusPedidos.ts).
+  if (accion === 'lo-que-paso') return verLoQuePaso(req, res, r, u, p), true
   if (!editor(rol)) return no()
   const estado = estadoDe(p)
   const transicion = () => (problema(res, 409, '/errores/estado-pedido', { estado }), true)

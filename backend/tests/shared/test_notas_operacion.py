@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.shared.notas_operacion import (
     LARGO_MAXIMO_NOTA,
     CustodiaNotas,
+    NotaConContacto,
     NotaInvalida,
     NotasNoDisponibles,
     aad_nota,
@@ -22,7 +23,7 @@ from app.shared.notas_operacion import (
     descifrar_nota,
     validar_nota,
 )
-from app.shared.notas_operacion_sql import deks
+from app.shared.notas_operacion_sql import abrir_clave, deks
 
 pytestmark = [pytest.mark.rf("RF-40"), pytest.mark.rf("Ley-21.719")]
 
@@ -40,13 +41,21 @@ def dek() -> bytes:
 def test_la_nota_se_cifra_y_se_descifra_con_su_incidencia_y_su_campo(dek: bytes, texto: str) -> None:
     incidencia = uuid.uuid4()
     cifrado = cifrar_nota(dek, incidencia, "descripcion", texto)
-    # El cuerpo cifrado no es el texto. Con un texto corto («x»), un byte al azar del nonce o de la etiqueta puede
-    # coincidir con él: la búsqueda como subcadena solo vale desde 8 bytes (antes fallaba ~1 de cada 9 corridas)
-    assert cifrado[12:-16] != texto.encode("utf-8")
-    if len(texto.encode("utf-8")) >= 8:
-        assert texto.encode("utf-8") not in cifrado
     assert CIFRADO_MIN <= len(cifrado) <= CIFRADO_MAX
     assert descifrar_nota(dek, incidencia, "descripcion", cifrado) == texto
+
+
+# Que el texto no quede en claro se prueba solo con notas de 16 bytes o más. AES-GCM cifra en modo contador (el cuerpo
+# es el texto XOR un flujo al azar), así que una nota de 1 byte sale igual a sí misma 1 de cada 256 veces, y una
+# búsqueda como subcadena en el cifrado completo coincide aún más seguido (MATU-128, O1: dejó en rojo el CI). Desde
+# 16 bytes, que el texto aparezca en alguna posición del cifrado tiene una probabilidad menor que 2^-100: la prueba
+# no depende del azar
+@pytest.mark.parametrize("texto", ["Faltó un paquete de pañales; se devolvió su monto", "x" * LARGO_MAXIMO_NOTA])
+def test_la_nota_cifrada_no_lleva_el_texto_en_claro(dek: bytes, texto: str) -> None:
+    claro = texto.encode("utf-8")
+    assert len(claro) >= 16
+    cifrado = cifrar_nota(dek, uuid.uuid4(), "descripcion", texto)
+    assert claro not in cifrado
 
 
 def test_el_nonce_cambia_en_cada_cifrado(dek: bytes) -> None:
@@ -165,3 +174,117 @@ def test_deks_falla_cerrada_con_una_clave_vigente_que_no_se_abre(caso: str) -> N
     with pytest.raises(NotasNoDisponibles) as error:
         _deks(filas, usada, [clave])
     assert str(error.value) == "las notas de operación no se pueden cifrar"
+
+
+# --- MATU-128 (R5, C9): sin correos, teléfonos ni RUT---------------------------------------------------------------
+
+CON_CONTACTO = [
+    "Escribir a contacto.familia@correo.ejemplo",
+    "correo:a@b.cl",
+    "Llamar al +56 9 1234 5678",
+    "Llamar al +56912345678",
+    "Llamar al 56 9 1234 5678",
+    "Celular 912345678",
+    "Celular 9 8765 4321 de la vecina",
+    "Celular 9-8765-4321",
+    "Fijo (2) 2345 6789",
+    "Fijo 2 2345 6789",
+    "Fijo +56 2 2345 6789",
+    "Fijo 32 234 5678",
+    "Faltaron 2 912345678",
+    "Llamar al 09 8765 4321",
+]
+SIN_CONTACTO = [
+    "Faltaron 2 de 10 unidades",
+    "Se devolvieron $25.980 a la tarjeta",
+    "Se devolvió $1.290.000",
+    "Pedido 4790, entregado el 19/11/2026 a las 14:30",
+    "Fecha 19-11-2026",
+    "La farmacia no tenía una de las bolsas",
+    "Referencia ABCD22 de la parte",
+    "Código interno a1b2c3912345678d4",
+    "123 456 789 unidades",
+    "x" * LARGO_MAXIMO_NOTA,
+]
+# El RUT (decisión de Jorge del 19-11): con los puntos de los miles o sin ellos, con el guion y el dígito verificador,
+# también la K. Todos sintéticos
+CON_RUT = [
+    "Se usó el RUT 76000000-1 del comercio",
+    "RUT 12.345.678-5",
+    "RUT 12345678-5",
+    "rut: 7.654.321-K de quien recibió",
+    "rut 7654321-k",
+    "Recibió (11.111.111-1).",
+    "11.111.111-1",
+    "Lo firmó 9.876.543-3, la vecina",
+    "Dos RUT: 12.345.678-5 y 7654321-K",
+]
+# Lo que tiene números y guiones o puntos, pero no la forma de un RUT: montos, fechas, referencias de pedido de cuatro
+# dígitos, números de serie y cantidades
+SIN_RUT = [
+    "Se devolvieron $69.000 a la tarjeta",
+    "Se cobró $1.290.000 y se devolvieron $69.000",
+    "Se devolvieron $12.345.678",
+    "Entregado el 19-11-2026; el 19/11/2026 se anotó",
+    "Fecha 2026-11-19 a las 14:30",
+    "Pedido 4790-2, reemplaza al pedido 4789",
+    "Pedidos 4790 y 4791, del 19.11.2026",
+    "Número de serie SN-20931-7 de la silla",
+    "Serie SN12345678-9 del colchón",
+    "Lote 2026-1234567-1 del proveedor",
+    "Serie 12345678-9A de la bomba",
+    "Serie 12345678-90 del equipo",
+    "Código 1.234.567.890-1 del despacho",
+    "12345678 unidades",
+    "Quedaron 123456-7 en la referencia",
+]
+
+
+@pytest.mark.parametrize("texto", CON_CONTACTO)
+def test_r5_una_nota_con_forma_de_correo_o_telefono_no_pasa_y_el_error_no_la_repite(dek: bytes, texto: str) -> None:
+    with pytest.raises(NotaConContacto) as error:
+        validar_nota(texto)
+    assert str(error.value) == "la nota no puede llevar correos, teléfonos ni RUT"
+    assert texto not in repr(error.value)
+    # Es una nota inválida, y cifrar_nota tampoco la cifra
+    assert isinstance(error.value, NotaInvalida)
+    with pytest.raises(NotaConContacto):
+        cifrar_nota(dek, uuid.uuid4(), "resolucion", texto)
+
+
+@pytest.mark.parametrize("texto", SIN_CONTACTO)
+def test_r5_montos_fechas_cantidades_y_referencias_si_pasan(texto: str) -> None:
+    assert validar_nota(texto) == texto
+
+
+@pytest.mark.parametrize("texto", CON_RUT)
+def test_r5_una_nota_con_forma_de_rut_no_pasa_y_el_error_no_la_repite(dek: bytes, texto: str) -> None:
+    """Decisión de Jorge del 19-11: el RUT, con puntos o sin ellos, con el guion y el dígito verificador, es el mismo
+    NotaConContacto, con el mensaje fijo. Sin el cambio, el RUT sin puntos pasaba (se apartaba para no leerlo como un
+    teléfono) y el RUT con puntos también (el punto no separa una tira de teléfono)."""
+    with pytest.raises(NotaConContacto) as error:
+        validar_nota(texto)
+    assert str(error.value) == "la nota no puede llevar correos, teléfonos ni RUT"
+    assert texto not in repr(error.value)
+    with pytest.raises(NotaConContacto):
+        cifrar_nota(dek, uuid.uuid4(), "descripcion", texto)
+
+
+@pytest.mark.parametrize("texto", SIN_RUT)
+def test_r5_montos_fechas_pedidos_y_numeros_de_serie_no_son_un_rut(texto: str) -> None:
+    assert validar_nota(texto) == texto
+
+
+def test_abrir_clave_sigue_las_reglas_de_deks() -> None:
+    """MATU-128: la clave que entrega pedido_lo_que_paso se abre como en deks(): destruida, None; sin versión (no se
+    vio), sin la custodia, con otra KEK u otra versión, NotasNoDisponibles."""
+    custodia = CustodiaNotas(secrets.token_bytes(32), 1)
+    dek, envuelta = custodia.nueva_dek()
+    assert abrir_clave(custodia, envuelta, 1) == dek
+    assert abrir_clave(custodia, None, 1) is None
+    assert abrir_clave(None, None, 1) is None
+    for usada, envoltura, version in ((custodia, envuelta, None), (custodia, None, None), (None, envuelta, 1),
+                                      (CustodiaNotas(secrets.token_bytes(32), 1), envuelta, 1),
+                                      (custodia, envuelta, 2)):
+        with pytest.raises(NotasNoDisponibles):
+            abrir_clave(usada, envoltura, version)

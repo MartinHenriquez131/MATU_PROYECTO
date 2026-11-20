@@ -5,6 +5,8 @@ Trabaja con la sesión de quien llama, con su contexto ya fijado:
 - operación (``app.rol = 'operacion'``) crea y lee claves (clave_notas_operacion_crear y clave_notas_operacion_leer);
 - quien es miembro activo del grupo las lee (clave_notas_familia_leer); en la aplicación, solo la copia de sus
   datos (payments/infrastructure/copia_pagos.py).
+- quien pagó un pedido no las lee aquí: recibe la de las notas de su pedido por pedido_lo_que_paso (MATU-128, 0036)
+  y la abre con abrir_clave (backoffice/infrastructure/lo_que_paso_sql.py).
 matu_app no cambia ni borra claves. La destrucción la hace la base (clave_notas_destruir), solo con el borrado de la
 persona (decisión de Jorge del 17-11): destruir la clave de la ficha no la toca. Ninguna sentencia lleva el texto de
 una nota ni una DEK en claro.
@@ -82,13 +84,21 @@ def deks(
         fila = filas.get(pedida)
         if fila is None:
             raise NotasNoDisponibles()
-        if fila.dek_cifrada_con_kek is None:
-            resultado[pedida] = None
-            continue
-        if custodia is None:
-            raise NotasNoDisponibles()
-        dek = custodia.desenvolver(bytes(fila.dek_cifrada_con_kek), int(fila.kek_version))
-        if dek is None:
-            raise NotasNoDisponibles()
-        resultado[pedida] = dek
+        resultado[pedida] = abrir_clave(custodia, fila.dek_cifrada_con_kek, fila.kek_version)
     return resultado
+
+
+def abrir_clave(custodia: CustodiaNotas | None, envuelta: bytes | None, kek_version: int | None) -> bytes | None:
+    """La DEK de una clave leída, o None si está destruida (envuelta en NULL con su versión). Con las mismas reglas de
+    deks(): NotasNoDisponibles si la clave no se vio (sin versión), si falta la custodia o si no se desenvuelve con
+    ella. MATU-128: la usa también «Lo que pasó con tu pedido», que lee la clave por pedido_lo_que_paso (0036)."""
+    if kek_version is None:
+        raise NotasNoDisponibles()
+    if envuelta is None:
+        return None
+    if custodia is None:
+        raise NotasNoDisponibles()
+    dek = custodia.desenvolver(bytes(envuelta), int(kek_version))
+    if dek is None:
+        raise NotasNoDisponibles()
+    return dek
