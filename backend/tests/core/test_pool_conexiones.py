@@ -31,6 +31,8 @@ from app.core.config import Configuracion, obtener_configuracion
 from app.core.db import obtener_fabrica_sesiones, opciones_pool
 from app.core.errores import DETALLE_POOL_AGOTADO, RETRY_AFTER_POOL_S, TIPO_PROBLEMA
 from app.main import crear_app
+from app.modules.iam.api.dependencias import obtener_clave_jwt
+from app.modules.payments.infrastructure.pasarela import obtener_pasarela
 from tests.base_datos import requiere_base
 
 pytestmark = [pytest.mark.rf("RNF-05")]
@@ -194,13 +196,21 @@ def test_el_pool_agotado_responde_503_rfc7807_con_retry_after() -> None:
 def test_con_el_pool_lleno_la_vuelta_de_webpay_responde_503_y_despues_vuelve() -> None:
     """Contra PostgreSQL, con un pool de una conexión y 1 s de espera: con la conexión ocupada, una ruta de verdad
     (POST /v1/pagos/retorno, que abre una transacción para buscar la venta) responde 503; libre, responde lo de
-    siempre (404, el token no es de ninguna venta)."""
+    siempre (404, el token no es de ninguna venta).
+
+    Solo la base es real. La clave JWT y la pasarela son las de la prueba: la sesión opcional de la vuelta lee la
+    clave antes de abrir la base, y sin JWT_CLAVE en el entorno (el CI no la define) respondía 500 por eso y no por el
+    pool (CI del PR #128). El 503 se reconoce además por el evento pool_agotado del log."""
     url = obtener_configuracion().database_url.get_secret_value()
     assert url
     engine = create_engine(url, pool_size=1, max_overflow=0, pool_timeout=1, pool_pre_ping=True, hide_parameters=True)
     fabrica = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
-    app = crear_app(stream_logs=io.StringIO())
+    salida = io.StringIO()
+    app = crear_app(stream_logs=salida)
     app.dependency_overrides[obtener_fabrica_sesiones] = lambda: fabrica
+    clave = secrets.token_hex(32).encode()
+    app.dependency_overrides[obtener_clave_jwt] = lambda: clave
+    app.dependency_overrides[obtener_pasarela] = lambda: None
     cuerpo = {"token_ws": secrets.token_hex(32)}
     try:
         with TestClient(app, raise_server_exceptions=False) as cliente:
@@ -215,7 +225,9 @@ def test_con_el_pool_lleno_la_vuelta_de_webpay_responde_503_y_despues_vuelve() -
     finally:
         engine.dispose()
 
-    assert lleno.status_code == 503
+    errores = [linea.get("tipo_error") for linea in _lineas(salida) if linea.get("tipo_error")]
+    assert lleno.status_code == 503, f"errores no controlados: {errores}"
+    assert [linea for linea in _lineas(salida) if linea.get("evento") == "pool_agotado"]
     assert lleno.headers["Retry-After"] == str(RETRY_AFTER_POOL_S)
     assert lleno.json()["type"] == "/errores/servicio-no-disponible"
     assert 1 <= espera < 5  # esperó DB_POOL_TIMEOUT, no los 30 s de antes
