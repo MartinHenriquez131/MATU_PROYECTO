@@ -70,10 +70,15 @@ Cada historia agrega aquí lo suyo:
   (local y pruebas), incluida produccion, y falla cerrada: ausente o vacía es la lista vacía y nadie activa push. Una
   entrada que no es UUID impide cargar la configuración, con un mensaje que nombra la variable y nunca el valor. Solo
   la consulta app/core/push_piloto.py
+- MATU-79 (deuda): DATABASE_URL, SCHEDULER_DATABASE_URL, PUBLISHER_DATABASE_URL, REDIS_URL y WEBPAY_CODIGO_COMERCIO
+  son SecretStr, como las claves: ni el repr, ni el str, ni model_dump muestran su valor. Quien necesita el valor lo
+  pide con .get_secret_value() en el punto de uso (el motor, las tareas, los clientes de Redis, la pasarela), y nunca
+  lo pasa a un log ni a un mensaje. PUSH_CUENTAS_PERMITIDAS no sale en el repr ni en model_dump (exclude=True)
 """
 
 import base64
 import binascii
+import re
 import uuid
 from datetime import date
 from functools import lru_cache
@@ -145,16 +150,16 @@ class Configuracion(BaseSettings):
     log_nivel: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
     # Conexión de la API como matu_app. Vacía solo en pruebas que no tocan la base.
-    # MATU-79: las cadenas de conexión llevan la contraseña del rol. repr=False las saca del repr y del str de la
-    # configuración (un log o una traza que la imprima). Siguen siendo str, y no SecretStr, para no cambiar ningún uso:
-    # el motor, las tareas y las pruebas las leen tal cual
-    database_url: str = Field(default="", repr=False)
+    # MATU-79: la cadena de conexión lleva la contraseña del rol. SecretStr la saca del repr, del str y de model_dump
+    # (un log, una traza o un volcado de la configuración). El motor la lee con .get_secret_value()
+    database_url: SecretStr = SecretStr("")
 
     # MATU-74 (H2): las conexiones de las tareas, nunca de la API. SCHEDULER_DATABASE_URL como matu_scheduler, para
     # enumerar los grupos y llamar a las funciones de borrado y conservación; PUBLISHER_DATABASE_URL como
-    # matu_publisher, para las funciones del outbox. El trabajo por grupo sigue con DATABASE_URL (matu_app y RLS)
-    scheduler_database_url: str = Field(default="", repr=False)
-    publisher_database_url: str = Field(default="", repr=False)
+    # matu_publisher, para las funciones del outbox. El trabajo por grupo sigue con DATABASE_URL (matu_app y RLS).
+    # MATU-79: SecretStr, como DATABASE_URL. app/tareas.py las lee con .get_secret_value()
+    scheduler_database_url: SecretStr = SecretStr("")
+    publisher_database_url: SecretStr = SecretStr("")
 
     # Versión vigente de la política de privacidad (docs/legal/politica-privacidad.md del
     # repositorio MATU), en formato MAYOR.MENOR. Un valor con otro formato impide cargar la
@@ -237,8 +242,8 @@ class Configuracion(BaseSettings):
     origen_web: str = Field(default="https://localhost", pattern=r"^https://[^/#?]+$")
 
     # Redis de las sesiones de relevo (MATU-19). Local por omisión; en otro entorno, desde .env
-    # MATU-79: repr=False, como las de la base: en Railway la URL de Redis lleva la contraseña
-    redis_url: str = Field(default="redis://127.0.0.1:6379/0", repr=False)
+    # MATU-79: SecretStr, como DATABASE_URL: en Railway la URL de Redis lleva la contraseña
+    redis_url: SecretStr = SecretStr("redis://127.0.0.1:6379/0")
 
     # Build de la aplicación web (MATU-23, ADR-026): la API sirve index.html en /r y en las rutas de la
     # app de familia (MATU-58), y los archivos de /assets, en el mismo origen. Sin la carpeta, /r y las
@@ -262,8 +267,9 @@ class Configuracion(BaseSettings):
     # MATU-62 (ADR-027, decisión 228): la pasarela del pago. Ver la cabecera de este archivo. Las credenciales de
     # producción viven solo en el entorno (Railway): nunca en el código, el repositorio ni los logs
     pasarela_pago: Literal["integracion", "produccion", "falsa"] | None = None
-    # MATU-79: el código de comercio de producción no es una clave, pero identifica la cuenta de Transbank: repr=False
-    webpay_codigo_comercio: str | None = Field(default=None, pattern=r"^[0-9]{6,12}$", repr=False)
+    # MATU-79: el código de comercio de producción no es una clave, pero identifica la cuenta de Transbank: SecretStr.
+    # Su formato (6 a 12 dígitos) lo revisa _codigo_comercio_de_digitos: pydantic no aplica pattern a un SecretStr
+    webpay_codigo_comercio: SecretStr | None = None
     webpay_llave: SecretStr | None = Field(default=None, min_length=16)
     # Decisión 230 (P-62-6): una venta iniciada cuenta como pago en curso durante estos minutos. Martín midió en
     # integración que la venta de Webpay vence a los 7 minutos; 8 deja 1 minuto de margen (Jorge, 12-11, MATU-94)
@@ -282,9 +288,11 @@ class Configuracion(BaseSettings):
     codigo_retiro_secreto: SecretStr | None = Field(default=None, min_length=32, repr=False)
 
     # MATU-107 (C14): las cuentas del equipo que pueden activar los avisos push fuera de local y pruebas. Ver la
-    # cabecera de este archivo. NoDecode: se lee como texto separado por comas, no como JSON. repr=False: la lista
-    # nunca aparece en el repr de la configuración, un log ni un error
-    push_cuentas_permitidas: Annotated[frozenset[uuid.UUID], NoDecode] = Field(default_factory=frozenset, repr=False)
+    # cabecera de este archivo. NoDecode: se lee como texto separado por comas, no como JSON. repr=False y exclude=True
+    # (MATU-79): la lista nunca aparece en el repr de la configuración, en model_dump, un log ni un error
+    push_cuentas_permitidas: Annotated[frozenset[uuid.UUID], NoDecode] = Field(
+        default_factory=frozenset, repr=False, exclude=True
+    )
 
     @field_validator(
         "pepper_email",
@@ -354,6 +362,14 @@ class Configuracion(BaseSettings):
             raise ValueError("KEK_ENTORNO debe ser una clave de 32 bytes aleatorios en base64")
         return valor
 
+    @field_validator("webpay_codigo_comercio")
+    @classmethod
+    def _codigo_comercio_de_digitos(cls, valor: SecretStr | None) -> SecretStr | None:
+        # El mensaje es fijo: nunca lleva el código (y hide_input_in_errors oculta el valor recibido)
+        if valor is not None and not re.fullmatch(r"[0-9]{6,12}", valor.get_secret_value()):
+            raise ValueError("WEBPAY_CODIGO_COMERCIO debe tener de 6 a 12 dígitos")
+        return valor
+
     @field_validator("vapid_clave_privada")
     @classmethod
     def _vapid_p256(cls, valor: SecretStr | None) -> SecretStr | None:
@@ -399,7 +415,7 @@ class Configuracion(BaseSettings):
             valor = secreto.get_secret_value()
             if valor == kek or valor.encode("utf-8") == kek_bytes:
                 raise ValueError(f"KEK_ENTORNO y {nombre} deben ser claves distintas")
-        if kek in self.database_url:
+        if kek in self.database_url.get_secret_value():
             raise ValueError("KEK_ENTORNO no puede ser parte de DATABASE_URL")
         return self
 

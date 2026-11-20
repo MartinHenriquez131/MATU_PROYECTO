@@ -498,7 +498,8 @@ def test_lista_responde_en_utc_aunque_la_base_use_otra_zona(entorno_personas: En
     grupo = entorno_personas.grupo_con_roles(a)
     assert entorno_personas.crear(a.token, grupo, cuerpo_alta("cuidador_de_hecho")).status_code == 201
     engine = create_engine(
-        obtener_configuracion().database_url, connect_args={"options": "-c timezone=America/Santiago"}
+        obtener_configuracion().database_url.get_secret_value(),
+        connect_args={"options": "-c timezone=America/Santiago"},
     )
     fabrica = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     _app(entorno_personas).dependency_overrides[obtener_fabrica_sesiones] = lambda: fabrica

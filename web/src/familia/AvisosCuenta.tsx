@@ -61,15 +61,17 @@ function ErrorLectura({ texto, reintentar, anunciar = true }: { texto: string; r
 function useLectura<T>(leer: () => Promise<unknown>, valida: (x: unknown) => x is T) {
   const [carga, setCarga] = useState<Carga<T>>({ estado: 'cargando' })
   const vivo = useRef(true)
+  // `leer` y `valida` no cambian entre renders: se guardan una vez, al montar (MATU-79).
+  const fuente = useRef({ leer, valida })
   const cargar = useCallback(async () => {
     setCarga({ estado: 'cargando' })
+    const { leer, valida } = fuente.current
     try {
       const x = await leer()
       if (vivo.current) setCarga(valida(x) ? { estado: 'lista', datos: x } : { estado: 'error' })
     } catch (e) {
       if (vivo.current && !esVencida(e)) setCarga({ estado: 'error' })
     }
-    // `leer` y `valida` no cambian entre renders: se leen una vez.
   }, [])
   useEffect(() => {
     vivo.current = true

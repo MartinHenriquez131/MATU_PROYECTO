@@ -25,7 +25,7 @@ class Base(DeclarativeBase):
 
 @lru_cache
 def obtener_engine() -> Engine:
-    url = obtener_configuracion().database_url
+    url = obtener_configuracion().database_url.get_secret_value()
     if not url:
         raise RuntimeError("Falta DATABASE_URL. Copia .env.example a .env y complétalo.")
     # MATU-79: hide_parameters saca los parámetros del texto de los errores de la base. Sin él, un DBAPIError trae

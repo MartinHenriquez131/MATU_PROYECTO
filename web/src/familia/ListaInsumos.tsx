@@ -11,7 +11,7 @@
 // bloque propio después de los botones, para admin y cuidador con la capa 3 encendida y solo si
 // alguna línea tiene producto del catálogo. La lista nunca compra sola (D10): solo pasa al pedido lo
 // que Carmen pide, con la cantidad que se ve convertida a envases del catálogo (6.3).
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CircleAlert, CloudOff, Copy, Hourglass, Info, ListChecks, Lock, Pencil, Plus, Printer, Share2, ShoppingBasket } from 'lucide-react'
 import { verCatalogo } from '../compartido/api/catalogo'
@@ -140,9 +140,11 @@ export function ListaDeInsumos() {
   }
 
   // 3.1: se pide al llegar, y otra vez cada vez que se vuelve a entrar (la pantalla se monta de nuevo).
+  // MATU-79: `cargar` cambia en cada render; el evento de efecto la llama solo cuando cambia `personaId`.
+  const cargarAlLlegar = useEffectEvent(() => void cargar())
   useEffect(() => {
-    void cargar()
-  }, [personaId]) // `cargar` lee `personaId`: basta con él
+    cargarAlLlegar()
+  }, [personaId])
 
   // 6.2: admin o cuidador sin el permiso van a Insumos, que es el único lugar donde se da.
   useEffect(() => {

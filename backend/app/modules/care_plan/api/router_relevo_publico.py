@@ -112,7 +112,8 @@ _PROBLEMA: dict[str, Any] = {"content": {"application/problem+json": {}}}
 
 @lru_cache
 def _sesiones_redis() -> SesionesRelevo:
-    return SesionesRelevoRedis(redis.Redis.from_url(obtener_configuracion().redis_url, socket_timeout=2))
+    url = obtener_configuracion().redis_url.get_secret_value()
+    return SesionesRelevoRedis(redis.Redis.from_url(url, socket_timeout=2))
 
 
 def obtener_sesiones_relevo() -> SesionesRelevo:

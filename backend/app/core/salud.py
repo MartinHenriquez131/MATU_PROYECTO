@@ -39,7 +39,7 @@ Comprobacion = tuple[str, Callable[[], None]]
 
 @lru_cache
 def _engine_salud() -> Engine:
-    url = obtener_configuracion().database_url
+    url = obtener_configuracion().database_url.get_secret_value()
     if not url:
         raise RuntimeError("Falta DATABASE_URL")
     return create_engine(
@@ -59,7 +59,9 @@ def comprobar_base() -> None:
 
 def comprobar_redis() -> None:
     cliente = redis.Redis.from_url(
-        obtener_configuracion().redis_url, socket_timeout=TIEMPO_LIMITE_S, socket_connect_timeout=TIEMPO_LIMITE_S
+        obtener_configuracion().redis_url.get_secret_value(),
+        socket_timeout=TIEMPO_LIMITE_S,
+        socket_connect_timeout=TIEMPO_LIMITE_S,
     )
     try:
         if not cliente.ping():

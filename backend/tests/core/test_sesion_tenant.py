@@ -150,7 +150,7 @@ class Semilla:
 @pytest.fixture
 def fabrica_una_conexion() -> Iterator[sessionmaker[Session]]:
     """Un pool de una sola conexión: dos transacciones seguidas usan la misma."""
-    url = obtener_configuracion().database_url
+    url = obtener_configuracion().database_url.get_secret_value()
     assert url
     engine = create_engine(url, pool_size=1, max_overflow=0)
     try:

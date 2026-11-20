@@ -284,9 +284,10 @@ def fabrica_tareas(config: Configuracion) -> sessionmaker[Session]:
     """La fábrica de sesiones de matu_app para las tareas: como la de la API (app/core/db.py), con tope de conexión.
 
     Un engine propio para no cambiar el de la API web. No conecta todavía."""
-    if not config.database_url:
+    url = config.database_url.get_secret_value()
+    if not url:
         raise RuntimeError("Falta DATABASE_URL")
-    return _fabrica(config.database_url)
+    return _fabrica(url)
 
 
 def fabrica_de_rol(url: str, rol: str) -> sessionmaker[Session] | None:
@@ -381,7 +382,7 @@ def codigo_retiro(
     config = config or obtener_configuracion()
     configurar_logs(config.log_nivel, stream)
     extra: dict[str, object] = {"tarea": "codigo_retiro", "corrida": str(uuid.uuid4())}
-    fabrica = fabrica_de_rol(config.scheduler_database_url, ROL_SCHEDULER)
+    fabrica = fabrica_de_rol(config.scheduler_database_url.get_secret_value(), ROL_SCHEDULER)
     if fabrica is None:
         log.error("tarea", extra={**extra, "resultado": FALLO, "falta": VARIABLE_DE[ROL_SCHEDULER]})
         return SALIDA_FALLO
@@ -423,7 +424,7 @@ def operacion_alta(
     config = config or obtener_configuracion()
     configurar_logs(config.log_nivel, stream)
     extra: dict[str, object] = {"tarea": "operacion_alta", "corrida": str(uuid.uuid4())}
-    fabrica = fabrica_de_rol(config.scheduler_database_url, ROL_SCHEDULER)
+    fabrica = fabrica_de_rol(config.scheduler_database_url.get_secret_value(), ROL_SCHEDULER)
     if fabrica is None:
         log.error("tarea", extra={**extra, "resultado": FALLO, "falta": VARIABLE_DE[ROL_SCHEDULER]})
         return SALIDA_FALLO
@@ -467,8 +468,8 @@ def main(argv: Sequence[str] | None = None, *, stream: TextIO | None = None) -> 
         config=config,
         fabrica=fabrica,
         reloj=RelojSistema(),
-        fabrica_scheduler=fabrica_de_rol(config.scheduler_database_url, ROL_SCHEDULER),
-        fabrica_publisher=fabrica_de_rol(config.publisher_database_url, ROL_PUBLISHER),
+        fabrica_scheduler=fabrica_de_rol(config.scheduler_database_url.get_secret_value(), ROL_SCHEDULER),
+        fabrica_publisher=fabrica_de_rol(config.publisher_database_url.get_secret_value(), ROL_PUBLISHER),
     )
     return correr(nombres, contexto)
 
