@@ -1,5 +1,7 @@
 """MATU-80 · El script de k6 (infra/carga/pedido.js) mide y exige cada paso del flujo de RNF-05 (hallazgo H4 de Martín,
-17-11). Pruebas estáticas sobre el texto del script y su instructivo: no corren k6, ni la API, ni la base."""
+17-11) contra la meta que elige CARGA_META: la del piloto (10 usuarios, 0 % de fallos y la mediana de cada paso bajo
+800 ms) o la de producción (50 usuarios y el p95 bajo 800 ms), según la arquitectura, sección 2.2 (hallazgo P3 de
+Martín, 21-11). Pruebas estáticas sobre el texto del script y su instructivo: no corren k6, ni la API, ni la base."""
 
 import re
 from pathlib import Path
@@ -21,10 +23,72 @@ def _lista(nombre: str) -> list[str]:
     return re.findall(r"['\"]([\w-]+)['\"]", encontrada.group(1))
 
 
+def _bloque_metas() -> str:
+    inicio = SCRIPT.find("const METAS = {\n")
+    assert inicio >= 0, "falta METAS en pedido.js"
+    return SCRIPT[inicio : SCRIPT.index("\n}\n", inicio)]
+
+
+def _meta(nombre: str) -> dict[str, str]:
+    """Los campos de una meta de METAS en pedido.js, como texto: `usuarios: 10,` queda {"usuarios": "10"}."""
+    encontrada = re.search(rf"^  {nombre}: \{{\n(.*?)\n  \}},?$", _bloque_metas(), re.DOTALL | re.MULTILINE)
+    assert encontrada is not None, f"falta la meta {nombre} en METAS"
+    return dict(re.findall(r"^    (\w+): (.+?),?$", encontrada.group(1), re.MULTILINE))
+
+
+def test_hay_solo_dos_metas_y_la_de_omision_es_la_del_piloto() -> None:
+    assert re.findall(r"^  (\w+): \{$", _bloque_metas(), re.MULTILINE) == ["piloto", "produccion"]
+    assert "const CARGA_META = __ENV.CARGA_META || 'piloto'" in SCRIPT
+    assert "const META = METAS[CARGA_META]" in SCRIPT
+
+
+def test_una_meta_que_no_existe_no_deja_partir_la_carga() -> None:
+    # Como BASE_URL: se revisa al cargar el script, antes de que k6 lea las opciones o envíe una petición
+    guarda = re.search(
+        r"if \(!Object\.prototype\.hasOwnProperty\.call\(METAS, CARGA_META\)\) \{\n\s+throw new Error\('CARGA_META",
+        SCRIPT,
+    )
+    assert guarda is not None, "pedido.js no se niega a partir con una CARGA_META desconocida"
+    assert guarda.start() < SCRIPT.index("const META = METAS[CARGA_META]")
+    assert guarda.start() < SCRIPT.index("export const options")
+
+
+def test_la_meta_del_piloto_es_la_mediana_de_cada_paso_sin_fallos_con_10_usuarios() -> None:
+    piloto = _meta("piloto")
+    assert piloto["usuarios"] == "10"
+    assert piloto["porPaso"] == "'med<800'"
+    assert piloto["fallidas"] == "'rate==0'"
+    # El p95 se informa, no se exige: ni por paso ni en total
+    assert piloto["total"] == "null"
+
+
+def test_la_meta_de_produccion_es_el_p95_por_paso_y_en_total_con_50_usuarios() -> None:
+    produccion = _meta("produccion")
+    assert produccion["usuarios"] == "50"
+    assert produccion["porPaso"] == "'p(95)<800'"
+    assert produccion["total"] == "'p(95)<800'"
+    assert produccion["fallidas"] == "'rate<0.01'"
+
+
+def test_los_umbrales_salen_de_la_meta_activa() -> None:
+    assert "umbrales[`http_req_duration{paso:${paso}}`] = [META.porPaso]" in SCRIPT
+    assert "return META.total ? { http_req_duration: [META.total] } : {}" in SCRIPT
+    assert "...umbralTotal()," in SCRIPT
+    assert "http_req_failed: [META.fallidas]," in SCRIPT
+    # Ningún umbral de tiempo ni de fallos escrito a mano fuera de METAS: ningún modo puede quedar exigiendo el otro
+    opciones = SCRIPT[SCRIPT.index("function umbralesPorPaso") : SCRIPT.index("const JSON_CT")]
+    for escrito_a_mano in ("p(95)<", "med<", "rate<0.01", "rate==0"):
+        assert escrito_a_mano not in opciones
+
+
+def test_los_usuarios_por_omision_son_los_de_la_meta_y_se_pueden_sobrescribir() -> None:
+    assert "const USUARIOS = parseInt(__ENV.CARGA_USUARIOS || String(META.usuarios), 10)" in SCRIPT
+    assert "vus: USUARIOS," in SCRIPT
+
+
 def test_los_pasos_exigidos_son_el_flujo_de_rnf05() -> None:
     assert _lista("PASOS_RNF05") == PASOS_RNF05
-    assert "const META_P95_MS = 800" in SCRIPT
-    assert "umbrales[`http_req_duration{paso:${paso}}`] = [`p(95)<${META_P95_MS}`]" in SCRIPT
+    assert "for (const paso of PASOS_RNF05) umbrales[`http_req_duration{paso:${paso}}`]" in SCRIPT
 
 
 def test_toda_etiqueta_paso_del_script_tiene_su_umbral_y_su_fila_en_el_resumen() -> None:
@@ -91,10 +155,8 @@ def test_entrar_se_mide_sin_exigirle_la_meta() -> None:
     assert "'no se exige'" in SCRIPT
 
 
-def test_se_mantienen_el_umbral_total_y_los_de_funcionamiento() -> None:
-    assert "http_req_duration: [`p(95)<${META_P95_MS}`]" in SCRIPT
-    assert "checks: ['rate>0.99']" in SCRIPT
-    assert "http_req_failed: ['rate<0.01']" in SCRIPT
+def test_se_mantiene_el_umbral_de_checks_en_las_dos_metas() -> None:
+    assert "checks: ['rate>0.99']," in SCRIPT
 
 
 def test_el_resumen_da_p50_p95_y_p99_por_paso_sin_datos_personales() -> None:
@@ -103,6 +165,14 @@ def test_el_resumen_da_p50_p95_y_p99_por_paso_sin_datos_personales() -> None:
     resumen = SCRIPT[SCRIPT.index("function resumenPorPaso") :]
     for estadistica in ("v.med", "v['p(95)']", "v['p(99)']"):
         assert estadistica in resumen
+    # La tabla dice contra qué meta se mide cada fila y si la cumple: en el piloto el p95 se ve, pero no decide
+    assert "const filas = [['paso', 'meta', 'med', 'p95', 'p99', 'estado']]" in resumen
+    assert "META.metaPaso" in resumen
+    assert "meta ${CARGA_META}: ${META.descripcion}" in resumen
+    assert "(meta ${META.metaFallidas})" in resumen
+    assert "? 'CUMPLE' : 'NO CUMPLE'" in SCRIPT
+    assert _meta("piloto")["metaPaso"] == "'med < 800 ms'"
+    assert _meta("produccion")["metaPaso"] == "'p95 < 800 ms'"
     # Solo métricas agregadas: ni la sesión, ni las credenciales, ni los cuerpos llegan al resumen
     for prohibido in ("sesion", "token", "CONTRASENA", "email", ".json(", "console.log"):
         assert prohibido not in resumen
@@ -115,3 +185,12 @@ def test_el_instructivo_explica_como_leer_y_donde_se_anota() -> None:
     assert "Qué significa que falle uno" in README
     assert "`TESTER/`" in README
     assert "ajustar la meta de RNF-05 en la arquitectura" in README
+
+
+def test_el_instructivo_explica_las_dos_metas() -> None:
+    assert "| `CARGA_META` | `pedido.js` |" in README
+    assert "| `piloto` (por omisión) | 10 |" in README
+    assert "| `produccion` | 50 |" in README
+    for umbral in ("`med<800`", "`rate==0`", "`p(95)<800`"):
+        assert umbral in README
+    assert "CARGA_META=produccion k6 run infra/carga/pedido.js" in README

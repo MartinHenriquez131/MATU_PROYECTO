@@ -1,5 +1,8 @@
 // MATU-80 · Carga básica del flujo de pedido (estrategia de pruebas, sección 2): catálogo, pedido y pago con la
-// pasarela falsa, 50 usuarios virtuales y el percentil 95 bajo 800 ms. Instructivo: infra/carga/README.md.
+// pasarela falsa. Mide cada paso contra la meta de RNF-05 (arquitectura, sección 2.2), que tiene dos modos:
+//   piloto      10 usuarios virtuales, 0 % de fallos y la mediana de cada paso bajo 800 ms. El p95 se informa
+//   produccion  50 usuarios virtuales y el p95 bajo 800 ms en cada paso y en total, en un equipo representativo
+// Instructivo: infra/carga/README.md.
 //
 // Cada usuario virtual es una familia de carga (cargaNN@example.com, de infra/carga/preparar_carga.py). Entra una
 // vez y repite: ve el catálogo, arma un pedido de un pañal del «Comercio de Carga», confirma el total, lo paga y
@@ -8,7 +11,8 @@
 // Variables, del lado de quien lo corre (nunca en este archivo):
 //   CARGA_CONTRASENA  la contraseña de las cuentas de carga (la SEMILLA_CONTRASENA de preparar_carga.py). Obligatoria
 //   BASE_URL          la API local, por omisión http://localhost:8000. Solo localhost o 127.0.0.1
-//   CARGA_USUARIOS    usuarios virtuales, por omisión 50 (tantos como cuentas preparadas)
+//   CARGA_META        la meta que se exige: piloto (por omisión) o produccion. Otro valor y el script no parte
+//   CARGA_USUARIOS    usuarios virtuales, por omisión los de la meta: 10 en piloto y 50 en produccion
 //   CARGA_DURACION    por omisión 3m
 //   CARGA_COMERCIO    el nombre_fantasia del comercio de carga, por omisión «Comercio de Carga»
 
@@ -16,9 +20,44 @@ import http from 'k6/http'
 import { check, fail, sleep } from 'k6'
 import exec from 'k6/execution'
 
+// Las dos metas de RNF-05 (arquitectura, sección 2.2, y estrategia de pruebas, sección 2; decisión del 20-11). Cada una
+// dice qué estadística se exige en cada paso, si se exige el total, cuántos fallos se aceptan y con cuántos usuarios
+// se corre si CARGA_USUARIOS no dice otra cosa. Las dos piden 800 ms: cambia la estadística, no el límite
+const METAS = {
+  // El piloto atiende a pocas familias: 10 usuarios, ningún fallo y la mediana de cada paso bajo 800 ms. El p95 y el
+  // p99 salen en el resumen para informarlos, sin exigirlos. El total no se exige: incluye `entrar`, que no es parte
+  // del flujo de RNF-05
+  piloto: {
+    usuarios: 10,
+    porPaso: 'med<800',
+    total: null,
+    fallidas: 'rate==0',
+    descripcion: '10 usuarios, 0 % de fallos y mediana < 800 ms en cada paso; el p95 se informa',
+    metaPaso: 'med < 800 ms',
+    metaFallidas: '= 0 %',
+  },
+  // La meta de producción: 50 usuarios y el p95 bajo 800 ms en cada paso y en total, medida en un equipo
+  // representativo (no en el de desarrollo, donde con 50 usuarios todos los pasos suben juntos)
+  produccion: {
+    usuarios: 50,
+    porPaso: 'p(95)<800',
+    total: 'p(95)<800',
+    fallidas: 'rate<0.01',
+    descripcion: '50 usuarios, menos de 1 % de fallos y p95 < 800 ms en cada paso y en total',
+    metaPaso: 'p95 < 800 ms',
+    metaFallidas: '< 1 %',
+  },
+}
+
+const CARGA_META = __ENV.CARGA_META || 'piloto'
+if (!Object.prototype.hasOwnProperty.call(METAS, CARGA_META)) {
+  throw new Error('CARGA_META debe ser piloto o produccion: la carga no parte con una meta que no existe')
+}
+const META = METAS[CARGA_META]
+
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
 const CONTRASENA = __ENV.CARGA_CONTRASENA || ''
-const USUARIOS = parseInt(__ENV.CARGA_USUARIOS || '50', 10)
+const USUARIOS = parseInt(__ENV.CARGA_USUARIOS || String(META.usuarios), 10)
 const DURACION = __ENV.CARGA_DURACION || '3m'
 const COMERCIO = __ENV.CARGA_COMERCIO || 'Comercio de Carga'
 const TELEFONO = '+56 9 5555 0177'
@@ -30,22 +69,21 @@ if (!['localhost', '127.0.0.1'].includes(HOST)) {
 }
 
 // Los pasos del flujo, con la etiqueta `paso` que lleva cada petición. Los de PASOS_RNF05 son el flujo de RNF-05
-// (arquitectura, sección 2.2: catálogo a pedido a pago bajo 800 ms en p95 con 50 usuarios), y cada uno tiene su umbral
-// propio para saber cuál es el lento (hallazgo H4 de Martín, 17-11). `entrar` no es parte de RNF-05: se mide, pero no
+// (arquitectura, sección 2.2: del catálogo al retorno del pago), y cada uno tiene su umbral propio, el de la meta
+// activa, para saber cuál es el lento (hallazgo H4 de Martín, 17-11). `entrar` no es parte de RNF-05: se mide, pero no
 // se exige (ver el umbral más abajo).
 //
-// `retorno` lleva la misma meta de 800 ms aunque sea la vuelta de Webpay: con PASARELA_PAGO=falsa la venta se aprueba
-// en memoria (payments/infrastructure/pasarela_falsa.py, sin esperas ni red), así que el paso mide solo el trabajo de
-// MATU al cerrar el pago. Con Transbank de verdad se sumaría la latencia de su API, que esta carga no mide ni puede
-// medir (nunca va contra Transbank)
+// `retorno` lleva la misma meta que los demás aunque sea la vuelta de Webpay: con PASARELA_PAGO=falsa la venta se
+// aprueba en memoria (payments/infrastructure/pasarela_falsa.py, sin esperas ni red), así que el paso mide solo el
+// trabajo de MATU al cerrar el pago. Con Transbank de verdad se sumaría la latencia de su API, que esta carga no mide
+// ni puede medir (nunca va contra Transbank)
 const PASOS_RNF05 = ['catalogo', 'pedido', 'confirmar', 'pagar', 'retorno']
 const PASOS = ['entrar', ...PASOS_RNF05]
-const META_P95_MS = 800
 
 function umbralesPorPaso() {
   const umbrales = {}
-  for (const paso of PASOS_RNF05) umbrales[`http_req_duration{paso:${paso}}`] = [`p(95)<${META_P95_MS}`]
-  // `entrar` es el inicio de sesión: argon2id gasta CPU a propósito para que adivinar contraseñas cueste, y los 50
+  for (const paso of PASOS_RNF05) umbrales[`http_req_duration{paso:${paso}}`] = [META.porPaso]
+  // `entrar` es el inicio de sesión: argon2id gasta CPU a propósito para que adivinar contraseñas cueste, y todos los
   // usuarios entran a la vez al partir, así que su tiempo es alto por diseño. Además ocurre una vez por usuario, no en
   // cada pedido. Un umbral de 800 ms mentiría sobre RNF-05 y uno holgado mentiría sobre la meta: `max>=0` siempre se
   // cumple, y solo está para que k6 calcule la submétrica del paso y salga en el resumen
@@ -53,19 +91,24 @@ function umbralesPorPaso() {
   return umbrales
 }
 
+function umbralTotal() {
+  // En producción, el umbral de la estrategia de pruebas: p95 bajo 800 ms en todas las peticiones del script. Incluye
+  // `entrar`, así que es más exigente que RNF-05: si falla solo este y pasan los de cada paso, el culpable es el inicio
+  // de sesión. En el piloto el total se mide y no se exige
+  return META.total ? { http_req_duration: [META.total] } : {}
+}
+
 export const options = {
   scenarios: {
     pedido: { executor: 'constant-vus', vus: USUARIOS, duration: DURACION, gracefulStop: '30s' },
   },
   thresholds: {
-    // El umbral de la estrategia de pruebas: p95 bajo 800 ms en todas las peticiones del script. Incluye `entrar`, así
-    // que es más exigente que RNF-05: si falla solo este y pasan los de cada paso, el culpable es el inicio de sesión
-    http_req_duration: [`p(95)<${META_P95_MS}`],
-    // El mismo umbral por paso: dice cuál de los pasos del flujo es el lento
+    ...umbralTotal(),
+    // El umbral de la meta activa por paso: dice cuál de los pasos del flujo es el lento
     ...umbralesPorPaso(),
-    // El flujo de punta a punta tiene que funcionar, no solo responder rápido
+    // El flujo de punta a punta tiene que funcionar, no solo responder rápido. El piloto no acepta ningún fallo
     checks: ['rate>0.99'],
-    http_req_failed: ['rate<0.01'],
+    http_req_failed: [META.fallidas],
   },
   // Se guardan los cuerpos porque el flujo los lee con .json() (ids, etag y token de la venta). k6 no los muestra
   // en el resumen, y el script nunca los imprime
@@ -194,9 +237,10 @@ export default function (datos) {
 }
 
 // --- El resumen por paso --------------------------------------------------------------------------------------
-// Reemplaza el resumen de k6 en la terminal por uno que muestra p50, p95 y p99 de cada paso y si cumple su umbral.
-// Solo usa métricas agregadas: ningún correo, token, id ni cuerpo de respuesta llega a `datos.metrics`. El código de
-// salida de k6 no cambia: sigue siendo distinto de 0 si un umbral falla
+// Reemplaza el resumen de k6 en la terminal por uno que muestra la mediana, el p95 y el p99 de cada paso, la meta
+// activa (CARGA_META) y si la cumple. Las tres estadísticas salen siempre, se exija la que se exija. Solo usa métricas
+// agregadas: ningún correo, token, id ni cuerpo de respuesta llega a `datos.metrics`. El código de salida de k6 no
+// cambia: sigue siendo distinto de 0 si un umbral falla
 
 function ms(valor) {
   return typeof valor === 'number' ? `${Math.round(valor)} ms` : '-'
@@ -205,22 +249,24 @@ function ms(valor) {
 function cumple(metrica) {
   const umbrales = Object.values((metrica && metrica.thresholds) || {})
   if (umbrales.length === 0) return '-'
-  return umbrales.every((u) => u.ok) ? 'cumple' : 'NO CUMPLE'
+  return umbrales.every((u) => u.ok) ? 'CUMPLE' : 'NO CUMPLE'
 }
 
 function resumenPorPaso(datos) {
-  const filas = [['paso', 'meta p95', 'p50', 'p95', 'p99', 'umbral']]
+  const filas = [['paso', 'meta', 'med', 'p95', 'p99', 'estado']]
   for (const paso of PASOS) {
     const exigido = PASOS_RNF05.includes(paso)
     const m = datos.metrics[`http_req_duration{paso:${paso}}`]
     const v = (m && m.values) || {}
     const estado = !m ? 'sin datos' : exigido ? cumple(m) : 'no se exige'
-    const meta = exigido ? `< ${META_P95_MS} ms` : 'se mide'
+    const meta = exigido ? META.metaPaso : 'se mide'
     filas.push([paso, meta, ms(v.med), ms(v['p(95)']), ms(v['p(99)']), estado])
   }
   const total = datos.metrics.http_req_duration
   const vt = (total && total.values) || {}
-  filas.push(['total', `< ${META_P95_MS} ms`, ms(vt.med), ms(vt['p(95)']), ms(vt['p(99)']), cumple(total)])
+  const metaTotal = META.total ? META.metaPaso : 'se mide'
+  const estadoTotal = !total ? 'sin datos' : META.total ? cumple(total) : 'no se exige'
+  filas.push(['total', metaTotal, ms(vt.med), ms(vt['p(95)']), ms(vt['p(99)']), estadoTotal])
 
   const anchos = filas[0].map((_, i) => Math.max(...filas.map((f) => f[i].length)))
   const linea = (f) => f.map((celda, i) => celda.padEnd(anchos[i])).join('  ')
@@ -230,12 +276,19 @@ function resumenPorPaso(datos) {
   const chequeos = datos.metrics.checks
   const fallidas = datos.metrics.http_req_failed
   const iteraciones = datos.metrics.iterations
+  const tasaFallidas = fallidas ? (fallidas.values.rate * 100).toFixed(2) : '-'
   const pie = [
     `checks: ${chequeos ? (chequeos.values.rate * 100).toFixed(2) : '-'} % (meta > 99 %), ${cumple(chequeos)}`,
-    `http_req_failed: ${fallidas ? (fallidas.values.rate * 100).toFixed(2) : '-'} % (meta < 1 %), ${cumple(fallidas)}`,
+    `http_req_failed: ${tasaFallidas} % (meta ${META.metaFallidas}), ${cumple(fallidas)}`,
     `iteraciones completas: ${iteraciones ? iteraciones.values.count : 0}`,
   ]
-  return ['', 'MATU-80 · Tiempos por paso (RNF-05)', '', ...tabla, '', ...pie, ''].join('\n')
+  const encabezado = [
+    '',
+    `MATU-80 · Tiempos por paso (RNF-05), meta ${CARGA_META}: ${META.descripcion}`,
+    `usuarios virtuales: ${USUARIOS}`,
+    '',
+  ]
+  return [...encabezado, ...tabla, '', ...pie, ''].join('\n')
 }
 
 export function handleSummary(datos) {
