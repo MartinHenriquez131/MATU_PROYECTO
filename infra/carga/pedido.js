@@ -118,6 +118,15 @@ export const options = {
 
 const JSON_CT = { 'Content-Type': 'application/json' }
 
+// Las dos respuestas no 2xx que el flujo espera y de las que se recupera. Por omisión k6 cuenta en `http_req_failed`
+// toda respuesta 4xx o 5xx, y el piloto exige 0 % de fallos: sin esto, un flujo que funciona marcaría NO CUMPLE. Cada
+// una vale solo para su petición, y con el éxito que ya se acepta más el código esperado; ninguna otra petición se
+// vuelve más tolerante:
+// - el 409 de crear un pedido cuando quedó uno sin pagar de una corrida anterior (C4): se cancela y se arma de nuevo
+// - el 401 del catálogo cuando el access token venció (dura 15 minutos): se vuelve a entrar
+const ESPERADAS_PEDIDO = http.expectedStatuses(201, 409)
+const ESPERADAS_CATALOGO = http.expectedStatuses(200, 401)
+
 function uuid4() {
   // Una Idempotency-Key nueva por intento, como la pantalla
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -165,9 +174,14 @@ function cabeceras(extra = {}) {
 function crearPedido(oferta) {
   const ruta = `${BASE_URL}/v1/personas-cuidadas/${sesion.persona}/pedidos`
   const cuerpo = JSON.stringify({ lineas: [{ oferta_id: oferta, cantidad: 1 }] })
-  let r = http.post(ruta, cuerpo, { headers: cabeceras({ 'Idempotency-Key': uuid4() }), tags: { paso: 'pedido' } })
+  let r = http.post(ruta, cuerpo, {
+    headers: cabeceras({ 'Idempotency-Key': uuid4() }),
+    tags: { paso: 'pedido' },
+    responseCallback: ESPERADAS_PEDIDO,
+  })
   if (r.status === 409) {
-    // Un pedido sin pagar de una corrida anterior (C4): se cancela sin costo y se arma de nuevo
+    // Un pedido sin pagar de una corrida anterior (C4): se cancela sin costo y se arma de nuevo. El segundo intento ya no
+    // espera el 409: si vuelve a responderlo, es un fallo
     const abierto = http.get(`${BASE_URL}/v1/personas-cuidadas/${sesion.persona}/pedido-en-curso`, {
       headers: cabeceras(),
       tags: { paso: 'pedido' },
@@ -187,7 +201,11 @@ export default function (datos) {
   if (sesion === null) entrar()
 
   // 1. El catálogo, y la oferta del comercio de carga
-  const catalogo = http.get(`${BASE_URL}/v1/catalogo`, { headers: cabeceras(), tags: { paso: 'catalogo' } })
+  const catalogo = http.get(`${BASE_URL}/v1/catalogo`, {
+    headers: cabeceras(),
+    tags: { paso: 'catalogo' },
+    responseCallback: ESPERADAS_CATALOGO,
+  })
   if (catalogo.status === 401) {
     // El access token dura 15 minutos: se vuelve a entrar
     entrar()

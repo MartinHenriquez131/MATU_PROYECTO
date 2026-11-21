@@ -150,6 +150,39 @@ def test_toda_peticion_del_flujo_lleva_su_paso() -> None:
     assert set(previas) == COMPROBACION_PREVIA
 
 
+def test_las_respuestas_esperadas_declaran_sus_codigos() -> None:
+    # El 409 de C4 y el 401 del token vencido son parte del flujo: con `rate==0` en el piloto, sin su lista de códigos
+    # esperados contarían en http_req_failed (observación O1 del QA, 21-11). Solo el éxito de hoy más ese código
+    assert "const ESPERADAS_PEDIDO = http.expectedStatuses(201, 409)" in SCRIPT
+    assert "const ESPERADAS_CATALOGO = http.expectedStatuses(200, 401)" in SCRIPT
+    assert SCRIPT.count("http.expectedStatuses(") == 2
+    # Cada lista va con la petición que maneja ese código, justo antes de su rama de recuperación
+    for constante, rama in (
+        ("ESPERADAS_PEDIDO", "if (r.status === 409) {"),
+        ("ESPERADAS_CATALOGO", "if (catalogo.status === 401) {"),
+    ):
+        uso = SCRIPT.index(f"responseCallback: {constante},")
+        assert uso < SCRIPT.index(rama) < uso + 120
+
+
+def test_solo_esas_dos_peticiones_tienen_codigos_esperados_propios() -> None:
+    # Ninguna otra petición se vuelve más tolerante: ni un responseCallback más, ni uno global para todo el script
+    con_lista = []
+    for llamada in LLAMADA_HTTP.finditer(SCRIPT):
+        argumentos = _argumentos(llamada.end() - 1)
+        lista = re.search(r"\bresponseCallback:\s*(\w+)", argumentos)
+        if lista:
+            paso = ETIQUETA_PASO.search(argumentos)
+            assert paso is not None
+            con_lista.append((paso.group(0), lista.group(1)))
+    assert con_lista == [("paso: 'pedido'", "ESPERADAS_PEDIDO"), ("paso: 'catalogo'", "ESPERADAS_CATALOGO")]
+    assert SCRIPT.count("responseCallback") == 2
+    assert "setResponseCallback" not in SCRIPT
+    # El segundo intento de crear el pedido, después de cancelar, ya no espera el 409
+    segundo = SCRIPT.index("    r = http.post(ruta, cuerpo,")
+    assert "responseCallback" not in _argumentos(SCRIPT.index("(", segundo))
+
+
 def test_entrar_se_mide_sin_exigirle_la_meta() -> None:
     assert "umbrales['http_req_duration{paso:entrar}'] = ['max>=0']" in SCRIPT
     assert "'no se exige'" in SCRIPT
@@ -194,3 +227,4 @@ def test_el_instructivo_explica_las_dos_metas() -> None:
     for umbral in ("`med<800`", "`rate==0`", "`p(95)<800`"):
         assert umbral in README
     assert "CARGA_META=produccion k6 run infra/carga/pedido.js" in README
+    assert "El 409 y el 401 esperados no cuentan como fallo" in README
