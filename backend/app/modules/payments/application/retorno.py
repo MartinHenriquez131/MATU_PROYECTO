@@ -113,7 +113,11 @@ def procesar(
             if venta.retorno_recibido_en is None:
                 # La marca del retorno (decisión 245): la primera vuelta que llegó
                 venta = replace(venta, retorno_recibido_en=ahora)
-                repo.guardar_venta(venta)
+                if caso is not CasoRetorno.COMMIT:
+                    # MATU-80 (RNF-05): en el commit la guarda cobro.confirmar, en el mismo UPDATE que pasa la venta a
+                    # autorizando y en la misma transacción. Guardarla aquí también era una escritura de más sobre
+                    # transaccion_pasarela, la tabla más cara de planificar por sus políticas
+                    repo.guardar_venta(venta)
             if caso is CasoRetorno.COMMIT:
                 cierre = cobro.confirmar(unidad, pasarela, venta, ahora, vida)
             else:

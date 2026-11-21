@@ -47,13 +47,27 @@ def opciones_pool(config: Configuracion) -> dict[str, Any]:
 # transaccion_pasarela pasa de unas 300 filas, el costo estimado supera jit_above_cost (100 000) y PostgreSQL compila
 # cada consulta con LLVM: 2,5 a 7 s por consulta (medido en matu_wt62), contra 15 a 25 ms sin JIT. Con 10 usuarios, la
 # vuelta de Webpay tardaba 20 s de mediana. El JIT sirve para consultas analíticas largas, no para las de MATU
-OPCIONES_SESION = "-c jit=off"
+#
+# MATU-80 (RNF-05, la vuelta de Webpay): sin el JIT queda la planificación de esas mismas consultas, de 80 a 120 ms cada
+# una (EXPLAIN en matu_wt62), y la vuelta hace cinco así. Planificarlas cada vez es lo que la hacía lenta. Ahora cada
+# conexión planifica cada consulta una sola vez y reutiliza el plan:
+# - PREPARAR_DESDE (prepare_threshold de psycopg): la consulta se prepara en el servidor la primera vez que corre. Con
+#   el valor por omisión, 5, psycopg la mandaba sin preparar cinco veces, y PostgreSQL la planificaba las cinco.
+# - plan_cache_mode=force_generic_plan: una consulta preparada usa su plan genérico desde la primera ejecución. Con el
+#   modo auto, PostgreSQL hace cinco planes a la medida antes de probar el genérico, que en MATU elige siempre (las
+#   consultas buscan por id o por grupo, sin datos sesgados). El plan genérico guarda las políticas RLS enteras, con
+#   current_setting dentro, así que el contexto de cada transacción (sesion_tenant) se lee al ejecutar, no al
+#   planificar: reutilizarlo no cruza datos entre familias.
+# psycopg guarda como mucho 100 consultas preparadas por conexión (prepared_max) y descarta la menos usada.
+OPCIONES_SESION = "-c jit=off -c plan_cache_mode=force_generic_plan"
+PREPARAR_DESDE = 0
 
 
 def argumentos_conexion(connect_timeout: int | None = None) -> dict[str, Any]:
-    """Los connect_args de psycopg de un motor de MATU (MATU-80, K2): las opciones de la sesión (OPCIONES_SESION) y,
-    si se da, el tope para conectar en segundos (connect_timeout de libpq, el de las tareas)."""
-    argumentos: dict[str, Any] = {"options": OPCIONES_SESION}
+    """Los connect_args de psycopg de un motor de MATU (MATU-80, K2 y RNF-05): las opciones de la sesión
+    (OPCIONES_SESION), cuándo se preparan las consultas (PREPARAR_DESDE) y, si se da, el tope para conectar en
+    segundos (connect_timeout de libpq, el de las tareas)."""
+    argumentos: dict[str, Any] = {"options": OPCIONES_SESION, "prepare_threshold": PREPARAR_DESDE}
     if connect_timeout is not None:
         argumentos["connect_timeout"] = connect_timeout
     return argumentos
