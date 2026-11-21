@@ -53,9 +53,13 @@ def sin_env(configuracion_sin_env: None) -> None:
 
 @pytest.fixture
 def engine_de_la_api_sin_cache() -> Iterator[None]:
+    # MATU-80 (RNF-05): también la fábrica, que guarda el engine. Si no, la API sigue con el engine anterior y las
+    # pruebas que vienen después miran uno que la API ya no usa
     db.obtener_engine.cache_clear()
+    db.fabrica_sesiones.cache_clear()
     yield
     db.obtener_engine.cache_clear()
+    db.fabrica_sesiones.cache_clear()
 
 
 # --- La configuración -------------------------------------------------------------------------------------------
